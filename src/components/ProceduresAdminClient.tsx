@@ -1,0 +1,573 @@
+"use client";
+
+import React, { useState } from "react";
+import { useRouter } from "next/navigation";
+import {
+  BookOpen,
+  CheckCircle2,
+  Clock,
+  FilePlus,
+  ShieldAlert,
+  SlidersHorizontal,
+} from "lucide-react";
+import {
+  AREA_LABELS,
+  DocumentRequirement,
+  ProcedureSection,
+  ResponsibleArea,
+  TaskTemplate,
+} from "@/domain/types";
+import { formatDateTimeBr } from "@/lib/format";
+
+interface EnrichedProcedure {
+  id: string;
+  code: string;
+  title: string;
+  responsibleArea: ResponsibleArea;
+  areaLabel: string;
+  activeVersionId: string | null;
+  publishedVersion: {
+    id: string;
+    versionNumber: number;
+    status: "DRAFT" | "PUBLISHED" | "ARCHIVED";
+    content: string;
+    sections: ProcedureSection[];
+    authorName: string;
+    publishedAt: string | null;
+  } | null;
+  allVersions: Array<{
+    id: string;
+    versionNumber: number;
+    status: "DRAFT" | "PUBLISHED" | "ARCHIVED";
+    title: string;
+    content: string;
+    sections: ProcedureSection[];
+    authorName: string;
+    publishedAt: string | null;
+    createdAt: string;
+  }>;
+}
+
+export function ProceduresAdminClient({
+  procedures,
+  taskTemplates,
+  documentRequirements,
+  internalStaff,
+  canManageProcedures,
+}: {
+  procedures: EnrichedProcedure[];
+  taskTemplates: TaskTemplate[];
+  documentRequirements: DocumentRequirement[];
+  internalStaff: Array<{ id: string; fullName: string }>;
+  canManageProcedures: boolean;
+}) {
+  const router = useRouter();
+  const [showNewForm, setShowNewForm] = useState(false);
+  const [code, setCode] = useState("PROC-COM-02");
+  const [title, setTitle] = useState(
+    "Conferência de Acessórios e Carregador Wallbox (Regra Demonstrativa)"
+  );
+  const [responsibleArea, setResponsibleArea] =
+    useState<ResponsibleArea>("OPERATIONS");
+  const [content, setContent] = useState(
+    "Procedimento demonstrativo sujeito à validação da concessionária para conferência de itens de série e carregadores."
+  );
+  const [secNum, setSecNum] = useState("1.1");
+  const [secHeading, setSecHeading] = useState("Checklist de Carregamento");
+  const [secBody, setSecBody] = useState(
+    "Conferir presença do carregador portátil e registrar número de série antes da autorização de liberação."
+  );
+  const [publishImmediately, setPublishImmediately] = useState(true);
+  const [loading, setLoading] = useState(false);
+  const [feedback, setFeedback] = useState<string | null>(null);
+
+  async function handleSaveProcedure(e: React.FormEvent) {
+    e.preventDefault();
+    setLoading(true);
+    setFeedback(null);
+    try {
+      const res = await fetch("/api/admin", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "CREATE_OR_PUBLISH_PROCEDURE",
+          code,
+          title,
+          responsibleArea,
+          content,
+          sections: [
+            {
+              sectionNumber: secNum,
+              heading: secHeading,
+              body: secBody,
+            },
+          ],
+          publishImmediately,
+        }),
+      });
+      const data = await res.json();
+      if (res.ok && data.ok) {
+        setShowNewForm(false);
+        setFeedback(
+          publishImmediately
+            ? "Nova versão de procedimento publicada e ativa para orientações oficiais!"
+            : "Rascunho de procedimento salvo (não alimenta orientações oficiais até ser publicado)."
+        );
+        router.refresh();
+      } else {
+        setFeedback(data.error || "Erro ao salvar procedimento.");
+      }
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handlePublishDraft(versionId: string) {
+    setLoading(true);
+    try {
+      const res = await fetch("/api/admin", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "PUBLISH_DRAFT_PROCEDURE",
+          versionId,
+        }),
+      });
+      const data = await res.json();
+      if (res.ok && data.ok) {
+        setFeedback(
+          "Versão promovida de Rascunho para Publicado! Agora alimenta as orientações oficiais."
+        );
+        router.refresh();
+      }
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleUpdateSla(
+    taskTemplateId: string,
+    slaHours: number,
+    defaultAssigneeId: string | null
+  ) {
+    setLoading(true);
+    try {
+      await fetch("/api/admin", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "UPDATE_SLA",
+          taskTemplateId,
+          slaHours,
+          defaultAssigneeId,
+        }),
+      });
+      setFeedback("Prazo operacional (SLA) e responsável padrão atualizados.");
+      router.refresh();
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <div className="space-y-8">
+      {/* Cabeçalho */}
+      <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-xs flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <span className="inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-amber-800 bg-amber-100 px-2.5 py-0.5 rounded">
+            <ShieldAlert className="h-3.5 w-3.5" />
+            <span>Regras Demonstrativas Sujeitas à Validação da Concessionária</span>
+          </span>
+          <h1 className="text-2xl font-extrabold text-slate-900 mt-2">
+            Procedimentos, Modelos de Processo e Prazos
+          </h1>
+          <p className="text-xs sm:text-sm text-slate-600 mt-0.5">
+            Somente procedimentos com estado <strong>Publicado</strong> alimentam as orientações oficiais das tarefas e o Assistente Contextual. Alterar o modelo não modifica silenciosamente negociações já abertas.
+          </p>
+        </div>
+
+        {canManageProcedures && (
+          <button
+            type="button"
+            onClick={() => setShowNewForm((v) => !v)}
+            className="inline-flex items-center gap-2 rounded-xl bg-teal-600 hover:bg-teal-700 px-4 py-2.5 text-xs sm:text-sm font-bold text-white shrink-0"
+          >
+            <FilePlus className="h-4 w-4" />
+            <span>Novo Procedimento / Nova Versão</span>
+          </button>
+        )}
+      </div>
+
+      {feedback && (
+        <div className="rounded-xl bg-emerald-50 border border-emerald-300 p-4 text-xs text-emerald-950 font-semibold">
+          {feedback}
+        </div>
+      )}
+
+      {/* Formulário de Criação/Publicação de Procedimento */}
+      {showNewForm && canManageProcedures && (
+        <form
+          onSubmit={handleSaveProcedure}
+          className="bg-white rounded-2xl border-2 border-teal-500 p-6 shadow-md space-y-4 text-xs"
+        >
+          <h2 className="text-base font-bold text-slate-900">
+            Criar ou Versionar Procedimento Operacional
+          </h2>
+          <div className="grid sm:grid-cols-3 gap-4">
+            <div>
+              <label className="font-semibold text-slate-700 block">
+                Código do Procedimento *
+              </label>
+              <input
+                type="text"
+                required
+                value={code}
+                onChange={(e) => setCode(e.target.value)}
+                className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-mono text-slate-900"
+              />
+            </div>
+            <div>
+              <label className="font-semibold text-slate-700 block">
+                Área Responsável *
+              </label>
+              <select
+                value={responsibleArea}
+                onChange={(e) =>
+                  setResponsibleArea(e.target.value as ResponsibleArea)
+                }
+                className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-slate-900"
+              >
+                {(Object.keys(AREA_LABELS) as ResponsibleArea[]).map((ar) => (
+                  <option key={ar} value={ar}>
+                    {AREA_LABELS[ar]}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="flex items-end">
+              <label className="flex items-center gap-2 font-bold text-slate-800 pb-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={publishImmediately}
+                  onChange={(e) => setPublishImmediately(e.target.checked)}
+                />
+                <span>Publicar versão imediatamente</span>
+              </label>
+            </div>
+            <div className="sm:col-span-3">
+              <label className="font-semibold text-slate-700 block">
+                Título do Procedimento *
+              </label>
+              <input
+                type="text"
+                required
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-slate-900"
+              />
+            </div>
+            <div className="sm:col-span-3">
+              <label className="font-semibold text-slate-700 block">
+                Resumo / Escopo Geral *
+              </label>
+              <textarea
+                rows={2}
+                required
+                value={content}
+                onChange={(e) => setContent(e.target.value)}
+                className="mt-1 w-full rounded-lg border border-slate-300 p-2 text-slate-900"
+              />
+            </div>
+            <div>
+              <label className="font-semibold text-slate-700 block">
+                Seção Nº
+              </label>
+              <input
+                type="text"
+                value={secNum}
+                onChange={(e) => setSecNum(e.target.value)}
+                className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-slate-900"
+              />
+            </div>
+            <div className="sm:col-span-2">
+              <label className="font-semibold text-slate-700 block">
+                Título da Seção
+              </label>
+              <input
+                type="text"
+                value={secHeading}
+                onChange={(e) => setSecHeading(e.target.value)}
+                className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-slate-900"
+              />
+            </div>
+            <div className="sm:col-span-3">
+              <label className="font-semibold text-slate-700 block">
+                Conteúdo Normativo da Seção
+              </label>
+              <textarea
+                rows={2}
+                value={secBody}
+                onChange={(e) => setSecBody(e.target.value)}
+                className="mt-1 w-full rounded-lg border border-slate-300 p-2 text-slate-900"
+              />
+            </div>
+          </div>
+          <div className="flex justify-end gap-2">
+            <button
+              type="button"
+              onClick={() => setShowNewForm(false)}
+              className="rounded-lg border border-slate-300 px-4 py-2 font-bold text-slate-700"
+            >
+              Cancelar
+            </button>
+            <button
+              type="submit"
+              disabled={loading}
+              className="rounded-lg bg-teal-600 px-5 py-2 font-bold text-white"
+            >
+              {publishImmediately
+                ? "Salvar e Publicar Versão"
+                : "Salvar como Rascunho"}
+            </button>
+          </div>
+        </form>
+      )}
+
+      {/* Lista de Procedimentos e Suas Versões (Publicado vs Rascunho) */}
+      <section className="space-y-4">
+        <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
+          <BookOpen className="h-5 w-5 text-teal-600" />
+          <span>Procedimentos da Concessionária ({procedures.length})</span>
+        </h2>
+
+        <div className="space-y-4">
+          {procedures.map((proc) => (
+            <div
+              key={proc.id}
+              className="bg-white rounded-2xl border border-slate-200 p-6 shadow-xs space-y-4"
+            >
+              <div className="flex flex-wrap items-start justify-between gap-2 border-b border-slate-200 pb-3">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono text-xs font-bold bg-slate-900 text-white px-2.5 py-0.5 rounded">
+                      {proc.code}
+                    </span>
+                    <span className="text-xs font-bold bg-blue-50 text-blue-900 border border-blue-200 px-2.5 py-0.5 rounded">
+                      Área: {proc.areaLabel}
+                    </span>
+                  </div>
+                  <h3 className="text-lg font-extrabold text-slate-900 mt-1">
+                    {proc.title}
+                  </h3>
+                </div>
+
+                {proc.publishedVersion ? (
+                  <span className="inline-flex items-center gap-1.5 rounded-md bg-emerald-50 border border-emerald-300 px-3 py-1 text-xs font-bold text-emerald-950">
+                    <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+                    <span>
+                      Versão Ativa Publicada: v
+                      {proc.publishedVersion.versionNumber}
+                    </span>
+                  </span>
+                ) : (
+                  <span className="rounded-md bg-amber-100 px-3 py-1 text-xs font-bold text-amber-900">
+                    Apenas Rascunho (Não ativo)
+                  </span>
+                )}
+              </div>
+
+              {proc.publishedVersion && (
+                <div className="space-y-2 text-xs">
+                  <p className="text-slate-700 font-medium">
+                    {proc.publishedVersion.content}
+                  </p>
+                  <div className="grid sm:grid-cols-2 gap-2.5 pt-1">
+                    {proc.publishedVersion.sections.map((sec) => (
+                      <div
+                        key={sec.sectionNumber}
+                        className="rounded-xl bg-slate-50 border border-slate-200 p-3"
+                      >
+                        <div className="font-bold text-slate-900">
+                          Seção {sec.sectionNumber} — {sec.heading}
+                        </div>
+                        <p className="text-slate-600 mt-1">{sec.body}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Todas as versões (incluindo rascunhos e arquivadas) */}
+              <div className="pt-2 border-t border-slate-100 space-y-2">
+                <div className="text-xs font-bold text-slate-600">
+                  Histórico de Versões deste Procedimento:
+                </div>
+                <div className="divide-y divide-slate-200 border border-slate-200 rounded-xl overflow-hidden text-xs">
+                  {proc.allVersions.map((ver) => (
+                    <div
+                      key={ver.id}
+                      className="p-3 bg-slate-50/60 flex flex-wrap items-center justify-between gap-2"
+                    >
+                      <div>
+                        <span className="font-bold text-slate-900">
+                          Versão v{ver.versionNumber} — {ver.title}
+                        </span>
+                        <span
+                          className={`ml-2 rounded px-2 py-0.5 text-[10px] font-bold ${
+                            ver.status === "PUBLISHED"
+                              ? "bg-emerald-100 text-emerald-900"
+                              : ver.status === "DRAFT"
+                              ? "bg-amber-100 text-amber-900"
+                              : "bg-slate-200 text-slate-700"
+                          }`}
+                        >
+                          {ver.status === "PUBLISHED"
+                            ? "PUBLICADO (Alimenta Orientações)"
+                            : ver.status === "DRAFT"
+                            ? "RASCUNHO (Oculto do Assistente)"
+                            : "ARQUIVADO"}
+                        </span>
+                        <div className="text-[11px] text-slate-500 mt-0.5">
+                          Autor: {ver.authorName} •{" "}
+                          {ver.publishedAt
+                            ? `Publicado em ${formatDateTimeBr(ver.publishedAt)}`
+                            : `Criado em ${formatDateTimeBr(ver.createdAt)}`}
+                        </div>
+                      </div>
+
+                      {ver.status === "DRAFT" && canManageProcedures && (
+                        <button
+                          type="button"
+                          disabled={loading}
+                          onClick={() => handlePublishDraft(ver.id)}
+                          className="rounded-lg bg-teal-600 hover:bg-teal-700 px-3 py-1.5 text-xs font-bold text-white"
+                        >
+                          Publicar esta Versão (v{ver.versionNumber})
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* Configuração de Prazos Operacionais (SLA), Responsáveis e Documentos Exigidos por Condição */}
+      <section className="bg-white rounded-2xl border border-slate-200 p-6 shadow-xs space-y-4">
+        <div className="flex items-center gap-2">
+          <SlidersHorizontal className="h-5 w-5 text-teal-600" />
+          <div>
+            <h2 className="text-base font-bold text-slate-900">
+              Modelo de Processo Versionado — Prazos (SLA), Dependências e Condições
+            </h2>
+            <p className="text-xs text-slate-500">
+              Configure o prazo operacional (em horas) e o responsável padrão para novas negociações.
+            </p>
+          </div>
+        </div>
+
+        <div className="divide-y divide-slate-200 border border-slate-200 rounded-xl overflow-hidden text-xs">
+          {taskTemplates.map((tpl) => (
+            <div
+              key={tpl.id}
+              className="p-4 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3"
+            >
+              <div className="space-y-1 flex-1">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="font-mono font-bold text-slate-800 bg-slate-100 px-2 py-0.5 rounded">
+                    {tpl.code}
+                  </span>
+                  <span className="font-bold text-slate-900">{tpl.title}</span>
+                  <span className="text-[11px] bg-blue-50 text-blue-900 px-2 py-0.5 rounded font-semibold">
+                    {AREA_LABELS[tpl.responsibleArea]}
+                  </span>
+                </div>
+                <div className="text-slate-600">
+                  Condições de aplicabilidade:{" "}
+                  {tpl.applicabilityConditions.length > 0
+                    ? tpl.applicabilityConditions
+                        .map((c) => `${c.field} ${c.operator}`)
+                        .join(" AND ")
+                    : "Sempre obrigatória"}
+                  {" • "}Depende de:{" "}
+                  {tpl.dependsOnTaskCodes.length > 0
+                    ? tpl.dependsOnTaskCodes.join(", ")
+                    : "Nenhuma"}
+                </div>
+              </div>
+
+              {canManageProcedures && (
+                <div className="flex flex-wrap items-center gap-2 shrink-0">
+                  <label className="flex items-center gap-1 text-slate-600 font-medium">
+                    <Clock className="h-3.5 w-3.5" />
+                    <span>SLA (h):</span>
+                    <input
+                      type="number"
+                      min={1}
+                      max={720}
+                      defaultValue={tpl.slaHours}
+                      onBlur={(e) =>
+                        handleUpdateSla(
+                          tpl.id,
+                          Number(e.target.value),
+                          tpl.defaultAssigneeId
+                        )
+                      }
+                      className="w-16 rounded border border-slate-300 px-2 py-1 text-xs font-bold text-slate-900"
+                    />
+                  </label>
+                  <select
+                    defaultValue={tpl.defaultAssigneeId || ""}
+                    onChange={(e) =>
+                      handleUpdateSla(
+                        tpl.id,
+                        tpl.slaHours,
+                        e.target.value || null
+                      )
+                    }
+                    className="rounded border border-slate-300 px-2 py-1 text-xs text-slate-900"
+                  >
+                    <option value="">Sem responsável fixo</option>
+                    {internalStaff.map((st) => (
+                      <option key={st.id} value={st.id}>
+                        {st.fullName}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+
+        {/* Documentos Exigidos por Condição */}
+        <div className="pt-4 space-y-2">
+          <h3 className="text-sm font-bold text-slate-900">
+            Matriz de Documentos Exigidos por Condição da Negociação ({documentRequirements.length})
+          </h3>
+          <div className="grid sm:grid-cols-2 gap-3 text-xs">
+            {documentRequirements.map((dr) => (
+              <div
+                key={dr.id}
+                className="rounded-xl bg-slate-50 border border-slate-200 p-3 space-y-1"
+              >
+                <div className="font-bold text-slate-900">{dr.title}</div>
+                <div className="text-slate-600">{dr.whyRequired}</div>
+                <div className="text-[11px] text-teal-800 font-semibold">
+                  Condição:{" "}
+                  {dr.applicabilityConditions.length > 0
+                    ? dr.applicabilityConditions
+                        .map((c) => c.humanExplanation)
+                        .join(", ")
+                    : "Exigido em todas as negociações"}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+    </div>
+  );
+}

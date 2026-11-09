@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 320" fill="none">
+  <rect width="600" height="320" rx="16" fill="#0F172A"/>
+  <circle cx="480" cy="70" r="140" fill="#1E3A8A" fill-opacity="0.35"/>
+  <path d="M110 215L145 145C155 128 175 118 198 118H375C402 118 426 130 442 152L495 178C508 184 516 196 516 210V225C516 233 510 240 502 240H98C90 240 84 233 84 225V220C84 217 95 215 110 215Z" fill="#2563EB" stroke="#60A5FA" stroke-width="3"/>
+  <path d="M170 150L198 128H368L415 155H170Z" fill="#0F172A" stroke="#93C5FD" stroke-width="2"/>
+  <circle cx="175" cy="238" r="34" fill="#1E293B" stroke="#94A3B8" stroke-width="6"/>
+  <circle cx="175" cy="238" r="14" fill="#0D9488"/>
+  <circle cx="430" cy="238" r="34" fill="#1E293B" stroke="#94A3B8" stroke-width="6"/>
+  <circle cx="430" cy="238" r="14" fill="#0D9488"/>
+  <text x="32" y="46" fill="#E2E8F0" font-family="sans-serif" font-size="18" font-weight="bold">SUV HÍBRIDO PLUG-IN • PIN-BYD-001</text>
+  <text x="32" y="72" fill="#94A3B8" font-family="sans-serif" font-size="13">Song Plus DM-i • Azul Time • Ilustração Demonstrativa</text>
+</svg>

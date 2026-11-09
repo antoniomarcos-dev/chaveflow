@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 320" fill="none">
+  <rect width="600" height="320" rx="16" fill="#0F172A"/>
+  <path d="M95 218L145 155C162 136 188 126 215 126H372C402 126 430 138 450 160L510 185C520 190 526 200 526 212V226C526 234 520 240 512 240H88C80 240 74 234 74 226V222C74 219 82 218 95 218Z" fill="#F8FAFC" stroke="#94A3B8" stroke-width="3"/>
+  <path d="M168 158L208 135H368L422 158H168Z" fill="#1E293B" stroke="#CBD5E1" stroke-width="2"/>
+  <circle cx="172" cy="238" r="33" fill="#0F172A" stroke="#64748B" stroke-width="6"/>
+  <circle cx="172" cy="238" r="13" fill="#0D9488"/>
+  <circle cx="435" cy="238" r="33" fill="#0F172A" stroke="#64748B" stroke-width="6"/>
+  <circle cx="435" cy="238" r="13" fill="#0D9488"/>
+  <text x="32" y="46" fill="#E2E8F0" font-family="sans-serif" font-size="18" font-weight="bold">SEDAN HÍBRIDO PLUG-IN • PIN-BYD-003</text>
+  <text x="32" y="72" fill="#94A3B8" font-family="sans-serif" font-size="13">King GS DM-i • Branco Crystal • Ilustração Demonstrativa</text>
+</svg>
