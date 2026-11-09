@@ -2,10 +2,11 @@ import {
   getCustomerSafeDealView,
   listDealsForAuthenticatedCustomer,
 } from "@/application/customer-portal-service";
+import { CustomerPortalHome } from "@/components/CustomerPortalHome";
 import { CustomerPortalViewClient } from "@/components/CustomerPortalViewClient";
 import { AuthorizationError } from "@/domain/permissions";
 import { getServerSessionContext } from "@/lib/server-session";
-import { ArrowRight, CheckCircle2, KeyRound, ShieldAlert } from "lucide-react";
+import { ShieldAlert } from "lucide-react";
 import Link from "next/link";
 
 export default async function CustomerPortalIndexPage({
@@ -85,95 +86,10 @@ export default async function CustomerPortalIndexPage({
 
   // Caso 2: Cliente autenticado por sessão
   const customerDeals = ctx ? await listDealsForAuthenticatedCustomer(ctx) : [];
-
   return (
-    <div className="min-h-screen bg-slate-50">
-      <header className="bg-white border-b border-slate-200">
-        <div className="max-w-3xl mx-auto px-4 py-5 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-blue-600 flex items-center justify-center text-white shadow-sm">
-              <KeyRound className="w-5 h-5" />
-            </div>
-            <div>
-              <h1 className="text-lg font-bold text-slate-900">
-                ChaveFlow • Área do Comprador
-              </h1>
-              <p className="text-xs text-slate-500">
-                Acompanhamento seguro e transparente até a entrega das chaves
-              </p>
-            </div>
-          </div>
-          <Link
-            href="/login"
-            className="text-xs font-semibold text-blue-600 hover:text-blue-800"
-          >
-            Trocar conta / Login
-          </Link>
-        </div>
-      </header>
-
-      <main className="max-w-3xl mx-auto px-4 py-8 space-y-6">
-        {/* Negociações vinculadas à conta autenticada do cliente */}
-        {customerDeals.length > 0 && (
-          <section className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm space-y-3">
-            <h2 className="text-sm font-bold text-slate-900">
-              Suas Aquisições Vinculadas ({ctx?.profile.fullName})
-            </h2>
-            <div className="space-y-2.5">
-              {customerDeals.map((d) => (
-                <Link
-                  key={d.dealId}
-                  href={`/cliente/negociacoes/${d.dealId}`}
-                  className="p-4 rounded-xl border border-slate-200 hover:border-blue-400 bg-slate-50/70 flex items-center justify-between gap-3 transition"
-                >
-                  <div>
-                    <span className="font-mono text-xs font-bold text-blue-700">
-                      {d.dealNumber}
-                    </span>
-                    <p className="text-sm font-bold text-slate-900 mt-0.5">
-                      {d.vehicleLabel}
-                    </p>
-                    <p className="text-xs text-slate-500 mt-0.5">
-                      Situação: {d.statusLabel}
-                    </p>
-                  </div>
-                  <span className="inline-flex items-center gap-1 text-xs font-semibold text-blue-600">
-                    Acompanhar <ArrowRight className="w-4 h-4" />
-                  </span>
-                </Link>
-              ))}
-            </div>
-          </section>
-        )}
-
-        <section className="rounded-2xl bg-white border p-6 text-sm text-slate-600">
-          {ctx
-            ? "As negociações vinculadas à sua conta aparecem nesta página."
-            : "Entre na sua conta ou utilize o link individual enviado pela concessionária."}
-        </section>
-
-        <section className="bg-white rounded-2xl border border-slate-200 p-5 text-xs text-slate-600 space-y-2">
-          <p className="font-bold text-slate-900 flex items-center gap-1.5">
-            <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-            Garantias de Privacidade da Área do Cliente
-          </p>
-          <ul className="list-disc pl-5 space-y-1">
-            <li>
-              Exibe somente o veículo adquirido, etapas compartilháveis,
-              solicitações de documentos visíveis ao cliente, atualizações
-              públicas e contato do consultor comercial.
-            </li>
-            <li>
-              A previsão de entrega só exibe data quando confirmada oficialmente
-              por responsável autorizado da concessionária.
-            </li>
-            <li>
-              Observações internas, pareceres de crédito/documentação e trilha
-              de auditoria interna permanecem restritos à equipe autorizada.
-            </li>
-          </ul>
-        </section>
-      </main>
-    </div>
+    <CustomerPortalHome
+      name={ctx?.profile.isCustomerOnly ? ctx.profile.fullName : undefined}
+      deals={customerDeals}
+    />
   );
 }

@@ -61,7 +61,7 @@ export async function POST(req: NextRequest) {
       const tpl = await updateTaskTemplateSlaAndDefaultAssignee({
         ctx,
         taskTemplateId: String(body.taskTemplateId || ""),
-        slaHours: Number(body.slaHours || 24),
+        slaHours: Number(body.slaHours),
         defaultAssigneeId: body.defaultAssigneeId
           ? String(body.defaultAssigneeId)
           : null,

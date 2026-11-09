@@ -1,4 +1,8 @@
 ﻿import {
+  createCustomerAccountAccess,
+  manageCollaboratorAccess,
+} from "@/application/account-access-service";
+import {
   authenticateWithCredentials,
   inviteCollaborator,
   SESSION_COOKIE_NAME,
@@ -73,6 +77,32 @@ export async function POST(req: NextRequest) {
         String(body.password || ""),
       );
       return NextResponse.json({ ok: true });
+    }
+    if (
+      body.action === "CREATE_CUSTOMER_ACCESS" ||
+      body.action === "MANAGE_COLLABORATOR"
+    ) {
+      const ctx = await getServerSessionContext();
+      if (!ctx)
+        return NextResponse.json(
+          { error: "Entre na sua conta para continuar." },
+          { status: 401 },
+        );
+      if (body.action === "CREATE_CUSTOMER_ACCESS") {
+        const result = await createCustomerAccountAccess({
+          ctx,
+          dealId: String(body.dealId || ""),
+        });
+        return NextResponse.json({ ok: true, ...result });
+      }
+      if (!["REISSUE", "DISABLE", "ENABLE"].includes(body.accessAction))
+        return NextResponse.json({ error: "Ação inválida." }, { status: 400 });
+      const result = await manageCollaboratorAccess({
+        ctx,
+        profileId: String(body.profileId || ""),
+        action: body.accessAction,
+      });
+      return NextResponse.json({ ok: true, ...result });
     }
     if (body.action === "INVITE_COLLABORATOR") {
       const ctx = await getServerSessionContext();

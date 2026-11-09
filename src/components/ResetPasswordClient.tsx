@@ -1,4 +1,5 @@
 "use client";
+import { KeyRound } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 
@@ -9,9 +10,9 @@ export function ResetPasswordClient({ token }: { token: string }) {
   const [done, setDone] = useState(false);
   const [loading, setLoading] = useState(false);
   return (
-    <main className="min-h-screen bg-slate-900 flex items-center justify-center p-6">
+    <main className="min-h-screen bg-[#f6f8fa] flex items-center justify-center p-6">
       <form
-        className="w-full max-w-md bg-white rounded-2xl p-8 space-y-4"
+        className="w-full max-w-md bg-white rounded-3xl border border-slate-200 p-8 shadow-xl shadow-slate-900/5 space-y-5"
         onSubmit={async (e) => {
           e.preventDefault();
           if (password !== confirmation) {
@@ -43,7 +44,24 @@ export function ResetPasswordClient({ token }: { token: string }) {
           }
         }}
       >
-        <h1 className="text-xl font-bold">Definir senha</h1>
+        <Link
+          href="/"
+          className="mb-7 flex items-center gap-3 text-xl font-bold tracking-tight"
+        >
+          <span className="rounded-xl bg-teal-600 p-2.5 text-white">
+            <KeyRound className="h-5 w-5" />
+          </span>
+          chaveflow
+        </Link>
+        <div>
+          <span className="eyebrow">Seu acesso é individual</span>
+          <h1 className="mt-2 text-2xl font-bold tracking-tight">
+            Vamos preparar sua conta.
+          </h1>
+          <p className="mt-2 text-sm leading-relaxed text-slate-500">
+            Defina uma senha para entrar e acompanhar seus próximos passos.
+          </p>
+        </div>
         {message && <p role="status">{message}</p>}
         {!done && (
           <>
@@ -78,7 +96,7 @@ export function ResetPasswordClient({ token }: { token: string }) {
             </p>
             <button
               disabled={loading || !token}
-              className="bg-teal-600 text-white rounded p-3 w-full"
+              className="bg-teal-600 text-white font-semibold rounded-xl p-3 w-full disabled:opacity-40"
             >
               {loading ? "Salvando…" : "Salvar senha"}
             </button>

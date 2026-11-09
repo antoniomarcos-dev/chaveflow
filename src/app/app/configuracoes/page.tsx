@@ -2,9 +2,11 @@ import { OrganizationSettingsClient } from "@/components/OrganizationSettingsCli
 import { hasPermission } from "@/domain/permissions";
 import { loadDatabaseState } from "@/infrastructure/database";
 import { requireInternalSession } from "@/lib/server-session";
+import { redirect } from "next/navigation";
 
 export default async function ConfiguracoesPage() {
   const ctx = await requireInternalSession();
+  if (!hasPermission(ctx, "user:manage")) redirect("/app");
   const db = await loadDatabaseState();
 
   const branches = db.branches.filter(
@@ -41,6 +43,7 @@ export default async function ConfiguracoesPage() {
       members={members}
       auditEvents={auditEvents}
       canManageUsers={hasPermission(ctx, "user:manage")}
+      currentUserId={ctx.profile.id}
     />
   );
 }

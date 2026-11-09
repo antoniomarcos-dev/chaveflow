@@ -21,6 +21,10 @@ import {
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import React, { useState } from "react";
+import {
+  ActivationLinkCard,
+  type AccountActivation,
+} from "./ActivationLinkCard";
 
 export function OrganizationSettingsClient({
   organization,
@@ -28,6 +32,7 @@ export function OrganizationSettingsClient({
   members,
   auditEvents,
   canManageUsers,
+  currentUserId,
 }: {
   organization: Organization;
   branches: Branch[];
@@ -43,9 +48,43 @@ export function OrganizationSettingsClient({
   }>;
   auditEvents: AuditEvent[];
   canManageUsers: boolean;
+  currentUserId: string;
 }) {
   const router = useRouter();
   const [showInviteForm, setShowInviteForm] = useState(false);
+  const [activation, setActivation] = useState<AccountActivation | null>(null);
+  async function manageAccess(profileId: string, accessAction: string) {
+    setLoading(true);
+    setError(null);
+    try {
+      const r = await fetch("/api/auth", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "MANAGE_COLLABORATOR",
+          profileId,
+          accessAction,
+        }),
+      });
+      const data = await r.json();
+      if (!r.ok) throw new Error(data.error);
+      if (data.activationPath) setActivation(data);
+      setSuccess(
+        accessAction === "DISABLE"
+          ? "Acesso desativado."
+          : accessAction === "ENABLE"
+            ? "Acesso reativado."
+            : "Novo link gerado.",
+      );
+      router.refresh();
+    } catch (e) {
+      setError(
+        e instanceof Error ? e.message : "Não foi possível atualizar o acesso.",
+      );
+    } finally {
+      setLoading(false);
+    }
+  }
   const [email, setEmail] = useState("");
   const [fullName, setFullName] = useState("");
   const [phone, setPhone] = useState("");
@@ -87,10 +126,15 @@ export function OrganizationSettingsClient({
       setSuccess(
         `Colaborador '${fullName}' convidado e vinculado à organização com sucesso!`,
       );
+      setActivation(data);
       setShowInviteForm(false);
       setEmail("");
       setFullName("");
       router.refresh();
+    } catch (e) {
+      setError(
+        e instanceof Error ? e.message : "Falha de conexão. Tente novamente.",
+      );
     } finally {
       setLoading(false);
     }
@@ -102,14 +146,14 @@ export function OrganizationSettingsClient({
       <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-xs flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <span className="text-xs font-bold uppercase tracking-wider text-teal-700">
-            Governança Multi-Tenant, RBAC e Rastreabilidade
+            Pessoas e organização
           </span>
           <h1 className="text-2xl font-extrabold text-slate-900 mt-1">
-            Administração, Funções e Auditoria
+            Equipe e acessos
           </h1>
           <p className="text-xs sm:text-sm text-slate-600 mt-0.5">
-            Controle de organização, unidades, convite de colaboradores, matriz
-            de permissões e trilha de auditoria imutável.
+            Cadastre sua equipe, prepare os acessos e acompanhe as atividades da
+            concessionária.
           </p>
         </div>
 
@@ -120,11 +164,43 @@ export function OrganizationSettingsClient({
             className="inline-flex items-center gap-2 rounded-xl bg-teal-600 hover:bg-teal-700 px-4 py-2.5 text-xs sm:text-sm font-bold text-white shrink-0"
           >
             <UserPlus className="h-4 w-4" />
-            <span>Convidar Colaborador</span>
+            <span>Cadastrar vendedor ou colaborador</span>
           </button>
         )}
       </div>
 
+      <div className="grid grid-cols-3 gap-3">
+        {[
+          {
+            label: "Vendedores",
+            value: members.filter(
+              (m) => m.roles.includes("SELLER") && m.isActive,
+            ).length,
+          },
+          {
+            label: "Equipe ativa",
+            value: members.filter(
+              (m) => !m.roles.includes("CUSTOMER") && m.isActive,
+            ).length,
+          },
+          {
+            label: "Clientes com conta",
+            value: members.filter(
+              (m) => m.roles.includes("CUSTOMER") && m.isActive,
+            ).length,
+          },
+        ].map((stat) => (
+          <div
+            key={stat.label}
+            className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-5"
+          >
+            <p className="text-xs font-medium text-slate-500">{stat.label}</p>
+            <p className="mt-2 text-2xl font-bold tracking-tight text-slate-900">
+              {stat.value}
+            </p>
+          </div>
+        ))}
+      </div>
       {error && (
         <div className="rounded-xl bg-red-50 border border-red-300 p-4 text-xs text-red-900 flex items-center gap-2">
           <AlertCircle className="h-4 w-4 text-red-600 shrink-0" />
@@ -139,6 +215,13 @@ export function OrganizationSettingsClient({
         </div>
       )}
 
+      {activation && (
+        <ActivationLinkCard
+          key={activation.activationPath}
+          access={activation}
+          onClose={() => setActivation(null)}
+        />
+      )}
       {/* Formulário de Convite de Colaborador */}
       {showInviteForm && canManageUsers && (
         <form
@@ -146,14 +229,18 @@ export function OrganizationSettingsClient({
           className="bg-white rounded-2xl border-2 border-teal-500 p-6 shadow-md space-y-4 text-xs"
         >
           <h2 className="text-base font-bold text-slate-900">
-            Convidar Novo Colaborador para {organization.name}
+            Novo acesso da equipe
           </h2>
           <div className="grid sm:grid-cols-3 gap-4">
             <div>
-              <label className="font-semibold text-slate-700 block">
+              <label
+                htmlFor="invite-name"
+                className="font-semibold text-slate-700 block"
+              >
                 Nome Completo *
               </label>
               <input
+                id="invite-name"
                 type="text"
                 required
                 value={fullName}
@@ -162,10 +249,14 @@ export function OrganizationSettingsClient({
               />
             </div>
             <div>
-              <label className="font-semibold text-slate-700 block">
+              <label
+                htmlFor="invite-email"
+                className="font-semibold text-slate-700 block"
+              >
                 E-mail Corporativo *
               </label>
               <input
+                id="invite-email"
                 type="email"
                 required
                 value={email}
@@ -174,10 +265,14 @@ export function OrganizationSettingsClient({
               />
             </div>
             <div>
-              <label className="font-semibold text-slate-700 block">
+              <label
+                htmlFor="invite-branch"
+                className="font-semibold text-slate-700 block"
+              >
                 Unidade *
               </label>
               <select
+                id="invite-branch"
                 value={branchId}
                 onChange={(e) => setBranchId(e.target.value)}
                 className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-slate-900"
@@ -211,7 +306,7 @@ export function OrganizationSettingsClient({
                       type="checkbox"
                       checked={selectedRoles.includes(role)}
                       onChange={() => toggleRole(role)}
-                      className="hidden"
+                      className="sr-only"
                     />
                     <span>{ROLE_LABELS[role]}</span>
                   </label>
@@ -232,19 +327,19 @@ export function OrganizationSettingsClient({
               disabled={loading || selectedRoles.length === 0}
               className="rounded-lg bg-teal-600 px-5 py-2 font-bold text-white"
             >
-              Enviar Convite e Atribuir Funções
+              Cadastrar e gerar link de acesso
             </button>
           </div>
         </form>
       )}
 
       {/* Identidade da Organização e Unidades */}
-      <div className="grid lg:grid-cols-2 gap-6">
+      <div className="grid gap-6">
         <section className="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs space-y-3">
           <div className="flex items-center gap-2">
             <Building2 className="h-5 w-5 text-teal-600" />
             <h2 className="text-base font-bold text-slate-900">
-              Identidade da Organização e Unidades
+              Sua concessionária
             </h2>
           </div>
           <div className="rounded-xl bg-slate-50 border border-slate-200 p-3.5 text-xs space-y-1">
@@ -252,8 +347,7 @@ export function OrganizationSettingsClient({
               {organization.name}
             </div>
             <div className="text-slate-600">
-              CNPJ: <code>{organization.cnpj}</code> • Slug:{" "}
-              <code>{organization.slug}</code>
+              CNPJ: <code>{organization.cnpj}</code>
             </div>
           </div>
 
@@ -290,7 +384,7 @@ export function OrganizationSettingsClient({
         <div className="flex items-center gap-2">
           <Users className="h-5 w-5 text-teal-600" />
           <h2 className="text-base font-bold text-slate-900">
-            Usuários e Funções na Organização ({members.length})
+            Pessoas com acesso ({members.length})
           </h2>
         </div>
 
@@ -307,6 +401,11 @@ export function OrganizationSettingsClient({
                 </div>
               </div>
               <div className="flex flex-wrap gap-1.5">
+                <span
+                  className={`rounded-md px-2.5 py-1 font-semibold ${m.isActive ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-500"}`}
+                >
+                  {m.isActive ? "Ativo" : "Desativado"}
+                </span>
                 {m.roles.map((r) => (
                   <span
                     key={r}
@@ -315,18 +414,43 @@ export function OrganizationSettingsClient({
                     {ROLE_LABELS[r]}
                   </span>
                 ))}
+                {canManageUsers &&
+                  m.profileId !== currentUserId &&
+                  !m.roles.includes("CUSTOMER") && (
+                    <>
+                      <button
+                        type="button"
+                        disabled={loading || !m.isActive}
+                        onClick={() => manageAccess(m.profileId, "REISSUE")}
+                        className="rounded-lg border border-slate-200 px-3 py-1.5 font-semibold text-slate-700 disabled:opacity-40"
+                      >
+                        Gerar link de acesso
+                      </button>
+                      <button
+                        type="button"
+                        disabled={loading}
+                        onClick={() =>
+                          manageAccess(
+                            m.profileId,
+                            m.isActive ? "DISABLE" : "ENABLE",
+                          )
+                        }
+                        className="rounded-lg border border-slate-200 px-3 py-1.5 font-semibold text-slate-600"
+                      >
+                        {m.isActive ? "Desativar" : "Reativar"}
+                      </button>
+                    </>
+                  )}
               </div>
             </div>
           ))}
         </div>
 
-        <div className="pt-3 space-y-2">
-          <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
+        <details className="rounded-xl border border-slate-200 p-4 space-y-3">
+          <summary className="cursor-pointer text-xs font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
             <Lock className="h-3.5 w-3.5" />
-            <span>
-              Matriz de Permissões Verificadas no Servidor por Função:
-            </span>
-          </h3>
+            <span>O que cada perfil pode fazer</span>
+          </summary>
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-2.5 text-xs">
             {(Object.keys(ROLE_PERMISSION_MAP) as RoleCode[]).map((role) => (
               <div
@@ -334,7 +458,7 @@ export function OrganizationSettingsClient({
                 className="rounded-xl bg-slate-50 border border-slate-200 p-3 space-y-1"
               >
                 <div className="font-bold text-slate-900">
-                  {ROLE_LABELS[role]} ({role})
+                  {ROLE_LABELS[role]}
                 </div>
                 <div className="text-[11px] text-slate-600">
                   {ROLE_PERMISSION_MAP[role]
@@ -344,7 +468,7 @@ export function OrganizationSettingsClient({
               </div>
             ))}
           </div>
-        </div>
+        </details>
       </section>
 
       {/* Auditoria Completa da Organização */}

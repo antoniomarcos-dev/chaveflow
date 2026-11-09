@@ -151,6 +151,11 @@ export async function listDealsForOrg(params: {
 
   return db.deals
     .filter((d) => d.organizationId === ctx.organization.id)
+    .filter(
+      (d) =>
+        !ctx.roles.every((r) => r === "SELLER") ||
+        d.sellerId === ctx.profile.id,
+    )
     .filter((d) => {
       if (statusFilter && statusFilter !== "ALL" && d.status !== statusFilter) {
         return false;
@@ -227,6 +232,13 @@ export async function createOrSaveGuidedDeal(params: {
   );
 
   const parsed = GuidedDealInputSchema.parse(input);
+  if (
+    ctx.roles.every((r) => r === "SELLER") &&
+    parsed.sellerId !== ctx.profile.id
+  )
+    throw new AuthorizationError(
+      "Você só pode abrir negociações sob sua própria responsabilidade.",
+    );
 
   return await withTransaction((db) => {
     if (idempotencyKey) {
@@ -600,6 +612,11 @@ export async function getDealPassportView(params: {
 
   // Isolamento estrito por organização no servidor
   assertOrganizationAccess(ctx, deal.organizationId);
+  if (
+    ctx.roles.every((r) => r === "SELLER") &&
+    deal.sellerId !== ctx.profile.id
+  )
+    throw new AuthorizationError("Esta negociação pertence a outro vendedor.");
 
   const vehicle = db.vehicles.find((v) => v.id === deal.vehicleId)!;
   const tradeInVehicle =

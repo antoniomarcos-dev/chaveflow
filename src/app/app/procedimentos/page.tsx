@@ -16,10 +16,6 @@ export default async function ProcedimentosPage() {
     .filter((tt) => tt.workflowVersionId === wfTemplate.activeVersionId)
     .sort((a, b) => a.sortOrder - b.sortOrder);
 
-  const documentRequirements = db.documentRequirements.filter(
-    (dr) => dr.workflowVersionId === wfTemplate.activeVersionId,
-  );
-
   const internalStaff = db.memberships
     .filter(
       (m) =>
@@ -29,14 +25,21 @@ export default async function ProcedimentosPage() {
     )
     .map((m) => {
       const p = db.profiles.find((pr) => pr.id === m.profileId)!;
-      return { id: p.id, fullName: p.fullName };
+      return { id: p.id, fullName: p.fullName, roles: m.roles };
     });
 
   return (
     <ProceduresAdminClient
       procedures={procedures}
-      taskTemplates={taskTemplates}
-      documentRequirements={documentRequirements}
+      taskTemplates={taskTemplates.map(
+        ({ id, title, slaHours, defaultAssigneeId, responsibleArea }) => ({
+          id,
+          title,
+          slaHours,
+          defaultAssigneeId,
+          responsibleArea,
+        }),
+      )}
       internalStaff={internalStaff}
       canManageProcedures={hasPermission(ctx, "procedure:manage")}
     />

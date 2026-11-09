@@ -75,8 +75,7 @@ export async function listDealsForAuthenticatedCustomer(
     .filter(
       (c) =>
         c.organizationId === ctx.organization.id &&
-        (c.profileId === ctx.profile.id ||
-          c.email.toLowerCase() === ctx.profile.email.toLowerCase()),
+        c.profileId === ctx.profile.id,
     )
     .map((c) => c.id);
 
@@ -172,8 +171,7 @@ export async function getCustomerSafeDealView(params: {
     const customerRecords = db.customers.filter(
       (c) =>
         c.organizationId === ctx.organization.id &&
-        (c.profileId === ctx.profile.id ||
-          c.email.toLowerCase() === ctx.profile.email.toLowerCase()),
+        c.profileId === ctx.profile.id,
     );
     if (customerRecords.length > 0) {
       authorizedCustomerId = customerRecords[0].id;

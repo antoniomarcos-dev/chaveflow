@@ -10,6 +10,7 @@ import {
   CheckSquare,
   ClipboardCheck,
   FileSpreadsheet,
+  Home,
   KeyRound,
   LayoutDashboard,
   LogOut,
@@ -51,6 +52,9 @@ export function AppShell({
   const [notifOpen, setNotifOpen] = useState(false);
 
   const unreadCount = notifications.filter((n) => !n.isRead).length;
+  const isAdmin = roles.includes("ADMIN"),
+    isManager = isAdmin || roles.includes("MANAGER");
+  const canManageCustomers = isManager || roles.includes("SELLER");
 
   async function handleLogout() {
     await fetch("/api/auth", {
@@ -58,7 +62,7 @@ export function AppShell({
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ action: "LOGOUT" }),
     });
-    router.push("/login");
+    router.push("/");
     router.refresh();
   }
 
@@ -77,7 +81,11 @@ export function AppShell({
   const navItems = [
     {
       href: "/app",
-      label: "Visão Operacional",
+      label: isAdmin
+        ? "Visão geral"
+        : roles.includes("SELLER")
+          ? "Meu painel"
+          : "Visão operacional",
       Icon: LayoutDashboard,
       exact: true,
     },
@@ -85,7 +93,12 @@ export function AppShell({
       href: "/app/escanear",
       label: "Escanear Veículo",
       Icon: QrCode,
-      highlight: true,
+      highlight: false,
+    },
+    {
+      href: "/app/clientes",
+      label: "Clientes e acessos",
+      Icon: Users,
     },
     {
       href: "/app/negociacoes",
@@ -127,15 +140,27 @@ export function AppShell({
       label: "Visão Área do Cliente",
       Icon: Users,
     },
-  ];
+  ].filter((item) =>
+    item.href === "/app/configuracoes"
+      ? isAdmin
+      : item.href === "/app/relatorios"
+        ? isManager || roles.includes("RELEASE_OFFICER")
+        : item.href === "/app/clientes"
+          ? canManageCustomers
+          : item.href === "/cliente"
+            ? false
+            : item.href === "/app/aprovacoes"
+              ? !roles.every((r) => r === "SELLER")
+              : true,
+  );
 
   return (
     <div className="min-h-screen flex flex-col bg-slate-50">
       <div className="flex-1 flex">
         {/* Navegação Lateral Desktop */}
-        <aside className="no-print hidden lg:flex lg:w-68 lg:flex-col bg-[#0f172a] text-slate-100 border-r border-slate-800 shrink-0">
+        <aside className="no-print hidden lg:sticky lg:top-0 lg:flex lg:h-screen lg:w-68 lg:flex-col bg-[#101d31] text-slate-100 border-r border-slate-800 shrink-0">
           <div className="p-5 border-b border-slate-800">
-            <Link href="/app" className="flex items-center gap-3">
+            <Link href="/" className="flex items-center gap-3">
               <div className="h-10 w-10 rounded-lg bg-teal-600 flex items-center justify-center text-white shadow-sm">
                 <KeyRound className="h-5 w-5" />
               </div>
@@ -160,6 +185,13 @@ export function AppShell({
             aria-label="Menu principal"
             className="flex-1 px-3 py-4 space-y-1 overflow-y-auto"
           >
+            <Link
+              href="/"
+              className="mb-3 flex items-center gap-3 rounded-xl px-3.5 py-2.5 text-sm font-medium text-slate-400 hover:bg-slate-800 hover:text-white"
+            >
+              <Home className="h-4 w-4" />
+              Página inicial
+            </Link>
             {navItems.map((item) => {
               const isActive = item.exact
                 ? pathname === item.href
@@ -238,11 +270,15 @@ export function AppShell({
               </button>
               <div>
                 <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 hidden sm:block">
-                  Escaneou o carro • Entendeu o próximo passo • Acompanhou até a
-                  entrega
+                  {branchName}
                 </p>
-                <p className="text-sm font-bold text-slate-900 sm:hidden">
-                  ChaveFlow
+                <p className="text-sm font-semibold text-slate-900">
+                  {navItems.find(
+                    (item) =>
+                      item.href !== "/app" &&
+                      (pathname === item.href ||
+                        pathname.startsWith(item.href + "/")),
+                  )?.label || "Meu painel"}
                 </p>
               </div>
             </div>

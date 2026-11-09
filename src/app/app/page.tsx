@@ -1,7 +1,7 @@
 import { listDealsForOrg } from "@/application/deal-service";
 import { listVehiclesForOrg } from "@/application/vehicle-service";
 import { DealStatusBadge, StockStatusBadge } from "@/components/StatusBadge";
-import { ROLE_LABELS, WORKFLOW_STAGES } from "@/domain/types";
+import { WORKFLOW_STAGES } from "@/domain/types";
 import { computeUserNextAction } from "@/domain/workflow-engine";
 import { loadDatabaseState } from "@/infrastructure/database";
 import { requireInternalSession } from "@/lib/server-session";
@@ -15,6 +15,8 @@ import {
   PlusCircle,
   QrCode,
   ShieldCheck,
+  UserPlus,
+  Users,
 } from "lucide-react";
 import Link from "next/link";
 
@@ -23,6 +25,8 @@ export default async function OperationalHomePage() {
   const deals = await listDealsForOrg({ ctx });
   const vehicles = await listVehiclesForOrg({ ctx });
   const db = await loadDatabaseState();
+  const isAdmin = ctx.roles.includes("ADMIN");
+  const isSeller = ctx.roles.includes("SELLER") && !isAdmin;
 
   const activeDeals = deals.filter(
     (d) =>
@@ -41,17 +45,24 @@ export default async function OperationalHomePage() {
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 bg-white rounded-2xl border border-slate-200 p-6 shadow-xs">
         <div>
           <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-teal-700">
-            <span>Central Operacional • {ctx.branch?.name}</span>
+            <span>
+              {isAdmin
+                ? "Administração"
+                : isSeller
+                  ? "Seu espaço de vendas"
+                  : "Central operacional"}{" "}
+              • {ctx.branch?.name}
+            </span>
           </div>
           <h1 className="text-2xl font-extrabold text-slate-900 mt-1">
-            Olá, {ctx.profile.fullName}
+            Olá, {ctx.profile.fullName.split(" ")[0]}.
           </h1>
           <p className="text-xs sm:text-sm text-slate-600 mt-1">
-            Funções ativas nesta sessão:{" "}
-            <strong className="text-slate-900">
-              {ctx.roles.map((r) => ROLE_LABELS[r]).join(" • ")}
-            </strong>
-            . Todas as permissões são validadas na interface e no servidor.
+            {isAdmin
+              ? "Uma visão clara da operação, da sua equipe e dos próximos passos."
+              : isSeller
+                ? "Acompanhe suas negociações e mantenha seus clientes por perto."
+                : "Suas atividades, pendências e próximos passos em um só lugar."}
           </p>
         </div>
 
@@ -73,6 +84,48 @@ export default async function OperationalHomePage() {
         </div>
       </div>
 
+      {(isAdmin || isSeller) && (
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Link
+            href={isAdmin ? "/app/configuracoes" : "/app/clientes"}
+            className="group flex items-center gap-4 rounded-2xl bg-[#101d31] p-6 text-white transition hover:bg-slate-800"
+          >
+            <div className="rounded-xl bg-white/10 p-3 text-teal-300">
+              {isAdmin ? (
+                <UserPlus className="h-6 w-6" />
+              ) : (
+                <Users className="h-6 w-6" />
+              )}
+            </div>
+            <div className="min-w-0 flex-1">
+              <h2 className="font-bold">
+                {isAdmin ? "Sua equipe começa aqui" : "Clientes e acessos"}
+              </h2>
+              <p className="mt-1 text-xs leading-relaxed text-slate-400">
+                {isAdmin
+                  ? "Cadastre vendedores e prepare os acessos da equipe."
+                  : "Crie o acesso de cada cliente para acompanhar a compra."}
+              </p>
+            </div>
+            <ArrowRight className="h-5 w-5 text-teal-300" />
+          </Link>
+          <Link
+            href="/app/negociacoes/nova"
+            className="group flex items-center gap-4 rounded-2xl border border-teal-200 bg-teal-50 p-6"
+          >
+            <div className="rounded-xl bg-white p-3 text-teal-700">
+              <PlusCircle className="h-6 w-6" />
+            </div>
+            <div className="flex-1">
+              <h2 className="font-bold text-slate-900">Uma nova negociação</h2>
+              <p className="mt-1 text-xs leading-relaxed text-slate-500">
+                Conecte o veículo, o comprador e cada etapa da venda.
+              </p>
+            </div>
+            <ArrowRight className="h-5 w-5 text-teal-700" />
+          </Link>
+        </div>
+      )}
       {/* Indicadores Rápidos */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-xs">
@@ -139,7 +192,9 @@ export default async function OperationalHomePage() {
         <div className="flex items-center justify-between">
           <div>
             <h2 className="text-lg font-bold text-slate-900">
-              Passaportes Digitais da Unidade
+              {isSeller
+                ? "Minhas negociações"
+                : "Negociações em acompanhamento"}
             </h2>
             <p className="text-xs text-slate-500">
               Visão em tempo real do veículo, situação, próxima ação do seu
@@ -155,6 +210,23 @@ export default async function OperationalHomePage() {
           </Link>
         </div>
 
+        {deals.length === 0 && (
+          <div className="empty-state">
+            <FileSpreadsheet className="mx-auto h-10 w-10 text-teal-500" />
+            <h2>Pronto para a próxima negociação.</h2>
+            <p>
+              {isAdmin
+                ? "Cadastre sua equipe e adicione os veículos ao estoque para começar a operação."
+                : "Suas negociações aparecerão aqui, com documentos, pendências e o próximo passo de cada venda."}
+            </p>
+            <Link
+              href={isAdmin ? "/app/configuracoes" : "/app/negociacoes/nova"}
+              className="text-sm font-semibold text-teal-700"
+            >
+              {isAdmin ? "Organizar minha equipe" : "Abrir uma negociação"} →
+            </Link>
+          </div>
+        )}
         <div className="grid lg:grid-cols-2 gap-4">
           {deals.map(({ deal, vehicle, customer, sellerName, summary }) => {
             const dealTasks = db.taskInstances.filter(
@@ -297,6 +369,25 @@ export default async function OperationalHomePage() {
           </Link>
         </div>
 
+        {vehicles.length === 0 && (
+          <div className="empty-state">
+            <Car className="mx-auto h-10 w-10 text-slate-300" />
+            <h2>Seu estoque está pronto para começar.</h2>
+            <p>
+              {isAdmin
+                ? "Cadastre o primeiro veículo para iniciar negociações e gerar as etiquetas de identificação."
+                : "Os veículos cadastrados pela administração ficarão disponíveis aqui."}
+            </p>
+            {isAdmin && (
+              <Link
+                href="/app/veiculos/novo"
+                className="text-sm font-semibold text-teal-700"
+              >
+                Cadastrar primeiro veículo →
+              </Link>
+            )}
+          </div>
+        )}
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {vehicles.slice(0, 6).map((v) => (
             <div

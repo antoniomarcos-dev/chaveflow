@@ -41,6 +41,8 @@ export default async function NovaNegociacaoPage({
     .filter(
       (m) =>
         m.organizationId === ctx.organization.id &&
+        (!ctx.roles.every((r) => r === "SELLER") ||
+          m.profileId === ctx.profile.id) &&
         m.isActive &&
         (m.roles.includes("SELLER") ||
           m.roles.includes("MANAGER") ||

@@ -1,4 +1,5 @@
 "use client";
+import { CustomerAccessButton } from "./CustomerAccessButton";
 
 import type { DealPassportView } from "@/application/deal-service";
 import type { AssistantResponse } from "@/domain/contextual-assistant";
@@ -244,6 +245,10 @@ export function DealPassportClient({
 
   return (
     <div className="space-y-6">
+      {(userRoles.includes("ADMIN") ||
+        userRoles.includes("MANAGER") ||
+        userRoles.includes("SELLER")) &&
+        deal.status !== "DRAFT" && <CustomerAccessButton dealId={deal.id} />}
       {/* Barra Superior */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <Link

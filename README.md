@@ -16,17 +16,25 @@ O sistema inicia sem veículos, compradores, negociações ou documentos de exem
 8. Guarde a senha em um gerenciador e remova `CHAVEFLOW_ADMIN_PASSWORD` de `.env.local` depois do setup. Os campos de inicialização não são necessários durante a execução da aplicação.
 9. Execute `npm run dev` e entre em `/login` com a conta criada.
 
-O fluxo padrão contém tarefas e requisitos documentais, sem responsáveis fictícios. Revise os responsáveis, SLAs e procedimentos em Configurações e Procedimentos antes de começar a operação. Os procedimentos de consulta começam vazios e devem ser publicados pela organização.
+O fluxo padrão contém tarefas com prazos iniciais e requisitos documentais, sem responsáveis fictícios. Se precisar, abra **Procedimentos → Ajustar prazos e responsáveis**, altere uma tarefa e clique em **Salvar**. A mudança vale apenas para novas negociações. Os procedimentos de consulta começam vazios e podem ser publicados pela organização conforme sua rotina.
 
 ## E-mail
 
-Recuperação de senha e convites de colaboradores enviam mensagens reais pela API do Resend. Configure:
+Recuperação de senha por e-mail envia mensagens reais pela API do Resend. Configure:
 
 - `RESEND_API_KEY`: chave criada na conta do provedor.
 - `CHAVEFLOW_EMAIL_FROM`: remetente de um domínio verificado.
 - `CHAVEFLOW_APP_URL`: endereço público completo, por exemplo `https://seu-dominio.com.br`.
 
-O colaborador recebe um link para definir a própria senha. Links expiram em uma hora e só podem ser usados uma vez. Redefinir a senha invalida sessões anteriores. Sem configuração de e-mail, o sistema informa a indisponibilidade; não simula envio.
+Links de recuperação por e-mail expiram em uma hora e só podem ser usados uma vez. Redefinir a senha invalida sessões anteriores. Sem configuração de e-mail, o sistema informa a indisponibilidade; não simula envio.
+
+## Acessos de vendedores e clientes
+
+- A página inicial `/` reúne administração, equipe de vendas e área do cliente. Todos entram com e-mail e senha em `/login`; o perfil real da conta determina o painel e as permissões.
+- Em **Administração e auditoria**, o administrador cadastra vendedores ou outros colaboradores e seleciona as funções. O sistema gera um link individual para a pessoa definir sua senha. É possível reemitir o link, desativar ou reativar o acesso. A própria conta administrativa não pode ser desativada por essa tela.
+- Em **Clientes e acessos**, o vendedor vê os compradores das suas negociações e gera o acesso do cliente. A mesma ação está disponível no passaporte da negociação. Um vendedor não pode criar administradores ou preparar acessos de negociações de outro vendedor.
+- O cliente define sua senha pelo link e entra pela página inicial. O portal mostra somente compras vinculadas ao seu perfil e os documentos compartilhados com ele.
+- Links de ativação são de uso único, duram 24 horas e devem ser enviados diretamente ao titular. O botão **Copiar link** permite distribuí-los sem depender de SMTP ou Resend. Gerar um novo link invalida o anterior. Nenhuma senha padrão é compartilhada.
 
 Notificações de tarefas e negociações ficam na central interna. Não há envio de WhatsApp nem serviço de OCR. O assistente contextual consulta os dados autorizados e os procedimentos publicados, sem depender de API de IA.
 

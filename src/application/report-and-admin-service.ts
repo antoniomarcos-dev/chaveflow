@@ -1,4 +1,8 @@
-import { assertInternalStaff, assertPermission } from "@/domain/permissions";
+import {
+  assertInternalStaff,
+  assertPermission,
+  canActOnArea,
+} from "@/domain/permissions";
 import {
   AREA_LABELS,
   AuthenticatedContext,
@@ -714,6 +718,8 @@ export async function updateTaskTemplateSlaAndDefaultAssignee(params: {
   const { ctx, taskTemplateId, slaHours, defaultAssigneeId } = params;
   assertInternalStaff(ctx);
   assertPermission(ctx, "procedure:manage");
+  if (!Number.isInteger(slaHours) || slaHours < 1 || slaHours > 720)
+    throw new Error("Informe um prazo inteiro de 1 a 720 horas.");
 
   return await withTransaction((db) => {
     const tpl = db.taskTemplates.find(
@@ -722,7 +728,29 @@ export async function updateTaskTemplateSlaAndDefaultAssignee(params: {
     );
     if (!tpl) throw new Error("Template de tarefa não encontrado.");
 
-    tpl.slaHours = Math.max(1, Math.min(720, Number(slaHours)));
+    if (defaultAssigneeId) {
+      const profile = db.profiles.find(
+        (p) => p.id === defaultAssigneeId && p.isActive && !p.isCustomerOnly,
+      );
+      const membership = db.memberships.find(
+        (m) =>
+          m.profileId === defaultAssigneeId &&
+          m.organizationId === ctx.organization.id &&
+          m.isActive,
+      );
+      if (
+        !profile ||
+        !membership ||
+        !canActOnArea({ roles: membership.roles }, tpl.responsibleArea)
+      )
+        throw new Error("Selecione um responsável ativo da área desta tarefa.");
+    }
+    if (
+      tpl.slaHours === slaHours &&
+      tpl.defaultAssigneeId === (defaultAssigneeId || null)
+    )
+      return tpl;
+    tpl.slaHours = slaHours;
     tpl.defaultAssigneeId = defaultAssigneeId || null;
 
     db.auditEvents.unshift({

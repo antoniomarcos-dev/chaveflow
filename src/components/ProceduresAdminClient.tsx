@@ -1,21 +1,14 @@
 "use client";
+import { TaskDefaultsClient, type TaskDefault } from "./TaskDefaultsClient";
 
 import {
   AREA_LABELS,
-  DocumentRequirement,
   ProcedureSection,
   ResponsibleArea,
-  TaskTemplate,
+  RoleCode,
 } from "@/domain/types";
 import { formatDateTimeBr } from "@/lib/format";
-import {
-  BookOpen,
-  CheckCircle2,
-  Clock,
-  FilePlus,
-  ShieldAlert,
-  SlidersHorizontal,
-} from "lucide-react";
+import { BookOpen, CheckCircle2, FilePlus, ShieldAlert } from "lucide-react";
 import { useRouter } from "next/navigation";
 import React, { useState } from "react";
 
@@ -51,14 +44,12 @@ interface EnrichedProcedure {
 export function ProceduresAdminClient({
   procedures,
   taskTemplates,
-  documentRequirements,
   internalStaff,
   canManageProcedures,
 }: {
   procedures: EnrichedProcedure[];
-  taskTemplates: TaskTemplate[];
-  documentRequirements: DocumentRequirement[];
-  internalStaff: Array<{ id: string; fullName: string }>;
+  taskTemplates: TaskDefault[];
+  internalStaff: Array<{ id: string; fullName: string; roles: RoleCode[] }>;
   canManageProcedures: boolean;
 }) {
   const router = useRouter();
@@ -141,30 +132,6 @@ export function ProceduresAdminClient({
     }
   }
 
-  async function handleUpdateSla(
-    taskTemplateId: string,
-    slaHours: number,
-    defaultAssigneeId: string | null,
-  ) {
-    setLoading(true);
-    try {
-      await fetch("/api/admin", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          action: "UPDATE_SLA",
-          taskTemplateId,
-          slaHours,
-          defaultAssigneeId,
-        }),
-      });
-      setFeedback("Prazo operacional (SLA) e responsável padrão atualizados.");
-      router.refresh();
-    } finally {
-      setLoading(false);
-    }
-  }
-
   return (
     <div className="space-y-8">
       {/* Cabeçalho */}
@@ -175,13 +142,11 @@ export function ProceduresAdminClient({
             <span>Procedimentos da organização</span>
           </span>
           <h1 className="text-2xl font-extrabold text-slate-900 mt-2">
-            Procedimentos, Modelos de Processo e Prazos
+            Procedimentos
           </h1>
           <p className="text-xs sm:text-sm text-slate-600 mt-0.5">
-            Somente procedimentos com estado <strong>Publicado</strong>{" "}
-            alimentam as orientações oficiais das tarefas e o Assistente
-            Contextual. Alterar o modelo não modifica silenciosamente
-            negociações já abertas.
+            Orientações da equipe. Publique um procedimento para
+            disponibilizá-lo nas negociações.
           </p>
         </div>
 
@@ -192,7 +157,7 @@ export function ProceduresAdminClient({
             className="inline-flex items-center gap-2 rounded-xl bg-teal-600 hover:bg-teal-700 px-4 py-2.5 text-xs sm:text-sm font-bold text-white shrink-0"
           >
             <FilePlus className="h-4 w-4" />
-            <span>Novo Procedimento / Nova Versão</span>
+            <span>Novo procedimento</span>
           </button>
         )}
       </div>
@@ -454,122 +419,9 @@ export function ProceduresAdminClient({
       </section>
 
       {/* Configuração de Prazos Operacionais (SLA), Responsáveis e Documentos Exigidos por Condição */}
-      <section className="bg-white rounded-2xl border border-slate-200 p-6 shadow-xs space-y-4">
-        <div className="flex items-center gap-2">
-          <SlidersHorizontal className="h-5 w-5 text-teal-600" />
-          <div>
-            <h2 className="text-base font-bold text-slate-900">
-              Modelo de Processo Versionado — Prazos (SLA), Dependências e
-              Condições
-            </h2>
-            <p className="text-xs text-slate-500">
-              Configure o prazo operacional (em horas) e o responsável padrão
-              para novas negociações.
-            </p>
-          </div>
-        </div>
-
-        <div className="divide-y divide-slate-200 border border-slate-200 rounded-xl overflow-hidden text-xs">
-          {taskTemplates.map((tpl) => (
-            <div
-              key={tpl.id}
-              className="p-4 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3"
-            >
-              <div className="space-y-1 flex-1">
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="font-mono font-bold text-slate-800 bg-slate-100 px-2 py-0.5 rounded">
-                    {tpl.code}
-                  </span>
-                  <span className="font-bold text-slate-900">{tpl.title}</span>
-                  <span className="text-[11px] bg-blue-50 text-blue-900 px-2 py-0.5 rounded font-semibold">
-                    {AREA_LABELS[tpl.responsibleArea]}
-                  </span>
-                </div>
-                <div className="text-slate-600">
-                  Condições de aplicabilidade:{" "}
-                  {tpl.applicabilityConditions.length > 0
-                    ? tpl.applicabilityConditions
-                        .map((c) => `${c.field} ${c.operator}`)
-                        .join(" AND ")
-                    : "Sempre obrigatória"}
-                  {" • "}Depende de:{" "}
-                  {tpl.dependsOnTaskCodes.length > 0
-                    ? tpl.dependsOnTaskCodes.join(", ")
-                    : "Nenhuma"}
-                </div>
-              </div>
-
-              {canManageProcedures && (
-                <div className="flex flex-wrap items-center gap-2 shrink-0">
-                  <label className="flex items-center gap-1 text-slate-600 font-medium">
-                    <Clock className="h-3.5 w-3.5" />
-                    <span>SLA (h):</span>
-                    <input
-                      type="number"
-                      min={1}
-                      max={720}
-                      defaultValue={tpl.slaHours}
-                      onBlur={(e) =>
-                        handleUpdateSla(
-                          tpl.id,
-                          Number(e.target.value),
-                          tpl.defaultAssigneeId,
-                        )
-                      }
-                      className="w-16 rounded border border-slate-300 px-2 py-1 text-xs font-bold text-slate-900"
-                    />
-                  </label>
-                  <select
-                    defaultValue={tpl.defaultAssigneeId || ""}
-                    onChange={(e) =>
-                      handleUpdateSla(
-                        tpl.id,
-                        tpl.slaHours,
-                        e.target.value || null,
-                      )
-                    }
-                    className="rounded border border-slate-300 px-2 py-1 text-xs text-slate-900"
-                  >
-                    <option value="">Sem responsável fixo</option>
-                    {internalStaff.map((st) => (
-                      <option key={st.id} value={st.id}>
-                        {st.fullName}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              )}
-            </div>
-          ))}
-        </div>
-
-        {/* Documentos Exigidos por Condição */}
-        <div className="pt-4 space-y-2">
-          <h3 className="text-sm font-bold text-slate-900">
-            Matriz de Documentos Exigidos por Condição da Negociação (
-            {documentRequirements.length})
-          </h3>
-          <div className="grid sm:grid-cols-2 gap-3 text-xs">
-            {documentRequirements.map((dr) => (
-              <div
-                key={dr.id}
-                className="rounded-xl bg-slate-50 border border-slate-200 p-3 space-y-1"
-              >
-                <div className="font-bold text-slate-900">{dr.title}</div>
-                <div className="text-slate-600">{dr.whyRequired}</div>
-                <div className="text-[11px] text-teal-800 font-semibold">
-                  Condição:{" "}
-                  {dr.applicabilityConditions.length > 0
-                    ? dr.applicabilityConditions
-                        .map((c) => c.humanExplanation)
-                        .join(", ")
-                    : "Exigido em todas as negociações"}
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
+      {canManageProcedures && (
+        <TaskDefaultsClient tasks={taskTemplates} staff={internalStaff} />
+      )}
     </div>
   );
 }

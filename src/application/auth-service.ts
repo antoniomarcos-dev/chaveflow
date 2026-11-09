@@ -9,6 +9,7 @@ import { loadDatabaseState, withTransaction } from "@/infrastructure/database";
 import { hashPassword, verifyPassword } from "@/lib/passwords";
 import { getSigningSecret } from "@/lib/secrets";
 import crypto from "crypto";
+import { issueAccountActivation } from "./account-access-service";
 
 export const SESSION_COOKIE_NAME = "chaveflow_session";
 
@@ -165,7 +166,13 @@ export async function inviteCollaborator(params: {
   phone: string;
   branchId: string;
   roles: RoleCode[];
-}): Promise<{ profileId: string; membershipId: string }> {
+}): Promise<{
+  profileId: string;
+  membershipId: string;
+  activationPath: string;
+  email: string;
+  fullName: string;
+}> {
   // Regra obrigatória: Não permitir que um cadastro público escolha funções privilegiadas
   if (params.isPublicSelfSignup || !params.ctx) {
     const requestedPrivileged = params.roles.some((r) => r !== "CUSTOMER");
@@ -178,7 +185,13 @@ export async function inviteCollaborator(params: {
     }
   }
 
-  const ctx = params.ctx!;
+  if (!params.ctx)
+    throw new AuthorizationError(
+      "Autenticação obrigatória.",
+      "UNAUTHENTICATED",
+      401,
+    );
+  const ctx = params.ctx;
   assertInternalStaff(ctx);
   assertPermission(
     ctx,
@@ -188,7 +201,7 @@ export async function inviteCollaborator(params: {
 
   if (
     !params.roles.length ||
-    !params.email.includes("@") ||
+    !/^\S+@\S+\.\S+$/.test(params.email.trim()) ||
     params.fullName.trim().length < 3
   )
     throw new Error("Informe nome, e-mail e ao menos uma função.");
@@ -200,16 +213,10 @@ export async function inviteCollaborator(params: {
     )
   )
     throw new Error("Unidade inválida.");
-  if (
-    !process.env.RESEND_API_KEY ||
-    !process.env.CHAVEFLOW_EMAIL_FROM ||
-    !process.env.CHAVEFLOW_APP_URL
-  )
-    throw new Error(
-      "Configure o envio de e-mail antes de convidar colaboradores.",
-    );
   for (const r of params.roles) {
     RoleCodeSchema.parse(r);
+    if (r === "CUSTOMER")
+      throw new Error("Crie o acesso do comprador pela negociação.");
   }
 
   const result = await withTransaction((db) => {
@@ -268,10 +275,13 @@ export async function inviteCollaborator(params: {
       createdAt: nowIso,
     });
 
-    return { profileId, membershipId };
+    return {
+      profileId,
+      membershipId,
+      activationPath: issueAccountActivation(db, profileId),
+      email: cleanEmail,
+      fullName: params.fullName.trim(),
+    };
   });
-  const { sendPasswordReset } =
-    await import("@/application/password-reset-service");
-  await sendPasswordReset(params.email);
   return result;
 }
