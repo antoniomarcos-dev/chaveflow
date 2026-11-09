@@ -5,7 +5,7 @@ import {
   createEmptyState,
   createOrganizationWorkflow,
 } from "../src/infrastructure/initial-state";
-import { getSql } from "../src/infrastructure/postgres";
+import { getSetupSql } from "../src/infrastructure/postgres";
 import { hashPassword } from "../src/lib/passwords";
 
 async function main() {
@@ -25,7 +25,7 @@ async function main() {
   const passwordHash = hashPassword(process.env.CHAVEFLOW_ADMIN_PASSWORD!);
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(process.env.CHAVEFLOW_ADMIN_EMAIL!))
     throw new Error("E-mail do administrador inválido.");
-  const sql = getSql();
+  const sql = getSetupSql();
   try {
     await sql.unsafe(
       await readFile(

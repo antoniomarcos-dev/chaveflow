@@ -1,13 +1,22 @@
 import postgres from "postgres";
 
 let client: ReturnType<typeof postgres> | undefined;
-export function getSql() {
-  if (!process.env.DATABASE_URL)
+function createClient(connectionString: string | undefined) {
+  if (!connectionString)
     throw new Error("Configure DATABASE_URL para conectar o PostgreSQL.");
-  return (client ??= postgres(process.env.DATABASE_URL, {
+  return postgres(connectionString, {
     max: 3,
     idle_timeout: 20,
-    connect_timeout: 10,
+    connect_timeout: 15,
     prepare: false,
-  }));
+  });
+}
+
+export function getSql() {
+  return (client ??= createClient(process.env.DATABASE_URL));
+}
+
+// Migrations use a separate direct connection; runtime keeps using the pooler.
+export function getSetupSql() {
+  return createClient(process.env.DATABASE_URL_UNPOOLED || process.env.DATABASE_URL);
 }

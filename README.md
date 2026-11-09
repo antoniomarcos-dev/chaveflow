@@ -8,7 +8,7 @@ O sistema inicia sem veículos, compradores, negociações ou documentos de exem
 
 1. Use Node.js 22 LTS e execute `npm ci`.
 2. Copie `.env.example` para `.env.local`.
-3. Configure `DATABASE_URL` com a conexão de um PostgreSQL. Para provedores gerenciados, use a conexão com pool e TLS conforme as instruções do provedor. A conta do banco deve ser proprietária das tabelas criadas pelo setup. Nunca exponha essa conexão ao navegador.
+3. Configure `DATABASE_URL` com a conexão de um PostgreSQL. No Neon, use a URL com `-pooler` e TLS em `DATABASE_URL`, e a URL direta em `DATABASE_URL_UNPOOLED` para a inicialização. A conta do banco deve ser proprietária das tabelas criadas pelo setup. Nunca exponha essas conexões ao navegador.
 4. Gere um segredo aleatório: `node -e "console.log(require('node:crypto').randomBytes(48).toString('hex'))"`. Salve-o em `CHAVEFLOW_SESSION_SECRET`.
 5. Preencha os campos `CHAVEFLOW_ORGANIZATION_*`, `CHAVEFLOW_BRANCH_*` e `CHAVEFLOW_ADMIN_*` com os dados reais. A senha do administrador deve ter de 12 a 128 caracteres.
 6. Execute `npm run db:setup`. O comando aplica `database/migrations/0001_runtime.sql` e cria a organização, unidade, administrador e fluxo padrão. Reexecutá-lo não substitui dados existentes.
