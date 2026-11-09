@@ -1,8 +1,7 @@
 "use client";
 
-import React, { useState } from "react";
-import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { NotificationItem, ROLE_LABELS, RoleCode } from "@/domain/types";
+import { formatDateTimeBr } from "@/lib/format";
 import {
   BarChart3,
   Bell,
@@ -16,15 +15,13 @@ import {
   LogOut,
   Menu,
   QrCode,
-  RefreshCw,
   Settings,
-  ShieldAlert,
-  UserCheck,
   Users,
   X,
 } from "lucide-react";
-import { NotificationItem, ROLE_LABELS, RoleCode } from "@/domain/types";
-import { formatDateTimeBr } from "@/lib/format";
+import Link from "next/link";
+import { usePathname, useRouter } from "next/navigation";
+import React, { useState } from "react";
 
 export interface AppShellProps {
   children: React.ReactNode;
@@ -37,14 +34,6 @@ export interface AppShellProps {
   organizationName: string;
   branchName: string;
   roles: RoleCode[];
-  isDemoMode: boolean;
-  demoPersonas: Array<{
-    profileId: string;
-    fullName: string;
-    email: string;
-    roles: RoleCode[];
-    isCustomerOnly: boolean;
-  }>;
   notifications: NotificationItem[];
 }
 
@@ -54,64 +43,14 @@ export function AppShell({
   organizationName,
   branchName,
   roles,
-  isDemoMode,
-  demoPersonas,
   notifications,
 }: AppShellProps) {
   const pathname = usePathname();
   const router = useRouter();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
-  const [switchingPersona, setSwitchingPersona] = useState(false);
 
   const unreadCount = notifications.filter((n) => !n.isRead).length;
-
-  async function handleSwitchPersona(targetProfileId: string) {
-    setSwitchingPersona(true);
-    try {
-      const res = await fetch("/api/auth", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          action: "SWITCH_DEMO_PERSONA",
-          targetProfileId,
-        }),
-      });
-      const data = await res.json();
-      if (data.ok) {
-        if (data.profile.isCustomerOnly) {
-          router.push("/cliente");
-        } else if (pathname.startsWith("/cliente")) {
-          router.push("/app");
-        } else {
-          router.refresh();
-        }
-      }
-    } finally {
-      setSwitchingPersona(false);
-    }
-  }
-
-  async function handleResetDemo() {
-    if (
-      !window.confirm(
-        "Deseja restaurar o banco de dados demonstrativo para o estado inicial do Roteiro de 15 Passos?"
-      )
-    ) {
-      return;
-    }
-    setSwitchingPersona(true);
-    try {
-      await fetch("/api/auth", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "RESET_DEMO_DB" }),
-      });
-      router.refresh();
-    } finally {
-      setSwitchingPersona(false);
-    }
-  }
 
   async function handleLogout() {
     await fetch("/api/auth", {
@@ -192,63 +131,6 @@ export function AppShell({
 
   return (
     <div className="min-h-screen flex flex-col bg-slate-50">
-      {/* Banner explícito de Ambiente Demonstrativo */}
-      {isDemoMode && (
-        <div className="no-print bg-slate-900 text-slate-100 border-b border-slate-700 px-3 py-2 text-xs">
-          <div className="max-w-[1600px] mx-auto flex flex-wrap items-center justify-between gap-2">
-            <div className="flex items-center gap-2">
-              <span className="inline-flex items-center gap-1 rounded bg-amber-500/20 border border-amber-400/40 px-2 py-0.5 text-[11px] font-semibold text-amber-300">
-                <ShieldAlert className="h-3.5 w-3.5" />
-                AMBIENTE DEMONSTRATIVO LOCAL
-              </span>
-              <span className="text-slate-300 hidden sm:inline">
-                Concessionária fictícia piloto:{" "}
-                <strong className="text-white">Pinauto BYD — Ceres/GO</strong>{" "}
-                (Produto independente ChaveFlow, sem vínculo oficial ou homologação pela BYD).
-              </span>
-            </div>
-
-            <div className="flex flex-wrap items-center gap-2">
-              <label
-                htmlFor="demo-persona-select"
-                className="flex items-center gap-1.5 text-slate-300 font-medium"
-              >
-                <UserCheck className="h-3.5 w-3.5 text-teal-400" />
-                <span>Alternar Persona (Demo):</span>
-              </label>
-              <select
-                id="demo-persona-select"
-                disabled={switchingPersona}
-                value={user.id}
-                onChange={(e) => handleSwitchPersona(e.target.value)}
-                className="rounded bg-slate-800 border border-slate-600 px-2.5 py-1 text-xs font-medium text-white focus:border-teal-400"
-              >
-                {demoPersonas.map((p) => (
-                  <option key={p.profileId} value={p.profileId}>
-                    {p.fullName} [{p.roles.map((r) => ROLE_LABELS[r]).join(", ")}]
-                  </option>
-                ))}
-              </select>
-
-              <button
-                type="button"
-                onClick={handleResetDemo}
-                disabled={switchingPersona}
-                title="Restaurar dados iniciais do roteiro de 15 passos"
-                className="inline-flex items-center gap-1 rounded border border-slate-600 bg-slate-800 hover:bg-slate-700 px-2.5 py-1 text-xs font-medium text-slate-200 transition"
-              >
-                <RefreshCw
-                  className={`h-3.5 w-3.5 ${
-                    switchingPersona ? "animate-spin" : ""
-                  }`}
-                />
-                <span>Restaurar Roteiro</span>
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
       <div className="flex-1 flex">
         {/* Navegação Lateral Desktop */}
         <aside className="no-print hidden lg:flex lg:w-68 lg:flex-col bg-[#0f172a] text-slate-100 border-r border-slate-800 shrink-0">
@@ -356,10 +238,11 @@ export function AppShell({
               </button>
               <div>
                 <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 hidden sm:block">
-                  Escaneou o carro • Entendeu o próximo passo • Acompanhou até a entrega
+                  Escaneou o carro • Entendeu o próximo passo • Acompanhou até a
+                  entrega
                 </p>
                 <p className="text-sm font-bold text-slate-900 sm:hidden">
-                  ChaveFlow • Pinauto Ceres
+                  ChaveFlow
                 </p>
               </div>
             </div>
@@ -441,7 +324,7 @@ export function AppShell({
                       )}
                     </div>
                     <div className="bg-slate-50 px-4 py-2 border-t border-slate-200 text-[11px] text-slate-500">
-                      Adaptadores externos (E-mail/WhatsApp): Modo simulado (sem provedor configurado no MVP).
+                      Notificações da sua organização.
                     </div>
                   </div>
                 )}

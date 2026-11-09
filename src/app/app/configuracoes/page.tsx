@@ -1,15 +1,14 @@
-import React from "react";
-import { getServerSessionContext } from "@/lib/server-session";
+import { OrganizationSettingsClient } from "@/components/OrganizationSettingsClient";
 import { hasPermission } from "@/domain/permissions";
 import { loadDatabaseState } from "@/infrastructure/database";
-import { OrganizationSettingsClient } from "@/components/OrganizationSettingsClient";
+import { requireInternalSession } from "@/lib/server-session";
 
 export default async function ConfiguracoesPage() {
-  const ctx = (await getServerSessionContext())!;
-  const db = loadDatabaseState();
+  const ctx = await requireInternalSession();
+  const db = await loadDatabaseState();
 
   const branches = db.branches.filter(
-    (b) => b.organizationId === ctx.organization.id
+    (b) => b.organizationId === ctx.organization.id,
   );
 
   const members = db.memberships

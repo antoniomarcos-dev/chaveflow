@@ -1,7 +1,8 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
-import Link from "next/link";
+import type { VehicleWithDealStatus } from "@/application/vehicle-service";
+import { Branch, Deal } from "@/domain/types";
+import { formatDateBr, formatDateTimeBr } from "@/lib/format";
 import {
   ArrowLeft,
   ArrowRight,
@@ -12,11 +13,10 @@ import {
   Printer,
   QrCode,
 } from "lucide-react";
-import type { VehicleWithDealStatus } from "@/application/vehicle-service";
-import { Branch, Deal } from "@/domain/types";
+import Link from "next/link";
+import { useEffect, useState } from "react";
 import { DealStatusBadge, StockStatusBadge } from "./StatusBadge";
 import { VehicleFormClient } from "./VehicleFormClient";
-import { formatDateBr, formatDateTimeBr } from "@/lib/format";
 
 export function VehicleDetailClient({
   vehicle,
@@ -74,10 +74,7 @@ export function VehicleDetailClient({
         >
           ← Cancelar edição
         </button>
-        <VehicleFormClient
-          branches={branches}
-          existingVehicle={vehicle}
-        />
+        <VehicleFormClient branches={branches} existingVehicle={vehicle} />
       </div>
     );
   }
@@ -125,7 +122,9 @@ export function VehicleDetailClient({
                 {vehicle.internalCode}
               </span>
               <span className="text-xs font-bold bg-teal-50 text-teal-900 border border-teal-200 px-2.5 py-1 rounded">
-                {vehicle.condition === "NEW" ? "Novo / 0km" : "Usado / Seminovo"}
+                {vehicle.condition === "NEW"
+                  ? "Novo / 0km"
+                  : "Usado / Seminovo"}
               </span>
             </div>
             <StockStatusBadge status={vehicle.stockStatus} />
@@ -134,7 +133,7 @@ export function VehicleDetailClient({
           <div className="grid sm:grid-cols-12 gap-5 items-center">
             <div className="sm:col-span-5">
               <img
-                src={vehicle.photos[0] || "/vehicles/song-plus.svg"}
+                src={vehicle.photos[0] || "/vehicle-placeholder.svg"}
                 alt={`${vehicle.brand} ${vehicle.model}`}
                 className="w-full rounded-xl border border-slate-200"
               />
@@ -198,7 +197,8 @@ export function VehicleDetailClient({
                     </span>
                   </div>
                   <p className="text-xs text-teal-800 mt-0.5">
-                    Garantia do banco: o veículo não pode ter outra negociação ativa simultânea.
+                    Garantia do banco: o veículo não pode ter outra negociação
+                    ativa simultânea.
                   </p>
                 </div>
                 <Link
@@ -264,7 +264,8 @@ export function VehicleDetailClient({
               cf://v/{vehicle.qrToken}
             </div>
             <p>
-              Identificador opaco seguro. Não contém dados pessoais, documentos ou autorização.
+              Identificador opaco seguro. Não contém dados pessoais, documentos
+              ou autorização.
             </p>
           </div>
         </div>
@@ -279,7 +280,8 @@ export function VehicleDetailClient({
               Histórico de Negociações deste Veículo ({dealHistory.length})
             </h2>
             <p className="text-xs text-slate-500">
-              Cada negociação mantém seu próprio passaporte, documentos e histórico imutável.
+              Cada negociação mantém seu próprio passaporte, documentos e
+              histórico imutável.
             </p>
           </div>
         </div>

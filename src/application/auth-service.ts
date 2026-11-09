@@ -1,39 +1,25 @@
-import crypto from "crypto";
-import {
-  AuthenticatedContext,
-  RoleCode,
-  RoleCodeSchema,
-} from "@/domain/types";
 import {
   assertInternalStaff,
   assertPermission,
   AuthorizationError,
   resolvePermissionsForRoles,
 } from "@/domain/permissions";
+import { AuthenticatedContext, RoleCode, RoleCodeSchema } from "@/domain/types";
 import { loadDatabaseState, withTransaction } from "@/infrastructure/database";
-import { DEMO_ORG_ID } from "@/infrastructure/seed-data";
+import { hashPassword, verifyPassword } from "@/lib/passwords";
+import { getSigningSecret } from "@/lib/secrets";
+import crypto from "crypto";
 
 export const SESSION_COOKIE_NAME = "chaveflow_session";
 
-export function isDemoEnvironment(): boolean {
-  return (process.env.CHAVEFLOW_ENV_MODE || "demo") !== "production";
-}
-
-function getSecret(): string {
-  return (
-    process.env.CHAVEFLOW_SESSION_SECRET ||
-    "chaveflow-local-demo-hmac-secret-key-2026"
-  );
-}
-
 export function createSessionToken(
   profileId: string,
-  organizationId: string
+  organizationId: string,
 ): string {
   const issuedAt = Date.now();
   const payload = `${profileId}|${organizationId}|${issuedAt}`;
   const sig = crypto
-    .createHmac("sha256", getSecret())
+    .createHmac("sha256", getSigningSecret())
     .update(payload)
     .digest("hex");
   return Buffer.from(`${payload}|${sig}`, "utf-8").toString("base64url");
@@ -43,6 +29,7 @@ export function verifySessionToken(token: string): {
   valid: boolean;
   profileId?: string;
   organizationId?: string;
+  issuedAt?: number;
 } {
   try {
     const raw = Buffer.from(token, "base64url").toString("utf-8");
@@ -51,52 +38,62 @@ export function verifySessionToken(token: string): {
     const [profileId, organizationId, issuedAt, sig] = parts;
     const payload = `${profileId}|${organizationId}|${issuedAt}`;
     const expected = crypto
-      .createHmac("sha256", getSecret())
+      .createHmac("sha256", getSigningSecret())
       .update(payload)
       .digest("hex");
-    if (sig !== expected) return { valid: false };
-    return { valid: true, profileId, organizationId };
+    if (
+      !/^[a-f0-9]{64}$/.test(sig) ||
+      !crypto.timingSafeEqual(
+        Buffer.from(sig, "hex"),
+        Buffer.from(expected, "hex"),
+      )
+    )
+      return { valid: false };
+    const timestamp = Number(issuedAt);
+    if (
+      !Number.isFinite(timestamp) ||
+      timestamp > Date.now() ||
+      Date.now() - timestamp > 7 * 86400000
+    )
+      return { valid: false };
+    return { valid: true, profileId, organizationId, issuedAt: timestamp };
   } catch {
     return { valid: false };
   }
 }
 
-export function buildAuthenticatedContext(
+export async function buildAuthenticatedContext(
   profileId: string,
-  preferredOrgId?: string
-): AuthenticatedContext | null {
-  const db = loadDatabaseState();
-  const profile = db.profiles.find(
-    (p) => p.id === profileId && p.isActive
-  );
+  preferredOrgId?: string,
+): Promise<AuthenticatedContext | null> {
+  const db = await loadDatabaseState();
+  const profile = db.profiles.find((p) => p.id === profileId && p.isActive);
   if (!profile) return null;
 
   const memberships = db.memberships.filter(
-    (m) => m.profileId === profile.id && m.isActive
+    (m) => m.profileId === profile.id && m.isActive,
   );
 
-  const selectedMembership =
-    (preferredOrgId
-      ? memberships.find((m) => m.organizationId === preferredOrgId)
-      : memberships[0]) ?? memberships[0];
+  const selectedMembership = preferredOrgId
+    ? memberships.find((m) => m.organizationId === preferredOrgId)
+    : memberships[0];
 
   if (!selectedMembership) return null;
 
   const organization = db.organizations.find(
-    (o) => o.id === selectedMembership.organizationId
+    (o) => o.id === selectedMembership.organizationId,
   );
   if (!organization) return null;
 
   const branch = selectedMembership.branchId
-    ? db.branches.find((b) => b.id === selectedMembership.branchId) ?? null
-    : db.branches.find((b) => b.organizationId === organization.id) ?? null;
+    ? (db.branches.find((b) => b.id === selectedMembership.branchId) ?? null)
+    : (db.branches.find((b) => b.organizationId === organization.id) ?? null);
 
   const roles = selectedMembership.roles;
   const permissions = resolvePermissionsForRoles(roles);
 
   const customerRecord = db.customers.find(
-    (c) =>
-      c.organizationId === organization.id && c.profileId === profile.id
+    (c) => c.organizationId === organization.id && c.profileId === profile.id,
   );
 
   return {
@@ -117,72 +114,40 @@ export async function authenticateWithCredentials(params: {
   context: AuthenticatedContext;
   sessionToken: string;
 }> {
-  const db = loadDatabaseState();
+  const db = await loadDatabaseState();
   const cleanEmail = params.email.trim().toLowerCase();
   const profile = db.profiles.find(
-    (p) => p.email.toLowerCase() === cleanEmail && p.isActive
+    (p) => p.email.toLowerCase() === cleanEmail && p.isActive,
   );
 
   if (!profile) {
     throw new AuthorizationError(
-      "Credenciais inválidas ou usuário não encontrado.",
+      "E-mail ou senha inválidos.",
       "INVALID_CREDENTIALS",
-      401
+      401,
     );
   }
 
-  const expectedPass = profile.passwordHash.replace(/^demo:/, "");
-  if (params.password && params.password !== expectedPass) {
+  if (!verifyPassword(params.password || "", profile.passwordHash)) {
     throw new AuthorizationError(
-      "Senha incorreta.",
+      "E-mail ou senha inválidos.",
       "INVALID_CREDENTIALS",
-      401
+      401,
     );
   }
 
-  const context = buildAuthenticatedContext(profile.id);
+  const context = await buildAuthenticatedContext(profile.id);
   if (!context) {
     throw new AuthorizationError(
       "Usuário não possui vínculo ativo com nenhuma organização.",
       "NO_ORG_MEMBERSHIP",
-      403
+      403,
     );
   }
 
   const sessionToken = createSessionToken(
     context.profile.id,
-    context.organization.id
-  );
-
-  return { context, sessionToken };
-}
-
-export async function switchDemoPersona(params: {
-  targetProfileId: string;
-}): Promise<{
-  context: AuthenticatedContext;
-  sessionToken: string;
-}> {
-  if (!isDemoEnvironment()) {
-    throw new AuthorizationError(
-      "A alternância simplificada de persona é exclusiva do modo demonstrativo.",
-      "DEMO_ONLY_FEATURE",
-      403
-    );
-  }
-
-  const context = buildAuthenticatedContext(params.targetProfileId);
-  if (!context) {
-    throw new AuthorizationError(
-      "Persona demonstrativa não encontrada.",
-      "NOT_FOUND",
-      404
-    );
-  }
-
-  const sessionToken = createSessionToken(
-    context.profile.id,
-    context.organization.id
+    context.organization.id,
   );
 
   return { context, sessionToken };
@@ -208,7 +173,7 @@ export async function inviteCollaborator(params: {
       throw new AuthorizationError(
         "Bloqueado no servidor: um cadastro público não pode escolher funções internas ou privilegiadas.",
         "PRIVILEGED_ROLE_SIGNUP_FORBIDDEN",
-        403
+        403,
       );
     }
   }
@@ -218,20 +183,44 @@ export async function inviteCollaborator(params: {
   assertPermission(
     ctx,
     "user:manage",
-    "Somente Administradores podem convidar colaboradores ou atribuir funções."
+    "Somente Administradores podem convidar colaboradores ou atribuir funções.",
   );
 
+  if (
+    !params.roles.length ||
+    !params.email.includes("@") ||
+    params.fullName.trim().length < 3
+  )
+    throw new Error("Informe nome, e-mail e ao menos uma função.");
+  if (
+    params.branchId &&
+    !(await loadDatabaseState()).branches.some(
+      (b) =>
+        b.id === params.branchId && b.organizationId === ctx.organization.id,
+    )
+  )
+    throw new Error("Unidade inválida.");
+  if (
+    !process.env.RESEND_API_KEY ||
+    !process.env.CHAVEFLOW_EMAIL_FROM ||
+    !process.env.CHAVEFLOW_APP_URL
+  )
+    throw new Error(
+      "Configure o envio de e-mail antes de convidar colaboradores.",
+    );
   for (const r of params.roles) {
     RoleCodeSchema.parse(r);
   }
 
-  return withTransaction((db) => {
+  const result = await withTransaction((db) => {
     const cleanEmail = params.email.trim().toLowerCase();
     const existing = db.profiles.find(
-      (p) => p.email.toLowerCase() === cleanEmail
+      (p) => p.email.toLowerCase() === cleanEmail,
     );
     if (existing) {
-      throw new Error(`Já existe um usuário cadastrado com o e-mail ${cleanEmail}.`);
+      throw new Error(
+        `Já existe um usuário cadastrado com o e-mail ${cleanEmail}.`,
+      );
     }
 
     const nowIso = new Date().toISOString();
@@ -243,8 +232,9 @@ export async function inviteCollaborator(params: {
       email: cleanEmail,
       fullName: params.fullName.trim(),
       phone: params.phone.trim(),
-      passwordHash: "demo:chaveflow123",
-      isCustomerOnly: params.roles.length === 1 && params.roles[0] === "CUSTOMER",
+      passwordHash: hashPassword(crypto.randomBytes(32).toString("hex")),
+      isCustomerOnly:
+        params.roles.length === 1 && params.roles[0] === "CUSTOMER",
       isActive: true,
       createdAt: nowIso,
       updatedAt: nowIso,
@@ -280,20 +270,8 @@ export async function inviteCollaborator(params: {
 
     return { profileId, membershipId };
   });
-}
-
-export function listDemoPersonas() {
-  const db = loadDatabaseState();
-  return db.memberships
-    .filter((m) => m.organizationId === DEMO_ORG_ID && m.isActive)
-    .map((m) => {
-      const profile = db.profiles.find((p) => p.id === m.profileId)!;
-      return {
-        profileId: profile.id,
-        fullName: profile.fullName,
-        email: profile.email,
-        roles: m.roles,
-        isCustomerOnly: profile.isCustomerOnly,
-      };
-    });
+  const { sendPasswordReset } =
+    await import("@/application/password-reset-service");
+  await sendPasswordReset(params.email);
+  return result;
 }

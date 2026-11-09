@@ -1,9 +1,8 @@
-import React from "react";
-import { notFound } from "next/navigation";
-import { getServerSessionContext } from "@/lib/server-session";
 import { getDealPassportView } from "@/application/deal-service";
-import { loadDatabaseState } from "@/infrastructure/database";
 import { DealPassportClient } from "@/components/DealPassportClient";
+import { loadDatabaseState } from "@/infrastructure/database";
+import { requireInternalSession } from "@/lib/server-session";
+import { notFound } from "next/navigation";
 
 export default async function DealPassportPage({
   params,
@@ -11,18 +10,18 @@ export default async function DealPassportPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const ctx = (await getServerSessionContext())!;
+  const ctx = await requireInternalSession();
 
   try {
-    const passport = getDealPassportView({ ctx, dealId: id });
-    const db = loadDatabaseState();
+    const passport = await getDealPassportView({ ctx, dealId: id });
+    const db = await loadDatabaseState();
 
     const internalStaffList = db.memberships
       .filter(
         (m) =>
           m.organizationId === ctx.organization.id &&
           m.isActive &&
-          !m.roles.includes("CUSTOMER")
+          !m.roles.includes("CUSTOMER"),
       )
       .map((m) => {
         const p = db.profiles.find((pr) => pr.id === m.profileId)!;

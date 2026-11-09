@@ -1,10 +1,9 @@
-import React from "react";
-import { notFound } from "next/navigation";
-import { getServerSessionContext } from "@/lib/server-session";
 import { getVehicleDetails } from "@/application/vehicle-service";
+import { VehicleDetailClient } from "@/components/VehicleDetailClient";
 import { hasPermission } from "@/domain/permissions";
 import { loadDatabaseState } from "@/infrastructure/database";
-import { VehicleDetailClient } from "@/components/VehicleDetailClient";
+import { requireInternalSession } from "@/lib/server-session";
+import { notFound } from "next/navigation";
 
 export default async function VehicleDetailPage({
   params,
@@ -12,13 +11,13 @@ export default async function VehicleDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const ctx = (await getServerSessionContext())!;
+  const ctx = await requireInternalSession();
 
   try {
-    const details = getVehicleDetails({ ctx, vehicleId: id });
-    const db = loadDatabaseState();
+    const details = await getVehicleDetails({ ctx, vehicleId: id });
+    const db = await loadDatabaseState();
     const branches = db.branches.filter(
-      (b) => b.organizationId === ctx.organization.id
+      (b) => b.organizationId === ctx.organization.id,
     );
 
     return (

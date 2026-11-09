@@ -1,6 +1,3 @@
-import { NextRequest, NextResponse } from "next/server";
-import { ZodError } from "zod";
-import { getServerSessionContext } from "@/lib/server-session";
 import {
   authorizeDealRelease,
   ConcurrencyConflictError,
@@ -16,33 +13,37 @@ import {
   updateTaskOperationalState,
   uploadDocumentVersion,
 } from "@/application/deal-service";
+import { answerContextualQuestion } from "@/domain/contextual-assistant";
 import { AuthorizationError } from "@/domain/permissions";
 import { AuthenticatedContext } from "@/domain/types";
-import { answerContextualQuestion } from "@/domain/contextual-assistant";
 import { loadDatabaseState } from "@/infrastructure/database";
+import { assertSameOriginRequest } from "@/lib/request-security";
+import { getServerSessionContext } from "@/lib/server-session";
+import { NextRequest, NextResponse } from "next/server";
+import { ZodError } from "zod";
 
-function resolveCustomerTokenContext(
+async function resolveCustomerTokenContext(
   accessToken: string,
-  expectedDealId: string
-): AuthenticatedContext {
-  const db = loadDatabaseState();
+  expectedDealId: string,
+): Promise<AuthenticatedContext> {
+  const db = await loadDatabaseState();
   const cleanToken = accessToken.trim();
 
   const isVehicleQr = db.vehicles.some(
     (v) =>
       v.qrToken.toLowerCase() === cleanToken.toLowerCase() ||
-      v.internalCode.toLowerCase() === cleanToken.toLowerCase()
+      v.internalCode.toLowerCase() === cleanToken.toLowerCase(),
   );
   if (isVehicleQr) {
     throw new AuthorizationError(
       "Acesso negado: o QR Code do veículo não concede acesso de comprador.",
       "VEHICLE_QR_FORBIDDEN_FOR_CUSTOMER_PORTAL",
-      403
+      403,
     );
   }
 
   const grant = db.customerAccessGrants.find(
-    (g) => g.accessToken === cleanToken
+    (g) => g.accessToken === cleanToken,
   );
   if (
     !grant ||
@@ -53,18 +54,20 @@ function resolveCustomerTokenContext(
     throw new AuthorizationError(
       "Token de convite do comprador inválido, revogado ou expirado.",
       "INVALID_ACCESS_GRANT",
-      403
+      403,
     );
   }
 
   const customer = db.customers.find((c) => c.id === grant.customerId);
   const org = db.organizations.find((o) => o.id === grant.organizationId);
-  const branch = db.branches.find((b) => b.organizationId === grant.organizationId);
+  const branch = db.branches.find(
+    (b) => b.organizationId === grant.organizationId,
+  );
   if (!customer || !org || !branch) {
     throw new AuthorizationError(
       "Cadastro do comprador não localizado.",
       "CUSTOMER_NOT_FOUND",
-      403
+      403,
     );
   }
 
@@ -95,6 +98,12 @@ function resolveCustomerTokenContext(
 
 export async function POST(req: NextRequest) {
   try {
+    assertSameOriginRequest(req);
+    if (Number(req.headers.get("content-length") || "0") > 4.4 * 1024 * 1024)
+      return NextResponse.json(
+        { error: "Envie um arquivo de até 4 MB." },
+        { status: 413 },
+      );
     let ctx = await getServerSessionContext();
 
     const contentType = req.headers.get("content-type") || "";
@@ -110,19 +119,19 @@ export async function POST(req: NextRequest) {
       const file = formData.get("file");
 
       if (accessToken) {
-        ctx = resolveCustomerTokenContext(accessToken, dealId);
+        ctx = await resolveCustomerTokenContext(accessToken, dealId);
       }
       if (!ctx) {
         return NextResponse.json(
           { error: "Autenticação obrigatória no servidor." },
-          { status: 401 }
+          { status: 401 },
         );
       }
 
       if (!file || !(file instanceof File)) {
         return NextResponse.json(
           { error: "Selecione um arquivo válido para enviar." },
-          { status: 400 }
+          { status: 400 },
         );
       }
 
@@ -146,17 +155,10 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const action = body.action as string;
 
-    if (action === "UPLOAD_DEMO_DOCUMENT" && body.accessToken) {
-      ctx = resolveCustomerTokenContext(
-        String(body.accessToken),
-        String(body.dealId || "")
-      );
-    }
-
     if (!ctx) {
       return NextResponse.json(
         { error: "Autenticação obrigatória no servidor." },
-        { status: 401 }
+        { status: 401 },
       );
     }
 
@@ -199,38 +201,6 @@ export async function POST(req: NextRequest) {
         isCustomerVisible: Boolean(body.isCustomerVisible),
       });
       return NextResponse.json({ ok: true, document: doc });
-    }
-
-    if (action === "UPLOAD_DEMO_DOCUMENT") {
-      // Atalho demonstrativo seguro (gera buffer de documento fictício marcado claramente)
-      const filename = String(
-        body.filename || "Documento_Demonstrativo_Pinauto.pdf"
-      );
-      const mimeType = filename.endsWith(".pdf")
-        ? "application/pdf"
-        : "text/plain";
-      const contentBuffer = Buffer.from(
-        `%PDF-1.4\n[CHAVEFLOW — DOCUMENTO DEMONSTRATIVO FICTÍCIO]\nArquivo: ${filename}\nEnviado por: ${
-          ctx.profile.fullName
-        }\nData: ${new Date().toISOString()}\nNotas: ${
-          body.uploadNotes || "Envio demonstrativo"
-        }`,
-        "utf-8"
-      );
-
-      const res = await uploadDocumentVersion({
-        ctx,
-        dealId: String(body.dealId || ""),
-        documentId: String(body.documentId || ""),
-        originalFilename: filename,
-        mimeType,
-        contentBuffer,
-        uploadNotes: body.uploadNotes ? String(body.uploadNotes) : undefined,
-        replacementReason: body.replacementReason
-          ? String(body.replacementReason)
-          : undefined,
-      });
-      return NextResponse.json({ ok: true, ...res });
     }
 
     if (action === "REVIEW_DOCUMENT") {
@@ -291,7 +261,7 @@ export async function POST(req: NextRequest) {
         ctx,
         dealId: String(body.dealId || ""),
         confirmedVehicleIdentifier: String(
-          body.confirmedVehicleIdentifier || ""
+          body.confirmedVehicleIdentifier || "",
         ),
         recipientName: String(body.recipientName || ""),
         recipientDocument: String(body.recipientDocument || ""),
@@ -312,15 +282,15 @@ export async function POST(req: NextRequest) {
     }
 
     if (action === "ASSISTANT_QUESTION") {
-      const passport = getDealPassportView({
+      const passport = await getDealPassportView({
         ctx,
         dealId: String(body.dealId || ""),
       });
-      const db = loadDatabaseState();
+      const db = await loadDatabaseState();
       const publishedProcedures = db.procedureVersions.filter(
         (pv) =>
           pv.organizationId === ctx.organization.id &&
-          pv.status === "PUBLISHED"
+          pv.status === "PUBLISHED",
       );
 
       const response = answerContextualQuestion({
@@ -333,7 +303,7 @@ export async function POST(req: NextRequest) {
         publishedProcedures,
         recentEvents: passport.auditEvents,
         hasActiveReleaseAuthorization: Boolean(
-          passport.activeReleaseAuthorization
+          passport.activeReleaseAuthorization,
         ),
       });
 
@@ -349,19 +319,19 @@ export async function POST(req: NextRequest) {
           code: err.code,
           blockers: err.blockers,
         },
-        { status: err.statusCode }
+        { status: err.statusCode },
       );
     }
     if (err instanceof ConcurrencyConflictError) {
       return NextResponse.json(
         { error: err.message, code: err.code },
-        { status: err.statusCode }
+        { status: err.statusCode },
       );
     }
     if (err instanceof AuthorizationError) {
       return NextResponse.json(
         { error: err.message, code: err.code },
-        { status: err.statusCode }
+        { status: err.statusCode },
       );
     }
     if (err instanceof ZodError) {
@@ -370,7 +340,7 @@ export async function POST(req: NextRequest) {
           error: err.issues.map((i) => i.message).join(" • "),
           issues: err.issues,
         },
-        { status: 400 }
+        { status: 400 },
       );
     }
     const msg =

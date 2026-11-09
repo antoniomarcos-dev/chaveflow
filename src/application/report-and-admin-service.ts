@@ -1,4 +1,4 @@
-import crypto from "crypto";
+import { assertInternalStaff, assertPermission } from "@/domain/permissions";
 import {
   AREA_LABELS,
   AuthenticatedContext,
@@ -6,25 +6,22 @@ import {
   ResponsibleArea,
   WORKFLOW_STAGES,
 } from "@/domain/types";
-import {
-  assertInternalStaff,
-  assertPermission,
-} from "@/domain/permissions";
 import { computeDealEligibilityAndSummary } from "@/domain/workflow-engine";
 import { loadDatabaseState, withTransaction } from "@/infrastructure/database";
+import crypto from "crypto";
 import { isDealActiveStatus } from "./vehicle-service";
 
 // ============================================================================
 // FUNCIONALIDADE 11 — NOTIFICAÇÕES INTERNAS
 // ============================================================================
 
-export function listNotificationsForUser(ctx: AuthenticatedContext) {
-  const db = loadDatabaseState();
+export async function listNotificationsForUser(ctx: AuthenticatedContext) {
+  const db = await loadDatabaseState();
   return db.notifications
     .filter(
       (n) =>
         n.organizationId === ctx.organization.id &&
-        n.recipientProfileId === ctx.profile.id
+        n.recipientProfileId === ctx.profile.id,
     )
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 }
@@ -35,7 +32,7 @@ export async function markNotificationAsRead(params: {
   markAll?: boolean;
 }) {
   const { ctx, notificationId, markAll } = params;
-  return withTransaction((db) => {
+  return await withTransaction((db) => {
     const nowIso = new Date().toISOString();
     for (const n of db.notifications) {
       if (
@@ -117,19 +114,19 @@ export interface ManagerialDashboardData {
   };
 }
 
-export function getManagerialDashboardData(params: {
+export async function getManagerialDashboardData(params: {
   ctx: AuthenticatedContext;
   periodDays?: number;
   sellerId?: string;
   vehicleModel?: string;
   statusFilter?: string;
-}): ManagerialDashboardData {
+}): Promise<ManagerialDashboardData> {
   const { ctx } = params;
   assertInternalStaff(ctx);
   assertPermission(
     ctx,
     "report:view",
-    "Sua função não possui permissão para acessar o Painel Gerencial."
+    "Sua função não possui permissão para acessar o Painel Gerencial.",
   );
 
   const periodDays = params.periodDays ?? 30;
@@ -137,12 +134,12 @@ export function getManagerialDashboardData(params: {
   const vehicleModel = params.vehicleModel ?? "ALL";
   const statusFilter = params.statusFilter ?? "ALL";
 
-  const db = loadDatabaseState();
+  const db = await loadDatabaseState();
   const nowMs = Date.now();
   const cutoffMs = nowMs - periodDays * 24 * 60 * 60 * 1000;
 
   const orgVehicles = db.vehicles.filter(
-    (v) => v.organizationId === ctx.organization.id
+    (v) => v.organizationId === ctx.organization.id,
   );
   const vehMap = new Map(orgVehicles.map((v) => [v.id, v]));
 
@@ -161,11 +158,11 @@ export function getManagerialDashboardData(params: {
   const filteredDealIds = new Set(filteredDeals.map((d) => d.id));
   const orgTasks = db.taskInstances.filter(
     (t) =>
-      t.organizationId === ctx.organization.id && filteredDealIds.has(t.dealId)
+      t.organizationId === ctx.organization.id && filteredDealIds.has(t.dealId),
   );
   const orgDocs = db.documents.filter(
     (d) =>
-      d.organizationId === ctx.organization.id && filteredDealIds.has(d.dealId)
+      d.organizationId === ctx.organization.id && filteredDealIds.has(d.dealId),
   );
 
   let activeDealsCount = 0;
@@ -180,19 +177,22 @@ export function getManagerialDashboardData(params: {
     const dealTasks = orgTasks.filter((t) => t.dealId === deal.id);
     const dealDocs = orgDocs.filter((d) => d.dealId === deal.id);
     const hasActiveAuth = db.releaseAuthorizations.some(
-      (ra) => ra.dealId === deal.id && ra.status === "ACTIVE"
+      (ra) => ra.dealId === deal.id && ra.status === "ACTIVE",
     );
     const summary = computeDealEligibilityAndSummary(
       deal,
       dealTasks,
       dealDocs,
-      hasActiveAuth
+      hasActiveAuth,
     );
 
     if (isDealActiveStatus(deal.status)) {
       activeDealsCount++;
     }
-    if (deal.status === "ELIGIBLE_FOR_AUTHORIZATION" || (summary.deliveryEligible && deal.status === "ACTIVE")) {
+    if (
+      deal.status === "ELIGIBLE_FOR_AUTHORIZATION" ||
+      (summary.deliveryEligible && deal.status === "ACTIVE")
+    ) {
       eligibleForAuthorizationCount++;
     }
     if (deal.status === "DELIVERY_AUTHORIZED") {
@@ -207,7 +207,7 @@ export function getManagerialDashboardData(params: {
         (d) =>
           d.status === "REQUESTED" ||
           d.status === "REJECTED" ||
-          d.status === "CORRECTION_REQUESTED"
+          d.status === "CORRECTION_REQUESTED",
       );
       if (hasMissingDoc) waitingDocumentsCount++;
 
@@ -215,19 +215,18 @@ export function getManagerialDashboardData(params: {
         (t) =>
           t.responsibleArea === "FINANCE" &&
           t.state !== "COMPLETED" &&
-          t.state !== "WAIVED_BY_RULE"
+          t.state !== "WAIVED_BY_RULE",
       );
       if (hasPendingFin) waitingFinancialAnalysisCount++;
 
       const hasPendingDocReview =
         dealDocs.some(
           (d) =>
-            d.status === "UPLOADED_PENDING_REVIEW" || d.status === "OUTDATED"
+            d.status === "UPLOADED_PENDING_REVIEW" || d.status === "OUTDATED",
         ) ||
         dealTasks.some(
           (t) =>
-            t.responsibleArea === "DOCUMENTATION" &&
-            t.state === "IN_REVIEW"
+            t.responsibleArea === "DOCUMENTATION" && t.state === "IN_REVIEW",
         );
       if (hasPendingDocReview) waitingDocumentAnalysisCount++;
     }
@@ -239,7 +238,7 @@ export function getManagerialDashboardData(params: {
       t.state !== "WAIVED_BY_RULE" &&
       t.state !== "CANCELLED" &&
       t.dueAt !== null &&
-      new Date(t.dueAt).getTime() < nowMs
+      new Date(t.dueAt).getTime() < nowMs,
   ).length;
 
   const dealsByStage = WORKFLOW_STAGES.map((st) => ({
@@ -299,7 +298,7 @@ export function getManagerialDashboardData(params: {
     ([reasonCategory, count]) => ({
       reasonCategory,
       count,
-    })
+    }),
   );
 
   // Cálculo do tempo mediano real entre venda (deal.createdAt) e entrega (delivery.deliveredAt)
@@ -312,7 +311,7 @@ export function getManagerialDashboardData(params: {
         new Date(deal.createdAt).getTime();
       if (diffMs > 0) {
         saleToDeliveryDurationsHours.push(
-          Math.round((diffMs / (1000 * 60 * 60)) * 10) / 10
+          Math.round((diffMs / (1000 * 60 * 60)) * 10) / 10,
         );
       }
     }
@@ -329,7 +328,7 @@ export function getManagerialDashboardData(params: {
             ((saleToDeliveryDurationsHours[mid - 1] +
               saleToDeliveryDurationsHours[mid]) /
               2) *
-              10
+              10,
           ) / 10;
   }
 
@@ -339,7 +338,7 @@ export function getManagerialDashboardData(params: {
       (t) =>
         t.stageCode === st.code &&
         t.state === "COMPLETED" &&
-        t.completedAt !== null
+        t.completedAt !== null,
     );
     const durations: number[] = [];
     for (const ct of completedInStage) {
@@ -357,7 +356,7 @@ export function getManagerialDashboardData(params: {
     const avgHours =
       durations.length > 0
         ? Math.round(
-            (durations.reduce((acc, v) => acc + v, 0) / durations.length) * 10
+            (durations.reduce((acc, v) => acc + v, 0) / durations.length) * 10,
           ) / 10
         : null;
     return {
@@ -380,20 +379,18 @@ export function getManagerialDashboardData(params: {
         ar.dealId === d.id &&
         (ar.decision === "REJECTED" ||
           ar.decision === "CORRECTION_REQUESTED" ||
-          ar.status === "OUTDATED")
+          ar.status === "OUTDATED"),
     ).length;
 
     const extraDocVersions = dealDocs.reduce(
       (acc, doc) => acc + Math.max(0, doc.currentVersionNumber - 1),
-      0
+      0,
     );
 
     return {
       dealId: d.id,
       dealNumber: d.dealNumber,
-      vehicleLabel: veh
-        ? `${veh.internalCode} (${veh.model})`
-        : d.dealNumber,
+      vehicleLabel: veh ? `${veh.internalCode} (${veh.model})` : d.dealNumber,
       reopenAndRejectionCount: reopenCount + rejectedApprCount,
       documentVersionsExtraCount: extraDocVersions,
       totalReworkEvents: reopenCount + rejectedApprCount + extraDocVersions,
@@ -405,7 +402,7 @@ export function getManagerialDashboardData(params: {
     (m) =>
       m.organizationId === ctx.organization.id &&
       m.isActive &&
-      !m.roles.includes("CUSTOMER")
+      !m.roles.includes("CUSTOMER"),
   );
   const byResponsible = internalMembers.map((m) => {
     const p = db.profiles.find((pr) => pr.id === m.profileId)!;
@@ -417,23 +414,23 @@ export function getManagerialDashboardData(params: {
         (t) =>
           t.state !== "COMPLETED" &&
           t.state !== "WAIVED_BY_RULE" &&
-          t.state !== "CANCELLED"
+          t.state !== "CANCELLED",
       ).length,
       completedTasks: assigned.filter((t) => t.state === "COMPLETED").length,
     };
   });
 
   const orgBranches = db.branches.filter(
-    (b) => b.organizationId === ctx.organization.id
+    (b) => b.organizationId === ctx.organization.id,
   );
   const byBranch = orgBranches.map((b) => ({
     branchId: b.id,
     branchName: b.name,
     activeDeals: filteredDeals.filter(
-      (d) => d.branchId === b.id && isDealActiveStatus(d.status)
+      (d) => d.branchId === b.id && isDealActiveStatus(d.status),
     ).length,
     deliveredDeals: filteredDeals.filter(
-      (d) => d.branchId === b.id && d.status === "DELIVERED"
+      (d) => d.branchId === b.id && d.status === "DELIVERED",
     ).length,
   }));
 
@@ -501,12 +498,12 @@ export function getManagerialDashboardData(params: {
 // FUNCIONALIDADE 13 — PROCEDIMENTOS E ADMINISTRAÇÃO
 // ============================================================================
 
-export function listProceduresForOrg(ctx: AuthenticatedContext) {
+export async function listProceduresForOrg(ctx: AuthenticatedContext) {
   assertInternalStaff(ctx);
-  const db = loadDatabaseState();
+  const db = await loadDatabaseState();
 
   const procs = db.procedures.filter(
-    (p) => p.organizationId === ctx.organization.id
+    (p) => p.organizationId === ctx.organization.id,
   );
   const versions = db.procedureVersions
     .filter((pv) => pv.organizationId === ctx.organization.id)
@@ -518,8 +515,7 @@ export function listProceduresForOrg(ctx: AuthenticatedContext) {
       .map((v) => ({
         ...v,
         authorName:
-          db.profiles.find((pr) => pr.id === v.authorId)?.fullName ??
-          "Autor",
+          db.profiles.find((pr) => pr.id === v.authorId)?.fullName ?? "Autor",
       }));
     const publishedVersion =
       procVersions.find((v) => v.id === proc.activeVersionId) ?? null;
@@ -548,21 +544,21 @@ export async function createOrPublishProcedureVersion(params: {
   assertPermission(
     ctx,
     "procedure:manage",
-    "Sua função não possui permissão para criar ou publicar procedimentos."
+    "Sua função não possui permissão para criar ou publicar procedimentos.",
   );
 
-  return withTransaction((db) => {
+  return await withTransaction((db) => {
     const nowIso = new Date().toISOString();
     let proc = params.procedureId
       ? db.procedures.find(
           (p) =>
             p.id === params.procedureId &&
-            p.organizationId === ctx.organization.id
+            p.organizationId === ctx.organization.id,
         )
       : db.procedures.find(
           (p) =>
             p.code.toUpperCase() === params.code.trim().toUpperCase() &&
-            p.organizationId === ctx.organization.id
+            p.organizationId === ctx.organization.id,
         );
 
     if (!proc) {
@@ -584,10 +580,11 @@ export async function createOrPublishProcedureVersion(params: {
     }
 
     const existingVersions = db.procedureVersions.filter(
-      (pv) => pv.procedureId === proc!.id
+      (pv) => pv.procedureId === proc!.id,
     );
     const nextVersionNum =
-      existingVersions.reduce((max, v) => Math.max(max, v.versionNumber), 0) + 1;
+      existingVersions.reduce((max, v) => Math.max(max, v.versionNumber), 0) +
+      1;
 
     const newVerId = `proc-ver-${crypto.randomUUID().slice(0, 8)}`;
 
@@ -665,10 +662,9 @@ export async function publishExistingDraftProcedureVersion(params: {
   assertInternalStaff(ctx);
   assertPermission(ctx, "procedure:manage");
 
-  return withTransaction((db) => {
+  return await withTransaction((db) => {
     const ver = db.procedureVersions.find(
-      (pv) =>
-        pv.id === versionId && pv.organizationId === ctx.organization.id
+      (pv) => pv.id === versionId && pv.organizationId === ctx.organization.id,
     );
     if (!ver) throw new Error("Versão de procedimento não encontrada.");
 
@@ -677,7 +673,7 @@ export async function publishExistingDraftProcedureVersion(params: {
 
     const nowIso = new Date().toISOString();
     for (const other of db.procedureVersions.filter(
-      (pv) => pv.procedureId === proc.id && pv.status === "PUBLISHED"
+      (pv) => pv.procedureId === proc.id && pv.status === "PUBLISHED",
     )) {
       other.status = "ARCHIVED";
     }
@@ -719,10 +715,10 @@ export async function updateTaskTemplateSlaAndDefaultAssignee(params: {
   assertInternalStaff(ctx);
   assertPermission(ctx, "procedure:manage");
 
-  return withTransaction((db) => {
+  return await withTransaction((db) => {
     const tpl = db.taskTemplates.find(
       (t) =>
-        t.id === taskTemplateId && t.organizationId === ctx.organization.id
+        t.id === taskTemplateId && t.organizationId === ctx.organization.id,
     );
     if (!tpl) throw new Error("Template de tarefa não encontrado.");
 

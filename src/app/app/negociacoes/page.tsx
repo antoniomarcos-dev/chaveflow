@@ -1,5 +1,9 @@
-import React from "react";
-import Link from "next/link";
+import { listDealsForOrg } from "@/application/deal-service";
+import { DealStatusBadge } from "@/components/StatusBadge";
+import { hasPermission } from "@/domain/permissions";
+import { WORKFLOW_STAGES } from "@/domain/types";
+import { formatDateTimeBr } from "@/lib/format";
+import { requireInternalSession } from "@/lib/server-session";
 import {
   AlertTriangle,
   ArrowRight,
@@ -7,16 +11,11 @@ import {
   FileSpreadsheet,
   PlusCircle,
 } from "lucide-react";
-import { getServerSessionContext } from "@/lib/server-session";
-import { listDealsForOrg } from "@/application/deal-service";
-import { WORKFLOW_STAGES } from "@/domain/types";
-import { DealStatusBadge } from "@/components/StatusBadge";
-import { formatDateTimeBr } from "@/lib/format";
-import { hasPermission } from "@/domain/permissions";
+import Link from "next/link";
 
 export default async function NegociacoesListPage() {
-  const ctx = (await getServerSessionContext())!;
-  const deals = listDealsForOrg({ ctx });
+  const ctx = await requireInternalSession();
+  const deals = await listDealsForOrg({ ctx });
   const canCreate = hasPermission(ctx, "deal:create");
 
   return (
@@ -30,7 +29,8 @@ export default async function NegociacoesListPage() {
             Negociações ({deals.length})
           </h1>
           <p className="text-xs sm:text-sm text-slate-600 mt-0.5">
-            Acompanhe situação, bloqueios financeiros/documentais, faturamento e autorização de entrega.
+            Acompanhe situação, bloqueios financeiros/documentais, faturamento e
+            autorização de entrega.
           </p>
         </div>
 
@@ -48,7 +48,7 @@ export default async function NegociacoesListPage() {
       <div className="space-y-4">
         {deals.map(({ deal, vehicle, customer, sellerName, summary }) => {
           const stageObj = WORKFLOW_STAGES.find(
-            (s) => s.code === summary.currentStage
+            (s) => s.code === summary.currentStage,
           );
 
           return (
@@ -120,12 +120,14 @@ export default async function NegociacoesListPage() {
                   {summary.deliveryBlockers.length > 0 ? (
                     <span className="inline-flex items-center gap-1 font-bold text-red-700">
                       <AlertTriangle className="h-4 w-4" />
-                      {summary.deliveryBlockers.length} requisito(s) impeditivo(s)
+                      {summary.deliveryBlockers.length} requisito(s)
+                      impeditivo(s)
                     </span>
                   ) : (
                     <span className="inline-flex items-center gap-1 font-bold text-emerald-700">
                       <CheckCircle2 className="h-4 w-4" />
-                      Requisitos cumpridos ({summary.completedApplicableTasksCount}/
+                      Requisitos cumpridos (
+                      {summary.completedApplicableTasksCount}/
                       {summary.applicableTasksCount})
                     </span>
                   )}

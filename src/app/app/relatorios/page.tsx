@@ -1,7 +1,6 @@
-import React from "react";
-import { getServerSessionContext } from "@/lib/server-session";
 import { getManagerialDashboardData } from "@/application/report-and-admin-service";
 import { ManagerialDashboardClient } from "@/components/ManagerialDashboardClient";
+import { requireInternalSession } from "@/lib/server-session";
 
 export default async function RelatoriosPage({
   searchParams,
@@ -14,9 +13,9 @@ export default async function RelatoriosPage({
   }>;
 }) {
   const sp = await searchParams;
-  const ctx = (await getServerSessionContext())!;
+  const ctx = await requireInternalSession();
 
-  const data = getManagerialDashboardData({
+  const data = await getManagerialDashboardData({
     ctx,
     periodDays: sp.periodDays ? Number(sp.periodDays) : 30,
     sellerId: sp.sellerId || "ALL",

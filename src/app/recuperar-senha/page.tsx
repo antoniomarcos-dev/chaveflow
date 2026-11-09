@@ -1,8 +1,8 @@
 "use client";
 
-import React, { useState } from "react";
-import Link from "next/link";
 import { ArrowLeft, CheckCircle2, KeyRound, Mail } from "lucide-react";
+import Link from "next/link";
+import React, { useState } from "react";
 
 export default function RecuperarSenhaPage() {
   const [email, setEmail] = useState("");
@@ -30,6 +30,8 @@ export default function RecuperarSenhaPage() {
       } else {
         setSubmittedMessage(data.message);
       }
+    } catch {
+      setError("Falha de conexão. Tente novamente.");
     } finally {
       setLoading(false);
     }
@@ -70,7 +72,8 @@ export default function RecuperarSenhaPage() {
         ) : (
           <form onSubmit={handleSubmit} className="mt-6 space-y-4">
             <p className="text-xs text-slate-600 leading-relaxed">
-              Informe o e-mail vinculado ao seu perfil. Caso o provedor de e-mail externo esteja configurado, enviaremos um link temporário de redefinição.
+              Informe o e-mail vinculado ao seu perfil. Enviaremos um link
+              temporário de redefinição.
             </p>
 
             {error && (
@@ -92,7 +95,7 @@ export default function RecuperarSenhaPage() {
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="ex: vendedor@pinauto.demo"
+                placeholder="voce@empresa.com.br"
                 className="mt-1 w-full rounded-lg border border-slate-300 px-3.5 py-2.5 text-sm text-slate-900"
               />
             </div>
@@ -104,7 +107,9 @@ export default function RecuperarSenhaPage() {
             >
               <Mail className="h-4 w-4" />
               <span>
-                {loading ? "Processando..." : "Enviar instruções de recuperação"}
+                {loading
+                  ? "Processando..."
+                  : "Enviar instruções de recuperação"}
               </span>
             </button>
 

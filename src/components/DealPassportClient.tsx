@@ -1,15 +1,24 @@
 "use client";
 
-import React, { useState } from "react";
-import Link from "next/link";
-import { useRouter } from "next/navigation";
+import type { DealPassportView } from "@/application/deal-service";
+import type { AssistantResponse } from "@/domain/contextual-assistant";
+import {
+  AREA_LABELS,
+  PermissionCode,
+  ResponsibleArea,
+  ROLE_LABELS,
+  RoleCode,
+  TASK_APPROVAL_STATUS_LABELS,
+  WORKFLOW_STAGES,
+} from "@/domain/types";
+import type { DealBlocker } from "@/domain/workflow-engine";
+import { formatCurrencyBr, formatDateBr, formatDateTimeBr } from "@/lib/format";
 import {
   AlertCircle,
   AlertTriangle,
   ArrowLeft,
   BookOpen,
   Bot,
-  Car,
   CheckCircle2,
   ClipboardCheck,
   Clock,
@@ -26,26 +35,15 @@ import {
   ShieldCheck,
   Sparkles,
   Upload,
-  UserCheck,
 } from "lucide-react";
-import type { DealPassportView } from "@/application/deal-service";
-import {
-  AREA_LABELS,
-  PermissionCode,
-  ResponsibleArea,
-  ROLE_LABELS,
-  RoleCode,
-  TASK_APPROVAL_STATUS_LABELS,
-  WORKFLOW_STAGES,
-} from "@/domain/types";
-import type { DealBlocker } from "@/domain/workflow-engine";
-import type { AssistantResponse } from "@/domain/contextual-assistant";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useState } from "react";
 import {
   DealStatusBadge,
   DocumentStatusBadge,
   TaskStateBadge,
 } from "./StatusBadge";
-import { formatCurrencyBr, formatDateBr, formatDateTimeBr } from "@/lib/format";
 
 export function DealPassportClient({
   passport,
@@ -93,28 +91,24 @@ export function DealPassportClient({
 
   // Estado para Aprovação Formal de Tarefa
   const [approvingTaskCode, setApprovingTaskCode] = useState<string | null>(
-    null
+    null,
   );
   const [approvalJustification, setApprovalJustification] = useState("");
 
   // Estado para Faturamento, Autorização e Entrega
   const [invoiceNumber, setInvoiceNumber] = useState(
-    passport.deal.invoiceNumber || "NF-e 000.483.777 (Série 1 - Demo)"
+    passport.deal.invoiceNumber || "",
   );
   const [billingNotes, setBillingNotes] = useState("");
-  const [releaseNotes, setReleaseNotes] = useState(
-    "Todos os requisitos financeiros, documentais, faturamento e preparação (PDI) validados."
-  );
+  const [releaseNotes, setReleaseNotes] = useState("");
   const [confirmedVinInput, setConfirmedVinInput] = useState("");
   const [recipientName, setRecipientName] = useState(
-    passport.customer.fullName
+    passport.customer.fullName,
   );
   const [recipientDoc, setRecipientDoc] = useState(
-    passport.customer.documentNumber
+    passport.customer.documentNumber,
   );
-  const [deliveryNotes, setDeliveryNotes] = useState(
-    "Chave principal, chave reserva e manual entregues mediante conferência do chassi."
-  );
+  const [deliveryNotes, setDeliveryNotes] = useState("");
   const [addendumNote, setAddendumNote] = useState("");
 
   // Estado do Assistente Contextual
@@ -126,7 +120,10 @@ export function DealPassportClient({
   const hasPerm = (perm: PermissionCode) =>
     userRoles.includes("ADMIN") || userPermissions.includes(perm);
 
-  async function callDealApi(payload: Record<string, unknown>, successMsg: string) {
+  async function callDealApi(
+    payload: Record<string, unknown>,
+    successMsg: string,
+  ) {
     setFeedbackBanner(null);
     setActionLoading(true);
     try {
@@ -163,6 +160,8 @@ export function DealPassportClient({
     setFeedbackBanner(null);
     setActionLoading(true);
     try {
+      if (selectedFile.size > 4 * 1024 * 1024)
+        throw new Error("O arquivo deve ter até 4 MB.");
       const formData = new FormData();
       formData.append("dealId", passport.deal.id);
       formData.append("documentId", docId);
@@ -196,6 +195,15 @@ export function DealPassportClient({
             : `Versão v${data.version.versionNumber} enviada com sucesso e encaminhada para conferência.`,
       });
       router.refresh();
+    } catch (error) {
+      setFeedbackBanner({
+        type: "ERROR",
+        title: "Falha no envio",
+        message:
+          error instanceof Error
+            ? error.message
+            : "Falha de conexão. Tente novamente.",
+      });
     } finally {
       setActionLoading(false);
     }
@@ -224,8 +232,15 @@ export function DealPassportClient({
     }
   }
 
-  const { deal, vehicle, tradeInVehicle, customer, seller, summary, userNextAction } =
-    passport;
+  const {
+    deal,
+    vehicle,
+    tradeInVehicle,
+    customer,
+    seller,
+    summary,
+    userNextAction,
+  } = passport;
 
   return (
     <div className="space-y-6">
@@ -243,7 +258,7 @@ export function DealPassportClient({
           {passport.customerAccessToken && (
             <Link
               href={`/cliente?token=${encodeURIComponent(
-                passport.customerAccessToken
+                passport.customerAccessToken,
               )}`}
               className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 px-3 py-1.5 text-xs font-bold text-slate-800"
             >
@@ -253,7 +268,9 @@ export function DealPassportClient({
           )}
           <button
             type="button"
-            onClick={() => askAssistant("O que falta para entregar este carro?")}
+            onClick={() =>
+              askAssistant("O que falta para entregar este carro?")
+            }
             className="inline-flex items-center gap-1.5 rounded-lg bg-[#0f172a] hover:bg-slate-800 px-3.5 py-1.5 text-xs font-bold text-white"
           >
             <Bot className="h-3.5 w-3.5 text-teal-400" />
@@ -326,7 +343,8 @@ export function DealPassportClient({
             </span>
             <DealStatusBadge status={deal.status} />
             <span className="rounded-md bg-slate-100 border border-slate-300 px-2.5 py-1 text-xs font-semibold text-slate-700">
-              Modelo de Processo v{passport.workflowVersion.versionNumber} (Congelado na Negociação)
+              Modelo de Processo v{passport.workflowVersion.versionNumber}{" "}
+              (Congelado na Negociação)
             </span>
           </div>
 
@@ -342,7 +360,7 @@ export function DealPassportClient({
           {/* Foto e Identificação do Veículo Vendido */}
           <div className="lg:col-span-4 flex flex-col sm:flex-row lg:flex-col gap-4">
             <img
-              src={vehicle.photos[0] || "/vehicles/song-plus.svg"}
+              src={vehicle.photos[0] || "/vehicle-placeholder.svg"}
               alt={`${vehicle.brand} ${vehicle.model}`}
               className="w-full sm:w-48 lg:w-full rounded-xl border border-slate-200 object-cover"
             />
@@ -372,8 +390,9 @@ export function DealPassportClient({
                 {vehicle.color})
               </h1>
               <p className="text-xs sm:text-sm text-slate-600 mt-1">
-                Comprador: <strong className="text-slate-900">{customer.fullName}</strong> (
-                {deal.buyerType} — {customer.documentNumber}) • Vendedor
+                Comprador:{" "}
+                <strong className="text-slate-900">{customer.fullName}</strong>{" "}
+                ({deal.buyerType} — {customer.documentNumber}) • Vendedor
                 Responsável:{" "}
                 <strong className="text-slate-900">{seller.fullName}</strong>
               </p>
@@ -387,8 +406,8 @@ export function DealPassportClient({
                   {deal.paymentMethod === "FINANCING"
                     ? `Financiamento (${deal.financingInstitution || "Banco"})`
                     : deal.paymentMethod === "CASH"
-                    ? "À Vista (PIX/TED)"
-                    : deal.paymentMethod}
+                      ? "À Vista (PIX/TED)"
+                      : deal.paymentMethod}
                 </strong>
               </div>
               <div className="rounded-xl bg-slate-50 border border-slate-200 p-3">
@@ -411,8 +430,8 @@ export function DealPassportClient({
                   {deal.confirmedDeliveryDate
                     ? `Confirmada: ${formatDateBr(deal.confirmedDeliveryDate)}`
                     : deal.expectedDeliveryDate
-                    ? `${formatDateBr(deal.expectedDeliveryDate)} (Expectativa não confirmada)`
-                    : "A definir"}
+                      ? `${formatDateBr(deal.expectedDeliveryDate)} (Expectativa não confirmada)`
+                      : "A definir"}
                 </strong>
               </div>
             </div>
@@ -422,7 +441,8 @@ export function DealPassportClient({
               <div className="rounded-xl bg-amber-50/70 border border-amber-200 p-3 text-xs flex flex-wrap items-center justify-between gap-2">
                 <div>
                   <span className="font-bold text-amber-950">
-                    Veículo Usado Recebido na Troca (Cadastro Separado do Veículo Vendido):
+                    Veículo Usado Recebido na Troca (Cadastro Separado do
+                    Veículo Vendido):
                   </span>
                   <div className="text-amber-900 mt-0.5">
                     <strong>
@@ -431,7 +451,9 @@ export function DealPassportClient({
                     </strong>{" "}
                     • Placa: <code>{tradeInVehicle.plate}</code> • Chassi:{" "}
                     <code>{tradeInVehicle.vin}</code> • Avaliação:{" "}
-                    <strong>{formatCurrencyBr(tradeInVehicle.appraisedValue)}</strong>
+                    <strong>
+                      {formatCurrencyBr(tradeInVehicle.appraisedValue)}
+                    </strong>
                   </div>
                 </div>
               </div>
@@ -450,8 +472,8 @@ export function DealPassportClient({
                     p.status === "OK"
                       ? "bg-emerald-50/70 border-emerald-300 text-emerald-950"
                       : p.status === "BLOCKED"
-                      ? "bg-red-50/70 border-red-300 text-red-950"
-                      : "bg-amber-50/60 border-amber-300 text-amber-950"
+                        ? "bg-red-50/70 border-red-300 text-red-950"
+                        : "bg-amber-50/60 border-amber-300 text-amber-950"
                   }`}
                 >
                   <div className="font-bold flex items-center justify-between">
@@ -502,7 +524,9 @@ export function DealPassportClient({
               </span>
             </div>
 
-            <h2 className="text-lg font-extrabold">{userNextAction.headline}</h2>
+            <h2 className="text-lg font-extrabold">
+              {userNextAction.headline}
+            </h2>
             <p
               className={`text-xs sm:text-sm ${
                 userNextAction.hasDirectAction
@@ -518,29 +542,6 @@ export function DealPassportClient({
             {userNextAction.actionType === "UPLOAD_DOCUMENT" &&
               userNextAction.targetDocumentId && (
                 <>
-                  <button
-                    type="button"
-                    disabled={actionLoading}
-                    onClick={() =>
-                      callDealApi(
-                        {
-                          action: "UPLOAD_DEMO_DOCUMENT",
-                          dealId: deal.id,
-                          documentId: userNextAction.targetDocumentId,
-                          filename: "Laudo_Vistoria_e_CRLV_Usado_Troca_DEMO.pdf",
-                          uploadNotes:
-                            "Laudo cautelar e CRLV do veículo usado enviados pelo vendedor.",
-                        },
-                        "Documento enviado com sucesso! Agora o usuário Documental pode conferir e aprovar."
-                      )
-                    }
-                    className="inline-flex items-center gap-2 rounded-xl bg-teal-500 hover:bg-teal-400 px-4 py-2.5 text-xs font-bold text-slate-950 shadow-sm transition"
-                  >
-                    <Upload className="h-4 w-4" />
-                    <span>
-                      Enviar Documento Solicitado Agora (Demo Rápido)
-                    </span>
-                  </button>
                   <button
                     type="button"
                     onClick={() => {
@@ -569,7 +570,7 @@ export function DealPassportClient({
                         justification:
                           "Documento conferido e aprovado conforme procedimento publicado.",
                       },
-                      "Documento conferido e aprovado com sucesso!"
+                      "Documento conferido e aprovado com sucesso!",
                     )
                   }
                   className="inline-flex items-center gap-2 rounded-xl bg-teal-500 hover:bg-teal-400 px-4 py-2.5 text-xs font-bold text-slate-950 shadow-sm transition"
@@ -594,7 +595,7 @@ export function DealPassportClient({
                         justification:
                           "Conferência formal realizada com evidência validada.",
                       },
-                      "Aprovação formal registrada com sucesso!"
+                      "Aprovação formal registrada com sucesso!",
                     )
                   }
                   className="inline-flex items-center gap-2 rounded-xl bg-teal-500 hover:bg-teal-400 px-4 py-2.5 text-xs font-bold text-slate-950 shadow-sm transition"
@@ -645,10 +646,12 @@ export function DealPassportClient({
               Execução Simultânea (Paralelismo)
             </span>
             <h3 className="text-base font-bold text-slate-900 mt-0.5">
-              O que pode avançar em paralelo agora ({summary.parallelTasks.length})
+              O que pode avançar em paralelo agora (
+              {summary.parallelTasks.length})
             </h3>
             <p className="text-xs text-slate-500 mt-0.5">
-              Tarefas cujos pré-requisitos já foram cumpridos podem avançar simultaneamente por suas áreas:
+              Tarefas cujos pré-requisitos já foram cumpridos podem avançar
+              simultaneamente por suas áreas:
             </p>
           </div>
 
@@ -689,7 +692,8 @@ export function DealPassportClient({
                   <>
                     <AlertTriangle className="h-5 w-5 text-red-600" />
                     <span>
-                      Lista de Bloqueios Impeditivos ({summary.deliveryBlockers.length} para entrega •{" "}
+                      Lista de Bloqueios Impeditivos (
+                      {summary.deliveryBlockers.length} para entrega •{" "}
                       {summary.billingBlockers.length} para faturamento)
                     </span>
                   </>
@@ -697,35 +701,39 @@ export function DealPassportClient({
                   <>
                     <CheckCircle2 className="h-5 w-5 text-emerald-600" />
                     <span>
-                      Nenhum requisito técnico bloqueando a autorização de entrega
+                      Nenhum requisito técnico bloqueando a autorização de
+                      entrega
                     </span>
                   </>
                 )}
               </h2>
               <p className="text-xs text-slate-500 mt-0.5">
-                Mesmo com várias tarefas concluídas ({summary.progressPercentage}%), um único requisito crítico pendente mantém o bloqueio no servidor.
+                Mesmo com várias tarefas concluídas (
+                {summary.progressPercentage}%), um único requisito crítico
+                pendente mantém o bloqueio no servidor.
               </p>
             </div>
 
-            {summary.deliveryBlockers.length > 0 && hasPerm("release:authorize") && (
-              <button
-                type="button"
-                disabled={actionLoading}
-                onClick={() =>
-                  callDealApi(
-                    {
-                      action: "AUTHORIZE_RELEASE",
-                      dealId: deal.id,
-                    },
-                    ""
-                  )
-                }
-                className="inline-flex items-center gap-1.5 rounded-lg border border-red-300 bg-red-50 hover:bg-red-100 px-3 py-2 text-xs font-bold text-red-900 transition"
-              >
-                <ShieldAlert className="h-4 w-4 text-red-600" />
-                <span>Testar Tentativa Prematura de Liberação (Passo 9)</span>
-              </button>
-            )}
+            {summary.deliveryBlockers.length > 0 &&
+              hasPerm("release:authorize") && (
+                <button
+                  type="button"
+                  disabled={actionLoading}
+                  onClick={() =>
+                    callDealApi(
+                      {
+                        action: "AUTHORIZE_RELEASE",
+                        dealId: deal.id,
+                      },
+                      "",
+                    )
+                  }
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-red-300 bg-red-50 hover:bg-red-100 px-3 py-2 text-xs font-bold text-red-900 transition"
+                >
+                  <ShieldAlert className="h-4 w-4 text-red-600" />
+                  <span>Testar Tentativa Prematura de Liberação (Passo 9)</span>
+                </button>
+              )}
           </div>
 
           {summary.deliveryBlockers.length > 0 && (
@@ -757,12 +765,13 @@ export function DealPassportClient({
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div>
             <h2 className="text-sm font-bold text-slate-900">
-              Linha do Tempo das Etapas ({summary.completedApplicableTasksCount} de{" "}
-              {summary.applicableTasksCount} tarefas aplicáveis concluídas •{" "}
+              Linha do Tempo das Etapas ({summary.completedApplicableTasksCount}{" "}
+              de {summary.applicableTasksCount} tarefas aplicáveis concluídas •{" "}
               {summary.waivedTasksCount} dispensada(s) por regra)
             </h2>
             <p className="text-[11px] text-slate-500">
-              Nota: O avanço percentual considera apenas tarefas aplicáveis e não representa autorização automática de entrega.
+              Nota: O avanço percentual considera apenas tarefas aplicáveis e
+              não representa autorização automática de entrega.
             </p>
           </div>
           <span className="text-xs font-bold text-teal-800 bg-teal-50 border border-teal-200 px-2.5 py-1 rounded">
@@ -776,16 +785,18 @@ export function DealPassportClient({
               (t) =>
                 t.stageCode === st.code &&
                 t.state !== "WAIVED_BY_RULE" &&
-                t.state !== "CANCELLED"
+                t.state !== "CANCELLED",
             );
             const allDone =
               stageTasks.length > 0 &&
               stageTasks.every(
                 (t) =>
                   t.state === "COMPLETED" &&
-                  (!t.requiresFormalApproval || t.approvalStatus === "APPROVED")
+                  (!t.requiresFormalApproval ||
+                    t.approvalStatus === "APPROVED"),
               );
-            const isCurrent = summary.currentStage === st.code && deal.status !== "DELIVERED";
+            const isCurrent =
+              summary.currentStage === st.code && deal.status !== "DELIVERED";
 
             return (
               <div
@@ -794,8 +805,8 @@ export function DealPassportClient({
                   allDone || deal.status === "DELIVERED"
                     ? "bg-emerald-50 border-emerald-300 text-emerald-950"
                     : isCurrent
-                    ? "bg-blue-50 border-blue-400 text-blue-950 ring-2 ring-blue-200"
-                    : "bg-slate-50 border-slate-200 text-slate-500"
+                      ? "bg-blue-50 border-blue-400 text-blue-950 ring-2 ring-blue-200"
+                      : "bg-slate-50 border-slate-200 text-slate-500"
                 }`}
               >
                 <div className="flex items-center justify-between font-bold">
@@ -907,9 +918,9 @@ export function DealPassportClient({
                         t.approvalStatus === "APPROVED"
                           ? "bg-emerald-50 text-emerald-900 border-emerald-300"
                           : t.approvalStatus === "OUTDATED" ||
-                            t.approvalStatus === "REJECTED"
-                          ? "bg-red-50 text-red-900 border-red-300"
-                          : "bg-amber-50 text-amber-900 border-amber-300"
+                              t.approvalStatus === "REJECTED"
+                            ? "bg-red-50 text-red-900 border-red-300"
+                            : "bg-amber-50 text-amber-900 border-amber-300"
                       }`}
                     >
                       {TASK_APPROVAL_STATUS_LABELS[t.approvalStatus]}
@@ -1020,7 +1031,7 @@ export function DealPassportClient({
                                   taskCode: t.code,
                                   taskAction: "COMPLETE_OPERATIONAL",
                                 },
-                                `Tarefa '${t.title}' marcada como concluída.`
+                                `Tarefa '${t.title}' marcada como concluída.`,
                               )
                             }
                             className="rounded-lg bg-teal-600 hover:bg-teal-700 px-3.5 py-2 text-xs font-bold text-white disabled:opacity-40"
@@ -1039,7 +1050,7 @@ export function DealPassportClient({
                             }
                             onClick={() =>
                               setApprovingTaskCode(
-                                approvingTaskCode === t.code ? null : t.code
+                                approvingTaskCode === t.code ? null : t.code,
                               )
                             }
                             className="rounded-lg bg-[#0f172a] hover:bg-slate-800 px-3.5 py-2 text-xs font-bold text-white disabled:opacity-40"
@@ -1069,7 +1080,7 @@ export function DealPassportClient({
                                 taskAction: "ASSIGN",
                                 targetAssigneeId: e.target.value,
                               },
-                              "Responsável atualizado."
+                              "Responsável atualizado.",
                             )
                           }
                           className="rounded border border-slate-300 px-2 py-1 text-xs text-slate-800"
@@ -1090,7 +1101,8 @@ export function DealPassportClient({
               {approvingTaskCode === t.code && (
                 <div className="rounded-xl bg-slate-900 text-white p-4 space-y-3">
                   <div className="text-xs font-bold text-teal-300">
-                    Registrar Decisão Formal de Aprovação ou Rejeição — {t.title}
+                    Registrar Decisão Formal de Aprovação ou Rejeição —{" "}
+                    {t.title}
                   </div>
                   <textarea
                     rows={2}
@@ -1114,7 +1126,7 @@ export function DealPassportClient({
                               approvalJustification.trim() ||
                               "Conferido e aprovado com evidência validada.",
                           },
-                          `Etapa '${t.title}' aprovada formalmente!`
+                          `Etapa '${t.title}' aprovada formalmente!`,
                         );
                         if (ok) {
                           setApprovingTaskCode(null);
@@ -1137,7 +1149,7 @@ export function DealPassportClient({
                             decision: "CORRECTION_REQUESTED",
                             justification: approvalJustification,
                           },
-                          `Solicitação de correção registrada para '${t.title}'.`
+                          `Solicitação de correção registrada para '${t.title}'.`,
                         );
                         if (ok) {
                           setApprovingTaskCode(null);
@@ -1163,7 +1175,10 @@ export function DealPassportClient({
             <div className="text-xs text-slate-600 flex items-center gap-2">
               <Lock className="h-4 w-4 text-teal-600 shrink-0" />
               <span>
-                Armazenamento privado com validação de tipo/tamanho no servidor e links temporários assinados (HMAC). Substituir um documento aprovado preserva a versão anterior, marca aprovações dependentes como desatualizadas e reabre verificações.
+                Armazenamento privado com validação de tipo/tamanho no servidor
+                e links temporários assinados (HMAC). Substituir um documento
+                aprovado preserva a versão anterior, marca aprovações
+                dependentes como desatualizadas e reabre verificações.
               </span>
             </div>
             {hasPerm("document:request") && deal.status !== "DELIVERED" && (
@@ -1264,7 +1279,9 @@ export function DealPassportClient({
                 </button>
                 <button
                   type="button"
-                  disabled={actionLoading || !reqDocTitle.trim() || !reqDocWhy.trim()}
+                  disabled={
+                    actionLoading || !reqDocTitle.trim() || !reqDocWhy.trim()
+                  }
                   onClick={async () => {
                     const ok = await callDealApi(
                       {
@@ -1278,7 +1295,7 @@ export function DealPassportClient({
                         blocksDelivery: reqDocBlocksDelivery,
                         isCustomerVisible: reqDocCustomerVisible,
                       },
-                      `Documento '${reqDocTitle}' solicitado com sucesso.`
+                      `Documento '${reqDocTitle}' solicitado com sucesso.`,
                     );
                     if (ok) {
                       setShowRequestDocModal(false);
@@ -1347,7 +1364,9 @@ export function DealPassportClient({
                           <div className="text-[11px] text-slate-500">
                             Enviado por {ver.uploadedByName} em{" "}
                             {formatDateTimeBr(ver.createdAt)}
-                            {ver.uploadNotes ? ` • Obs: ${ver.uploadNotes}` : ""}
+                            {ver.uploadNotes
+                              ? ` • Obs: ${ver.uploadNotes}`
+                              : ""}
                           </div>
                         </div>
                         <a
@@ -1375,7 +1394,7 @@ export function DealPassportClient({
                           type="button"
                           onClick={() =>
                             setUploadingDocId(
-                              uploadingDocId === doc.id ? null : doc.id
+                              uploadingDocId === doc.id ? null : doc.id,
                             )
                           }
                           className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 px-3.5 py-2 text-xs font-bold text-slate-800"
@@ -1387,36 +1406,6 @@ export function DealPassportClient({
                               : "Enviar Arquivo"}
                           </span>
                         </button>
-
-                        {doc.status !== "APPROVED" && (
-                          <button
-                            type="button"
-                            disabled={actionLoading}
-                            onClick={() =>
-                              callDealApi(
-                                {
-                                  action: "UPLOAD_DEMO_DOCUMENT",
-                                  dealId: deal.id,
-                                  documentId: doc.id,
-                                  filename: `${
-                                    doc.requirementCode || "DOC"
-                                  }_Demonstrativo_v${
-                                    doc.currentVersionNumber + 1
-                                  }.pdf`,
-                                  uploadNotes:
-                                    "Arquivo demonstrativo enviado em 1 clique.",
-                                },
-                                `Versão v${
-                                  doc.currentVersionNumber + 1
-                                } enviada para '${doc.title}'.`
-                              )
-                            }
-                            className="inline-flex items-center gap-1.5 rounded-lg bg-teal-600 hover:bg-teal-700 px-3.5 py-2 text-xs font-bold text-white"
-                          >
-                            <Sparkles className="h-3.5 w-3.5" />
-                            <span>Envio Demonstrativo Rápido</span>
-                          </button>
-                        )}
                       </>
                     )}
                   </div>
@@ -1440,7 +1429,7 @@ export function DealPassportClient({
                                   justification:
                                     "Documento conferido e aprovado.",
                                 },
-                                `Documento '${doc.title}' aprovado!`
+                                `Documento '${doc.title}' aprovado!`,
                               )
                             }
                             className="rounded-lg bg-emerald-600 hover:bg-emerald-700 px-3.5 py-2 text-xs font-bold text-white"
@@ -1452,7 +1441,7 @@ export function DealPassportClient({
                           type="button"
                           onClick={() =>
                             setReviewingDocId(
-                              reviewingDocId === doc.id ? null : doc.id
+                              reviewingDocId === doc.id ? null : doc.id,
                             )
                           }
                           className="rounded-lg border border-red-300 bg-red-50 hover:bg-red-100 px-3 py-2 text-xs font-bold text-red-900"
@@ -1474,13 +1463,17 @@ export function DealPassportClient({
                   </div>
                   {doc.status === "APPROVED" && (
                     <div className="rounded-lg bg-amber-500/20 border border-amber-400/40 p-2.5 text-amber-200">
-                      Atenção: Ao substituir um documento já aprovado, a versão anterior (v{doc.currentVersionNumber}) será preservada, aprovações dependentes ficarão <strong>Desatualizadas</strong> e as verificações serão reabertas automaticamente.
+                      Atenção: Ao substituir um documento já aprovado, a versão
+                      anterior (v{doc.currentVersionNumber}) será preservada,
+                      aprovações dependentes ficarão{" "}
+                      <strong>Desatualizadas</strong> e as verificações serão
+                      reabertas automaticamente.
                     </div>
                   )}
                   <div className="grid sm:grid-cols-2 gap-3">
                     <div>
                       <label className="block font-semibold text-slate-300">
-                        Selecionar arquivo (PDF, PNG, JPG, WEBP, TXT — máx 10MB)
+                        Selecionar arquivo (PDF, PNG, JPG, WEBP, TXT — máx 4 MB)
                       </label>
                       <input
                         type="file"
@@ -1523,37 +1516,6 @@ export function DealPassportClient({
                     >
                       Enviar Arquivo Selecionado
                     </button>
-                    {doc.status === "APPROVED" && (
-                      <button
-                        type="button"
-                        disabled={
-                          actionLoading || replacementReason.trim().length < 3
-                        }
-                        onClick={async () => {
-                          const ok = await callDealApi(
-                            {
-                              action: "UPLOAD_DEMO_DOCUMENT",
-                              dealId: deal.id,
-                              documentId: doc.id,
-                              filename: `${doc.requirementCode || "DOC"}_Substituido_v${
-                                doc.currentVersionNumber + 1
-                              }.pdf`,
-                              replacementReason,
-                            },
-                            `Documento substituído pela versão v${
-                              doc.currentVersionNumber + 1
-                            }. Aprovações dependentes foram marcadas como desatualizadas e verificações reabertas.`
-                          );
-                          if (ok) {
-                            setUploadingDocId(null);
-                            setReplacementReason("");
-                          }
-                        }}
-                        className="rounded-lg bg-amber-500 hover:bg-amber-400 px-4 py-2 font-bold text-slate-950 disabled:opacity-40"
-                      >
-                        Simular Substituição com Arquivo Demo
-                      </button>
-                    )}
                   </div>
                 </div>
               )}
@@ -1584,7 +1546,7 @@ export function DealPassportClient({
                             decision: "CORRECTION_REQUESTED",
                             justification: reviewJustification,
                           },
-                          "Solicitação de correção registrada."
+                          "Solicitação de correção registrada.",
                         );
                         if (ok) {
                           setReviewingDocId(null);
@@ -1607,7 +1569,7 @@ export function DealPassportClient({
                             decision: "REJECTED",
                             justification: reviewJustification,
                           },
-                          "Documento rejeitado."
+                          "Documento rejeitado.",
                         );
                         if (ok) {
                           setReviewingDocId(null);
@@ -1640,7 +1602,8 @@ export function DealPassportClient({
                   Emissão e Registro de Nota Fiscal
                 </h3>
                 <p className="text-xs text-slate-600">
-                  Verificado em transação no servidor: exige dossiê documental e financeiro 100% aprovados.
+                  Verificado em transação no servidor: exige dossiê documental e
+                  financeiro 100% aprovados.
                 </p>
 
                 {deal.billingRegisteredAt ? (
@@ -1694,7 +1657,7 @@ export function DealPassportClient({
                         invoiceNumber,
                         notes: billingNotes,
                       },
-                      `Faturamento registrado com Nota Fiscal '${invoiceNumber}'!`
+                      `Faturamento registrado com Nota Fiscal '${invoiceNumber}'!`,
                     )
                   }
                   className="w-full rounded-xl bg-[#0f172a] hover:bg-slate-800 px-4 py-2.5 text-xs font-bold text-white disabled:opacity-40"
@@ -1717,7 +1680,8 @@ export function DealPassportClient({
                 </h3>
                 <p className="text-xs text-slate-600">
                   A conclusão das tarefas torna a negociação{" "}
-                  <strong>Elegível</strong>, mas a entrega só pode ocorrer após emissão desta Autorização Formal.
+                  <strong>Elegível</strong>, mas a entrega só pode ocorrer após
+                  emissão desta Autorização Formal.
                 </p>
 
                 {passport.activeReleaseAuthorization ? (
@@ -1735,7 +1699,7 @@ export function DealPassportClient({
                     <div>
                       Em:{" "}
                       {formatDateTimeBr(
-                        passport.activeReleaseAuthorization.createdAt
+                        passport.activeReleaseAuthorization.createdAt,
                       )}
                     </div>
                   </div>
@@ -1771,7 +1735,7 @@ export function DealPassportClient({
                           notes: releaseNotes,
                           expectedConcurrencyVersion: deal.concurrencyVersion,
                         },
-                        "Autorização Formal de Entrega emitida com sucesso! A Operação já pode realizar a entrega física."
+                        "Autorização Formal de Entrega emitida com sucesso! A Operação já pode realizar a entrega física.",
                       )
                     }
                     className="w-full rounded-xl bg-teal-600 hover:bg-teal-700 px-4 py-2.5 text-xs font-bold text-white disabled:opacity-40"
@@ -1793,8 +1757,10 @@ export function DealPassportClient({
                   Reconfirmação do Veículo e Entrega
                 </h3>
                 <p className="text-xs text-slate-600">
-                  Exige autorização ativa, reconfirmação do chassi ou código interno (
-                  <code>{vehicle.vin}</code> ou <code>{vehicle.internalCode}</code>) e identificação do recebedor.
+                  Exige autorização ativa, reconfirmação do chassi ou código
+                  interno (<code>{vehicle.vin}</code> ou{" "}
+                  <code>{vehicle.internalCode}</code>) e identificação do
+                  recebedor.
                 </p>
 
                 {passport.deliveryRecord ? (
@@ -1897,7 +1863,7 @@ export function DealPassportClient({
                         recipientDocument: recipientDoc,
                         deliveryNotes,
                       },
-                      "Entrega física das chaves confirmada e auditada com sucesso!"
+                      "Entrega física das chaves confirmada e auditada com sucesso!",
                     )
                   }
                   className="w-full rounded-xl bg-emerald-600 hover:bg-emerald-700 px-4 py-2.5 text-xs font-bold text-white disabled:opacity-40"
@@ -1905,8 +1871,8 @@ export function DealPassportClient({
                   {!passport.activeReleaseAuthorization
                     ? "Aguardando Autorização Formal Ativa"
                     : hasPerm("delivery:confirm")
-                    ? "Reconfirmar Veículo e Registrar Entrega"
-                    : "Requer perfil Operação / Admin"}
+                      ? "Reconfirmar Veículo e Registrar Entrega"
+                      : "Requer perfil Operação / Admin"}
                 </button>
               )}
             </div>
@@ -1916,7 +1882,8 @@ export function DealPassportClient({
           {passport.deliveryRecord && (
             <div className="bg-white rounded-2xl border border-slate-200 p-5 space-y-3">
               <h3 className="text-sm font-bold text-slate-900">
-                Adendos e Retificações Pós-Entrega (Histórico Original Preservado)
+                Adendos e Retificações Pós-Entrega (Histórico Original
+                Preservado)
               </h3>
               {passport.deliveryRecord.addendums.length > 0 && (
                 <ul className="space-y-1.5 text-xs">
@@ -1949,7 +1916,7 @@ export function DealPassportClient({
                         dealId: deal.id,
                         note: addendumNote,
                       },
-                      "Evento complementar pós-entrega registrado."
+                      "Evento complementar pós-entrega registrado.",
                     );
                     if (ok) setAddendumNote("");
                   }}
@@ -1964,7 +1931,8 @@ export function DealPassportClient({
           {/* Registros Formais de Aprovação e Autorizações */}
           <div className="bg-white rounded-2xl border border-slate-200 p-5 space-y-3">
             <h3 className="text-sm font-bold text-slate-900">
-              Registros Formais de Aprovação e Evidências ({passport.approvals.length})
+              Registros Formais de Aprovação e Evidências (
+              {passport.approvals.length})
             </h3>
             {passport.approvals.length === 0 ? (
               <p className="text-xs text-slate-500">
@@ -2001,15 +1969,17 @@ export function DealPassportClient({
                       </p>
                       <div className="text-[11px] text-slate-500">
                         Autor: <strong>{ap.authorName}</strong> (Função:{" "}
-                        {ROLE_LABELS[ap.roleUsed]}) • Versão dos dados analisados: v
-                        {ap.analyzedDataVersion} • Em{" "}
+                        {ROLE_LABELS[ap.roleUsed]}) • Versão dos dados
+                        analisados: v{ap.analyzedDataVersion} • Em{" "}
                         {formatDateTimeBr(ap.createdAt)}
                       </div>
                       {ap.evidenceRefs.length > 0 && (
                         <div className="text-[11px] text-teal-800 font-medium">
                           Evidências vinculadas:{" "}
                           {ap.evidenceRefs
-                            .map((e) => `${e.documentTitle} (v${e.versionNumber})`)
+                            .map(
+                              (e) => `${e.documentTitle} (v${e.versionNumber})`,
+                            )
                             .join(", ")}
                         </div>
                       )}
@@ -2028,10 +1998,12 @@ export function DealPassportClient({
           <div className="flex items-center justify-between">
             <div>
               <h2 className="text-base font-bold text-slate-900">
-                Trilha de Auditoria Imutável da Negociação ({passport.auditEvents.length})
+                Trilha de Auditoria Imutável da Negociação (
+                {passport.auditEvents.length})
               </h2>
               <p className="text-xs text-slate-500">
-                Eventos de auditoria não podem ser editados nem removidos por usuários comuns.
+                Eventos de auditoria não podem ser editados nem removidos por
+                usuários comuns.
               </p>
             </div>
           </div>
@@ -2055,7 +2027,9 @@ export function DealPassportClient({
                 <p className="text-slate-700">{ev.summary}</p>
                 <div className="text-[10px] text-slate-400">
                   Visível na Área do Cliente:{" "}
-                  {ev.isCustomerVisible ? "Sim (Compartilhável)" : "Não (Restrito à equipe interna)"}
+                  {ev.isCustomerVisible
+                    ? "Sim (Compartilhável)"
+                    : "Não (Restrito à equipe interna)"}
                 </div>
               </div>
             ))}
@@ -2077,11 +2051,13 @@ export function DealPassportClient({
                     Assistente Contextual da Negociação
                   </h2>
                   <span className="rounded bg-slate-100 border border-slate-300 px-2 py-0.5 text-[10px] font-bold text-slate-700">
-                    Assistente de Consulta Determinístico (Sem provedor de IA externo)
+                    Assistente de Consulta Determinístico (Sem provedor de IA
+                    externo)
                   </span>
                 </div>
                 <p className="text-xs text-slate-500 mt-0.5">
-                  Explica procedimentos publicados e analisa pendências, mas nunca aprova etapas nem executa alterações.
+                  Explica procedimentos publicados e analisa pendências, mas
+                  nunca aprova etapas nem executa alterações.
                 </p>
               </div>
             </div>

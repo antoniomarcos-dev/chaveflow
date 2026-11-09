@@ -1,7 +1,15 @@
-import crypto from "crypto";
 import {
-  AREA_LABELS,
+  assertInternalStaff,
+  assertOrganizationAccess,
+  assertPermission,
+  AuthorizationError,
+  canActOnArea,
+  canApproveTaskRole,
+  hasPermission,
+} from "@/domain/permissions";
+import {
   ApprovalRecord,
+  AREA_LABELS,
   AuditEvent,
   AuthenticatedContext,
   Branch,
@@ -22,15 +30,6 @@ import {
   WorkflowVersion,
 } from "@/domain/types";
 import {
-  assertInternalStaff,
-  assertOrganizationAccess,
-  assertPermission,
-  AuthorizationError,
-  canActOnArea,
-  canApproveTaskRole,
-  hasPermission,
-} from "@/domain/permissions";
-import {
   computeDealEligibilityAndSummary,
   computeUserNextAction,
   DealBlocker,
@@ -47,6 +46,7 @@ import {
   validateServerUploadFile,
   withTransaction,
 } from "@/infrastructure/database";
+import crypto from "crypto";
 import { isDealActiveStatus } from "./vehicle-service";
 
 export class PreconditionBlockedError extends Error {
@@ -72,7 +72,7 @@ export class ConcurrencyConflictError extends Error {
 }
 
 function pushNotificationIfNew(
-  db: ReturnType<typeof loadDatabaseState>,
+  db: Awaited<ReturnType<typeof loadDatabaseState>>,
   params: {
     organizationId: string;
     recipientProfileId: string;
@@ -89,7 +89,7 @@ function pushNotificationIfNew(
     title: string;
     message: string;
     dedupKey: string;
-  }
+  },
 ) {
   if (db.notifications.some((n) => n.dedupKey === params.dedupKey)) {
     return;
@@ -112,9 +112,13 @@ function pushNotificationIfNew(
 function syncDealStatusFromSummary(
   deal: Deal,
   summary: DealEligibilitySummary,
-  hasActiveReleaseAuth: boolean
+  hasActiveReleaseAuth: boolean,
 ): void {
-  if (deal.status === "DRAFT" || deal.status === "CANCELLED" || deal.status === "DELIVERED") {
+  if (
+    deal.status === "DRAFT" ||
+    deal.status === "CANCELLED" ||
+    deal.status === "DELIVERED"
+  ) {
     return;
   }
   deal.currentStage = summary.currentStage;
@@ -131,7 +135,7 @@ function syncDealStatusFromSummary(
 // LISTAGEM DE NEGOCIAÇÕES DA ORGANIZAÇÃO
 // ============================================================================
 
-export function listDealsForOrg(params: {
+export async function listDealsForOrg(params: {
   ctx: AuthenticatedContext;
   statusFilter?: string;
   stageFilter?: string;
@@ -142,7 +146,7 @@ export function listDealsForOrg(params: {
   assertInternalStaff(ctx);
   assertPermission(ctx, "deal:view");
 
-  const db = loadDatabaseState();
+  const db = await loadDatabaseState();
   const q = (search || "").trim().toLowerCase();
 
   return db.deals
@@ -151,7 +155,11 @@ export function listDealsForOrg(params: {
       if (statusFilter && statusFilter !== "ALL" && d.status !== statusFilter) {
         return false;
       }
-      if (stageFilter && stageFilter !== "ALL" && d.currentStage !== stageFilter) {
+      if (
+        stageFilter &&
+        stageFilter !== "ALL" &&
+        d.currentStage !== stageFilter
+      ) {
         return false;
       }
       if (sellerId && sellerId !== "ALL" && d.sellerId !== sellerId) {
@@ -182,13 +190,13 @@ export function listDealsForOrg(params: {
       const tasks = db.taskInstances.filter((t) => t.dealId === d.id);
       const docs = db.documents.filter((doc) => doc.dealId === d.id);
       const hasActiveAuth = db.releaseAuthorizations.some(
-        (ra) => ra.dealId === d.id && ra.status === "ACTIVE"
+        (ra) => ra.dealId === d.id && ra.status === "ACTIVE",
       );
       const summary = computeDealEligibilityAndSummary(
         d,
         tasks,
         docs,
-        hasActiveAuth
+        hasActiveAuth,
       );
 
       return {
@@ -215,18 +223,18 @@ export async function createOrSaveGuidedDeal(params: {
   assertPermission(
     ctx,
     "deal:create",
-    "Sua função não possui permissão para abrir negociações."
+    "Sua função não possui permissão para abrir negociações.",
   );
 
   const parsed = GuidedDealInputSchema.parse(input);
 
-  return withTransaction((db) => {
+  return await withTransaction((db) => {
     if (idempotencyKey) {
       if (db.idempotencyKeys.includes(idempotencyKey)) {
         const latest = db.deals.find(
           (d) =>
             d.organizationId === ctx.organization.id &&
-            d.vehicleId === parsed.vehicleId
+            d.vehicleId === parsed.vehicleId,
         );
         if (latest) {
           return { deal: latest, isDraft: latest.status === "DRAFT" };
@@ -240,17 +248,47 @@ export async function createOrSaveGuidedDeal(params: {
       throw new Error("Veículo selecionado não encontrado.");
     }
     assertOrganizationAccess(ctx, vehicle.organizationId);
+    if (
+      !db.branches.some(
+        (b) =>
+          b.id === parsed.branchId &&
+          b.organizationId === ctx.organization.id &&
+          b.isActive,
+      )
+    )
+      throw new Error("Unidade inválida para esta organização.");
+    if (
+      !db.memberships.some(
+        (m) =>
+          m.profileId === parsed.sellerId &&
+          m.organizationId === ctx.organization.id &&
+          m.isActive &&
+          m.roles.some((r) => ["SELLER", "MANAGER", "ADMIN"].includes(r)),
+      ) ||
+      !db.profiles.some((p) => p.id === parsed.sellerId && p.isActive)
+    )
+      throw new Error("Vendedor inválido para esta organização.");
+    if (
+      parsed.customerMode === "EXISTING" &&
+      parsed.customerId &&
+      !db.customers.some(
+        (c) =>
+          c.id === parsed.customerId &&
+          c.organizationId === ctx.organization.id,
+      )
+    )
+      throw new Error("Comprador inválido para esta organização.");
 
     // Regra crítica: impedir mais de uma negociação ativa para o mesmo veículo
     const conflictingActiveDeal = db.deals.find(
       (d) =>
         d.vehicleId === vehicle.id &&
         d.id !== parsed.draftDealId &&
-        isDealActiveStatus(d.status)
+        isDealActiveStatus(d.status),
     );
     if (conflictingActiveDeal && !parsed.saveAsDraft) {
       throw new Error(
-        `Bloqueado no banco: o veículo ${vehicle.internalCode} (${vehicle.vin}) já possui uma negociação ativa (${conflictingActiveDeal.dealNumber}). Não é permitido manter duas negociações ativas para o mesmo veículo.`
+        `Bloqueado no banco: o veículo ${vehicle.internalCode} (${vehicle.vin}) já possui uma negociação ativa (${conflictingActiveDeal.dealNumber}). Não é permitido manter duas negociações ativas para o mesmo veículo.`,
       );
     }
 
@@ -262,7 +300,7 @@ export async function createOrSaveGuidedDeal(params: {
       const existingCust = db.customers.find(
         (c) =>
           c.organizationId === ctx.organization.id &&
-          c.documentNumber === parsed.newCustomer!.documentNumber.trim()
+          c.documentNumber === parsed.newCustomer!.documentNumber.trim(),
       );
       if (existingCust) {
         customerId = existingCust.id;
@@ -283,24 +321,32 @@ export async function createOrSaveGuidedDeal(params: {
         db.customers.push(newCust);
         customerId = newCust.id;
       }
-    } else if (!customerId) {
-      customerId = db.customers.find((c) => c.organizationId === ctx.organization.id)?.id || "";
     }
+    if (!customerId)
+      throw new Error("Informe o comprador antes de salvar a negociação.");
 
     const wfTemplate = db.workflowTemplates.find(
-      (wt) => wt.organizationId === ctx.organization.id
+      (wt) => wt.organizationId === ctx.organization.id,
     );
     if (!wfTemplate) {
-      throw new Error("Modelo de processo ativo não encontrado para a organização.");
+      throw new Error(
+        "Modelo de processo ativo não encontrado para a organização.",
+      );
     }
     const activeWfVersionId = wfTemplate.activeVersionId;
 
     let deal = parsed.draftDealId
       ? db.deals.find((d) => d.id === parsed.draftDealId)
       : undefined;
+    if (parsed.draftDealId && !deal)
+      throw new Error("Rascunho não encontrado.");
 
     if (deal) {
       assertOrganizationAccess(ctx, deal.organizationId);
+      if (deal.status !== "DRAFT")
+        throw new Error(
+          "Somente rascunhos podem ser alterados pela abertura guiada.",
+        );
       deal.vehicleId = vehicle.id;
       deal.branchId = parsed.branchId;
       deal.sellerId = parsed.sellerId;
@@ -322,11 +368,15 @@ export async function createOrSaveGuidedDeal(params: {
       deal.expectedDeliveryDate = parsed.expectedDeliveryDate || null;
       deal.notes = parsed.notes || null;
       deal.status = parsed.saveAsDraft ? "DRAFT" : "ACTIVE";
-      deal.currentStage = parsed.saveAsDraft ? "IDENTIFICATION" : "REGISTRATION_DOCS";
+      deal.currentStage = parsed.saveAsDraft
+        ? "IDENTIFICATION"
+        : "REGISTRATION_DOCS";
       deal.updatedAt = nowIso;
     } else {
-      const nextNum = db.deals.filter((d) => d.organizationId === ctx.organization.id).length + 1;
-      const dealNumber = `NEG-2026-${String(nextNum).padStart(4, "0")}`;
+      const nextNum =
+        db.deals.filter((d) => d.organizationId === ctx.organization.id)
+          .length + 1;
+      const dealNumber = `NEG-${new Date().getFullYear()}-${String(nextNum).padStart(4, "0")}`;
 
       deal = {
         id: `deal-${crypto.randomUUID().slice(0, 8)}`,
@@ -338,7 +388,9 @@ export async function createOrSaveGuidedDeal(params: {
         sellerId: parsed.sellerId,
         workflowVersionId: activeWfVersionId,
         status: parsed.saveAsDraft ? "DRAFT" : "ACTIVE",
-        currentStage: parsed.saveAsDraft ? "IDENTIFICATION" : "REGISTRATION_DOCS",
+        currentStage: parsed.saveAsDraft
+          ? "IDENTIFICATION"
+          : "REGISTRATION_DOCS",
         buyerType: parsed.buyerType,
         paymentMethod: parsed.paymentMethod,
         hasFinancing: parsed.hasFinancing,
@@ -368,7 +420,9 @@ export async function createOrSaveGuidedDeal(params: {
     }
 
     // Registrar veículo usado na troca separadamente (sem confundir com o veículo vendido)
-    db.tradeInVehicles = db.tradeInVehicles.filter((t) => t.dealId !== deal!.id);
+    db.tradeInVehicles = db.tradeInVehicles.filter(
+      (t) => t.dealId !== deal!.id,
+    );
     if (parsed.hasTradeIn && parsed.tradeIn) {
       const tradeInRecord: TradeInVehicle = {
         id: `tradein-${crypto.randomUUID().slice(0, 8)}`,
@@ -414,10 +468,10 @@ export async function createOrSaveGuidedDeal(params: {
     vehicle.updatedAt = nowIso;
 
     const versionTaskTemplates = db.taskTemplates.filter(
-      (tt) => tt.workflowVersionId === deal!.workflowVersionId
+      (tt) => tt.workflowVersionId === deal!.workflowVersionId,
     );
     const versionDocReqs = db.documentRequirements.filter(
-      (dr) => dr.workflowVersionId === deal!.workflowVersionId
+      (dr) => dr.workflowVersionId === deal!.workflowVersionId,
     );
 
     // Remove instâncias anteriores se estava em rascunho
@@ -442,9 +496,7 @@ export async function createOrSaveGuidedDeal(params: {
       organizationId: ctx.organization.id,
       dealId: deal.id,
       customerId: deal.customerId,
-      accessToken: `tok-${deal.dealNumber.toLowerCase()}-${crypto
-        .randomUUID()
-        .slice(0, 6)}`,
+      accessToken: crypto.randomBytes(32).toString("hex"),
       expiresAt: new Date(Date.now() + 60 * 24 * 60 * 60 * 1000).toISOString(),
       revokedAt: null,
       createdBy: ctx.profile.id,
@@ -470,10 +522,10 @@ export async function createOrSaveGuidedDeal(params: {
         hasTradeIn: deal.hasTradeIn,
         hasPowerOfAttorney: deal.hasPowerOfAttorney,
         applicableTasks: instantiated.tasks.filter(
-          (t) => t.state !== "WAIVED_BY_RULE"
+          (t) => t.state !== "WAIVED_BY_RULE",
         ).length,
         waivedTasks: instantiated.tasks.filter(
-          (t) => t.state === "WAIVED_BY_RULE"
+          (t) => t.state === "WAIVED_BY_RULE",
         ).length,
       },
       isCustomerVisible: true,
@@ -521,8 +573,7 @@ export interface DealPassportView {
     }
   >;
   activeReleaseAuthorization:
-    | (ReleaseAuthorization & { authorizedByName: string })
-    | null;
+    (ReleaseAuthorization & { authorizedByName: string }) | null;
   allReleaseAuthorizations: Array<
     ReleaseAuthorization & { authorizedByName: string }
   >;
@@ -533,15 +584,15 @@ export interface DealPassportView {
   auditEvents: AuditEvent[];
 }
 
-export function getDealPassportView(params: {
+export async function getDealPassportView(params: {
   ctx: AuthenticatedContext;
   dealId: string;
-}): DealPassportView {
+}): Promise<DealPassportView> {
   const { ctx, dealId } = params;
   assertInternalStaff(ctx);
   assertPermission(ctx, "deal:view");
 
-  const db = loadDatabaseState();
+  const db = await loadDatabaseState();
   const deal = db.deals.find((d) => d.id === dealId);
   if (!deal) {
     throw new Error("Negociação não encontrada.");
@@ -557,7 +608,7 @@ export function getDealPassportView(params: {
   const sellerProfile = db.profiles.find((p) => p.id === deal.sellerId)!;
   const branch = db.branches.find((b) => b.id === deal.branchId)!;
   const workflowVersion = db.workflowVersions.find(
-    (wv) => wv.id === deal.workflowVersionId
+    (wv) => wv.id === deal.workflowVersionId,
   )!;
 
   const rawTasks = db.taskInstances
@@ -569,14 +620,14 @@ export function getDealPassportView(params: {
   // Somente versões PUBLICADAS de procedimentos alimentam orientações oficiais
   const publishedProcVersions = db.procedureVersions.filter(
     (pv) =>
-      pv.organizationId === ctx.organization.id && pv.status === "PUBLISHED"
+      pv.organizationId === ctx.organization.id && pv.status === "PUBLISHED",
   );
   const proceduresByCode = new Map<string, ProcedureVersion>();
   for (const proc of db.procedures.filter(
-    (p) => p.organizationId === ctx.organization.id
+    (p) => p.organizationId === ctx.organization.id,
   )) {
     const activeVer = publishedProcVersions.find(
-      (pv) => pv.id === proc.activeVersionId
+      (pv) => pv.id === proc.activeVersionId,
     );
     if (activeVer) {
       proceduresByCode.set(proc.code, activeVer);
@@ -588,7 +639,7 @@ export function getDealPassportView(params: {
       ? db.profiles.find((p) => p.id === t.assigneeId)
       : null;
     const procVer = t.procedureCode
-      ? proceduresByCode.get(t.procedureCode) ?? null
+      ? (proceduresByCode.get(t.procedureCode) ?? null)
       : null;
 
     return {
@@ -621,7 +672,7 @@ export function getDealPassportView(params: {
           ...dv,
           uploadedByName: uploader?.fullName ?? "Usuário",
           downloadUrl: `/api/documents/${doc.id}/download?version=${dv.versionNumber}&token=${encodeURIComponent(
-            signed.token
+            signed.token,
           )}`,
         };
       });
@@ -668,14 +719,14 @@ export function getDealPassportView(params: {
     : null;
 
   const activeGrant = db.customerAccessGrants.find(
-    (g) => g.dealId === deal.id && !g.revokedAt
+    (g) => g.dealId === deal.id && !g.revokedAt,
   );
 
   const summary = computeDealEligibilityAndSummary(
     deal,
     recalculatedTasks,
     rawDocs,
-    Boolean(activeReleaseAuthorization)
+    Boolean(activeReleaseAuthorization),
   );
 
   const userNextAction = computeUserNextAction(
@@ -683,7 +734,7 @@ export function getDealPassportView(params: {
     deal,
     recalculatedTasks,
     rawDocs,
-    summary
+    summary,
   );
 
   const auditEvents = db.auditEvents
@@ -731,14 +782,14 @@ export async function updateTaskOperationalState(params: {
   const { ctx, dealId, taskCode, action, targetAssigneeId, notes } = params;
   assertInternalStaff(ctx);
 
-  return withTransaction((db) => {
+  return await withTransaction((db) => {
     const deal = db.deals.find((d) => d.id === dealId);
     if (!deal) throw new Error("Negociação não encontrada.");
     assertOrganizationAccess(ctx, deal.organizationId);
 
     if (deal.status === "DELIVERED") {
       throw new Error(
-        "A negociação já foi entregue e encerrada. Tarefas operacionais não podem ser alteradas."
+        "A negociação já foi entregue e encerrada. Tarefas operacionais não podem ser alteradas.",
       );
     }
 
@@ -754,13 +805,13 @@ export async function updateTaskOperationalState(params: {
     }
 
     const task = db.taskInstances.find(
-      (t) => t.dealId === deal.id && t.code === taskCode
+      (t) => t.dealId === deal.id && t.code === taskCode,
     );
     if (!task) throw new Error("Tarefa não encontrada nesta negociação.");
 
     if (task.state === "WAIVED_BY_RULE") {
       throw new Error(
-        `A tarefa '${task.title}' está dispensada por regra do modelo de processo e não é aplicável.`
+        `A tarefa '${task.title}' está dispensada por regra do modelo de processo e não é aplicável.`,
       );
     }
 
@@ -770,7 +821,7 @@ export async function updateTaskOperationalState(params: {
       assertPermission(
         ctx,
         "task:assign",
-        "Sua função não possui permissão para atribuir responsáveis."
+        "Sua função não possui permissão para atribuir responsáveis.",
       );
       task.assigneeId = targetAssigneeId || ctx.profile.id;
       task.updatedAt = nowIso;
@@ -808,12 +859,12 @@ export async function updateTaskOperationalState(params: {
     if (!canActOnArea(ctx, task.responsibleArea)) {
       throw new AuthorizationError(
         `Sua função (${ctx.roles.join(
-          ", "
+          ", ",
         )}) não está autorizada a executar tarefas da área ${
           AREA_LABELS[task.responsibleArea]
         }.`,
         "AREA_UNAUTHORIZED",
-        403
+        403,
       );
     }
 
@@ -821,7 +872,7 @@ export async function updateTaskOperationalState(params: {
     const unmetDeps: string[] = [];
     for (const depCode of task.dependsOnTaskCodes) {
       const depTask = db.taskInstances.find(
-        (t) => t.dealId === deal.id && t.code === depCode
+        (t) => t.dealId === deal.id && t.code === depCode,
       );
       if (depTask && !isTaskSatisfiedAsDependency(depTask)) {
         unmetDeps.push(depTask.title);
@@ -832,7 +883,7 @@ export async function updateTaskOperationalState(params: {
       throw new Error(
         `Ordem de dependência bloqueada: a tarefa '${
           task.title
-        }' depende da conclusão prévia de: ${unmetDeps.join(", ")}.`
+        }' depende da conclusão prévia de: ${unmetDeps.join(", ")}.`,
       );
     }
 
@@ -861,7 +912,7 @@ export async function updateTaskOperationalState(params: {
       // Recalcula todas as tarefas dependentes
       const updatedList = recalculateTaskStates(
         db.taskInstances.filter((t) => t.dealId === deal.id),
-        dealDocs
+        dealDocs,
       );
       for (const ut of updatedList) {
         const ref = db.taskInstances.find((o) => o.id === ut.id);
@@ -872,13 +923,13 @@ export async function updateTaskOperationalState(params: {
       }
 
       const hasActiveAuth = db.releaseAuthorizations.some(
-        (ra) => ra.dealId === deal.id && ra.status === "ACTIVE"
+        (ra) => ra.dealId === deal.id && ra.status === "ACTIVE",
       );
       const summary = computeDealEligibilityAndSummary(
         deal,
         updatedList,
         dealDocs,
-        hasActiveAuth
+        hasActiveAuth,
       );
       syncDealStatusFromSummary(deal, summary, hasActiveAuth);
 
@@ -927,10 +978,10 @@ export async function requestAdditionalDocument(params: {
   assertPermission(
     ctx,
     "document:request",
-    "Sua função não possui permissão para solicitar novos documentos."
+    "Sua função não possui permissão para solicitar novos documentos.",
   );
 
-  return withTransaction((db) => {
+  return await withTransaction((db) => {
     const deal = db.deals.find((d) => d.id === dealId);
     if (!deal) throw new Error("Negociação não encontrada.");
     assertOrganizationAccess(ctx, deal.organizationId);
@@ -966,13 +1017,16 @@ export async function requestAdditionalDocument(params: {
     // Se havia autorização ativa e o novo documento bloqueia entrega, invalida a autorização
     if (newDoc.blocksDelivery) {
       for (const ra of db.releaseAuthorizations.filter(
-        (r) => r.dealId === deal.id && r.status === "ACTIVE"
+        (r) => r.dealId === deal.id && r.status === "ACTIVE",
       )) {
         ra.status = "INVALIDATED";
         ra.invalidatedAt = nowIso;
         ra.invalidationReason = `Novo documento obrigatório solicitado: '${newDoc.title}'.`;
       }
-      if (deal.status === "DELIVERY_AUTHORIZED" || deal.status === "ELIGIBLE_FOR_AUTHORIZATION") {
+      if (
+        deal.status === "DELIVERY_AUTHORIZED" ||
+        deal.status === "ELIGIBLE_FOR_AUTHORIZATION"
+      ) {
         deal.status = "ACTIVE";
       }
     }
@@ -999,7 +1053,10 @@ export async function requestAdditionalDocument(params: {
       entityType: "DOCUMENT",
       entityId: newDoc.id,
       summary: `Documento adicional solicitado: '${newDoc.title}' (Motivo: ${newDoc.whyRequired}).`,
-      metadata: { blocksBilling: newDoc.blocksBilling, blocksDelivery: newDoc.blocksDelivery },
+      metadata: {
+        blocksBilling: newDoc.blocksBilling,
+        blocksDelivery: newDoc.blocksDelivery,
+      },
       isCustomerVisible: newDoc.isCustomerVisible,
       createdAt: nowIso,
     });
@@ -1041,19 +1098,19 @@ export async function uploadDocumentVersion(params: {
     sizeBytes: contentBuffer.byteLength,
   });
 
-  return withTransaction((db) => {
+  return await withTransaction(async (db) => {
     const deal = db.deals.find((d) => d.id === dealId);
     if (!deal) throw new Error("Negociação não encontrada.");
     assertOrganizationAccess(ctx, deal.organizationId);
 
     if (deal.status === "DELIVERED") {
       throw new Error(
-        "A negociação já foi concluída e entregue. Não é permitido substituir documentos operacionais."
+        "A negociação já foi concluída e entregue. Não é permitido substituir documentos operacionais.",
       );
     }
 
     const doc = db.documents.find(
-      (d) => d.id === documentId && d.dealId === deal.id
+      (d) => d.id === documentId && d.dealId === deal.id,
     );
     if (!doc) throw new Error("Registro de documento não encontrado.");
 
@@ -1063,7 +1120,7 @@ export async function uploadDocumentVersion(params: {
         throw new AuthorizationError(
           "Você não tem permissão para enviar arquivos neste documento.",
           "CUSTOMER_DOC_FORBIDDEN",
-          403
+          403,
         );
       }
     } else {
@@ -1071,13 +1128,16 @@ export async function uploadDocumentVersion(params: {
     }
 
     const wasApproved = doc.status === "APPROVED";
-    if (wasApproved && (!replacementReason || replacementReason.trim().length < 3)) {
+    if (
+      wasApproved &&
+      (!replacementReason || replacementReason.trim().length < 3)
+    ) {
       throw new Error(
-        "Este documento já estava aprovado. Informe o motivo da substituição para registro de auditoria e reabertura das verificações."
+        "Este documento já estava aprovado. Informe o motivo da substituição para registro de auditoria e reabertura das verificações.",
       );
     }
 
-    const savedBlob = savePrivateFileBlob({
+    const savedBlob = await savePrivateFileBlob({
       organizationId: ctx.organization.id,
       contentBuffer,
       mimeType,
@@ -1129,10 +1189,10 @@ export async function uploadDocumentVersion(params: {
 
       // Invalidar aprovações que referenciam o documento ou tarefas dependentes
       for (const appr of db.approvalRecords.filter(
-        (ar) => ar.dealId === deal.id && ar.status === "ACTIVE"
+        (ar) => ar.dealId === deal.id && ar.status === "ACTIVE",
       )) {
         const citesDoc = appr.evidenceRefs.some(
-          (ref) => ref.documentId === doc.id
+          (ref) => ref.documentId === doc.id,
         );
         const sameTaskOrDossier =
           appr.taskCode === doc.taskCode ||
@@ -1153,7 +1213,10 @@ export async function uploadDocumentVersion(params: {
           (doc.taskCode && task.dependsOnTaskCodes.includes(doc.taskCode)) ||
           task.code === "TASK_DOSSIER_REVIEW"
         ) {
-          if (task.state === "COMPLETED" || task.approvalStatus === "APPROVED") {
+          if (
+            task.state === "COMPLETED" ||
+            task.approvalStatus === "APPROVED"
+          ) {
             task.state = "IN_REVIEW";
             if (task.requiresFormalApproval) {
               task.approvalStatus = "OUTDATED";
@@ -1169,7 +1232,7 @@ export async function uploadDocumentVersion(params: {
 
       // Invalidar autorizações de liberação ativas
       for (const ra of db.releaseAuthorizations.filter(
-        (r) => r.dealId === deal.id && r.status === "ACTIVE"
+        (r) => r.dealId === deal.id && r.status === "ACTIVE",
       )) {
         ra.status = "INVALIDATED";
         ra.invalidatedAt = nowIso;
@@ -1180,7 +1243,7 @@ export async function uploadDocumentVersion(params: {
       // Se a tarefa de coleta pura (sem aprovação formal, ex: TASK_BUYER_DOCS) estava aguardando, avança
       if (doc.taskCode) {
         const linkedTask = db.taskInstances.find(
-          (t) => t.dealId === deal.id && t.code === doc.taskCode
+          (t) => t.dealId === deal.id && t.code === doc.taskCode,
         );
         if (linkedTask && linkedTask.state !== "WAIVED_BY_RULE") {
           if (linkedTask.requiresFormalApproval) {
@@ -1209,13 +1272,13 @@ export async function uploadDocumentVersion(params: {
     }
 
     const hasActiveAuth = db.releaseAuthorizations.some(
-      (ra) => ra.dealId === deal.id && ra.status === "ACTIVE"
+      (ra) => ra.dealId === deal.id && ra.status === "ACTIVE",
     );
     const summary = computeDealEligibilityAndSummary(
       deal,
       recalculated,
       dealDocs,
-      hasActiveAuth
+      hasActiveAuth,
     );
     syncDealStatusFromSummary(deal, summary, hasActiveAuth);
 
@@ -1276,36 +1339,39 @@ export async function reviewDocumentVersion(params: {
   const { ctx, dealId, documentId, decision, justification } = params;
   assertInternalStaff(ctx);
 
-  return withTransaction((db) => {
+  return await withTransaction((db) => {
     const deal = db.deals.find((d) => d.id === dealId);
     if (!deal) throw new Error("Negociação não encontrada.");
     assertOrganizationAccess(ctx, deal.organizationId);
 
     const doc = db.documents.find(
-      (d) => d.id === documentId && d.dealId === deal.id
+      (d) => d.id === documentId && d.dealId === deal.id,
     );
     if (!doc) throw new Error("Documento não encontrado.");
 
     // Verifica permissão de acordo com a área do documento
     if (doc.responsibleArea === "FINANCE") {
-      if (!hasPermission(ctx, "approval:finance") && !hasPermission(ctx, "document:review")) {
+      if (
+        !hasPermission(ctx, "approval:finance") &&
+        !hasPermission(ctx, "document:review")
+      ) {
         throw new AuthorizationError(
           "Sua função não possui permissão para conferir documentos financeiros.",
           "INSUFFICIENT_PERMISSION",
-          403
+          403,
         );
       }
     } else {
       assertPermission(
         ctx,
         "document:review",
-        "Sua função não possui permissão para conferir documentos."
+        "Sua função não possui permissão para conferir documentos.",
       );
     }
 
     if (doc.currentVersionNumber === 0) {
       throw new Error(
-        "Não é possível aprovar ou rejeitar um documento que ainda não teve nenhum arquivo enviado."
+        "Não é possível aprovar ou rejeitar um documento que ainda não teve nenhum arquivo enviado.",
       );
     }
 
@@ -1314,7 +1380,7 @@ export async function reviewDocumentVersion(params: {
       (!justification || justification.trim().length < 3)
     ) {
       throw new Error(
-        "Informe o motivo da rejeição ou os detalhes da correção solicitada."
+        "Informe o motivo da rejeição ou os detalhes da correção solicitada.",
       );
     }
 
@@ -1329,7 +1395,8 @@ export async function reviewDocumentVersion(params: {
     // Atualizar última versão como revisada
     const latestVer = db.documentVersions.find(
       (dv) =>
-        dv.documentId === doc.id && dv.versionNumber === doc.currentVersionNumber
+        dv.documentId === doc.id &&
+        dv.versionNumber === doc.currentVersionNumber,
     );
     if (latestVer) {
       latestVer.ocrReviewStatus = "REVIEWED";
@@ -1338,11 +1405,11 @@ export async function reviewDocumentVersion(params: {
     // Se a tarefa vinculada a este documento for de coleta simples (ex: TASK_BUYER_DOCS) ou se for aprovada pelo próprio analista da área, sincroniza a tarefa!
     if (doc.taskCode) {
       const linkedTask = db.taskInstances.find(
-        (t) => t.dealId === deal.id && t.code === doc.taskCode
+        (t) => t.dealId === deal.id && t.code === doc.taskCode,
       );
       if (linkedTask && linkedTask.state !== "WAIVED_BY_RULE") {
         const allTaskDocs = db.documents.filter(
-          (d) => d.dealId === deal.id && d.taskCode === linkedTask.code
+          (d) => d.dealId === deal.id && d.taskCode === linkedTask.code,
         );
         const allApproved = allTaskDocs.every((d) => d.status === "APPROVED");
 
@@ -1402,7 +1469,7 @@ export async function reviewDocumentVersion(params: {
 
     // Se todas as tarefas de documentos de entrada (TASK_BUYER_DOCS, TASK_POA_DOCS, TASK_TRADE_IN_EVAL) estão concluídas e o revisor é DOCUMENTAL, verificar se pode aprovar também o dossiê quando todos os docs documentais estão aprovados
     const allDocAreaDocs = db.documents.filter(
-      (d) => d.dealId === deal.id && d.responsibleArea === "DOCUMENTATION"
+      (d) => d.dealId === deal.id && d.responsibleArea === "DOCUMENTATION",
     );
     if (
       decision === "APPROVED" &&
@@ -1410,7 +1477,7 @@ export async function reviewDocumentVersion(params: {
       allDocAreaDocs.every((d) => d.status === "APPROVED")
     ) {
       const dossierTask = db.taskInstances.find(
-        (t) => t.dealId === deal.id && t.code === "TASK_DOSSIER_REVIEW"
+        (t) => t.dealId === deal.id && t.code === "TASK_DOSSIER_REVIEW",
       );
       if (dossierTask && dossierTask.state !== "COMPLETED") {
         dossierTask.state = "COMPLETED";
@@ -1460,13 +1527,13 @@ export async function reviewDocumentVersion(params: {
     }
 
     const hasActiveAuth = db.releaseAuthorizations.some(
-      (ra) => ra.dealId === deal.id && ra.status === "ACTIVE"
+      (ra) => ra.dealId === deal.id && ra.status === "ACTIVE",
     );
     const summary = computeDealEligibilityAndSummary(
       deal,
       recalculated,
       dealDocs,
-      hasActiveAuth
+      hasActiveAuth,
     );
     syncDealStatusFromSummary(deal, summary, hasActiveAuth);
 
@@ -1534,17 +1601,17 @@ export async function recordTaskFormalApproval(params: {
 
   if (!justification || justification.trim().length < 3) {
     throw new Error(
-      "Informe uma justificativa ou parecer formal para registrar a decisão de aprovação/rejeição."
+      "Informe uma justificativa ou parecer formal para registrar a decisão de aprovação/rejeição.",
     );
   }
 
-  return withTransaction((db) => {
+  return await withTransaction((db) => {
     const deal = db.deals.find((d) => d.id === dealId);
     if (!deal) throw new Error("Negociação não encontrada.");
     assertOrganizationAccess(ctx, deal.organizationId);
 
     const task = db.taskInstances.find(
-      (t) => t.dealId === deal.id && t.code === taskCode
+      (t) => t.dealId === deal.id && t.code === taskCode,
     );
     if (!task) throw new Error("Tarefa não encontrada.");
 
@@ -1553,7 +1620,7 @@ export async function recordTaskFormalApproval(params: {
       assertPermission(
         ctx,
         "approval:finance",
-        "Somente a função Financeiro (ou Gestor/Admin autorizado) pode aprovar etapas financeiras."
+        "Somente a função Financeiro (ou Gestor/Admin autorizado) pode aprovar etapas financeiras.",
       );
     } else if (
       task.approvalRole === "DOCUMENTATION" ||
@@ -1562,13 +1629,13 @@ export async function recordTaskFormalApproval(params: {
       assertPermission(
         ctx,
         "approval:documentation",
-        "Somente a função Documental (ou Gestor/Admin autorizado) pode aprovar etapas documentais."
+        "Somente a função Documental (ou Gestor/Admin autorizado) pode aprovar etapas documentais.",
       );
     } else if (!canApproveTaskRole(ctx, task.approvalRole)) {
       throw new AuthorizationError(
         `Sua função não está autorizada a registrar aprovação para '${task.title}'.`,
         "APPROVAL_ROLE_MISMATCH",
-        403
+        403,
       );
     }
 
@@ -1576,11 +1643,11 @@ export async function recordTaskFormalApproval(params: {
     if (decision === "APPROVED") {
       for (const depCode of task.dependsOnTaskCodes) {
         const depTask = db.taskInstances.find(
-          (t) => t.dealId === deal.id && t.code === depCode
+          (t) => t.dealId === deal.id && t.code === depCode,
         );
         if (depTask && !isTaskSatisfiedAsDependency(depTask)) {
           throw new Error(
-            `Não é possível aprovar '${task.title}' antes da conclusão do pré-requisito '${depTask.title}'.`
+            `Não é possível aprovar '${task.title}' antes da conclusão do pré-requisito '${depTask.title}'.`,
           );
         }
       }
@@ -1653,13 +1720,13 @@ export async function recordTaskFormalApproval(params: {
     }
 
     const hasActiveAuth = db.releaseAuthorizations.some(
-      (ra) => ra.dealId === deal.id && ra.status === "ACTIVE"
+      (ra) => ra.dealId === deal.id && ra.status === "ACTIVE",
     );
     const summary = computeDealEligibilityAndSummary(
       deal,
       recalculated,
       dealDocs,
-      hasActiveAuth
+      hasActiveAuth,
     );
     syncDealStatusFromSummary(deal, summary, hasActiveAuth);
 
@@ -1714,14 +1781,14 @@ export async function registerDealBilling(params: {
   assertPermission(
     ctx,
     "billing:register",
-    "Sua função não possui permissão para registrar faturamento / Nota Fiscal."
+    "Sua função não possui permissão para registrar faturamento / Nota Fiscal.",
   );
 
   if (!invoiceNumber || invoiceNumber.trim().length < 3) {
     throw new Error("Informe o número da Nota Fiscal emitida.");
   }
 
-  return withTransaction((db) => {
+  return await withTransaction((db) => {
     const deal = db.deals.find((d) => d.id === dealId);
     if (!deal) throw new Error("Negociação não encontrada.");
     assertOrganizationAccess(ctx, deal.organizationId);
@@ -1733,7 +1800,7 @@ export async function registerDealBilling(params: {
       deal,
       recalculated,
       dealDocs,
-      false
+      false,
     );
 
     // Verificação transacional no servidor: todos os requisitos para faturar devem estar cumpridos!
@@ -1757,7 +1824,7 @@ export async function registerDealBilling(params: {
 
       throw new PreconditionBlockedError(
         `Faturamento bloqueado: existem ${summary.billingBlockers.length} requisito(s) obrigatório(s) pendente(s) antes da emissão da Nota Fiscal.`,
-        summary.billingBlockers
+        summary.billingBlockers,
       );
     }
 
@@ -1769,7 +1836,7 @@ export async function registerDealBilling(params: {
     deal.updatedAt = nowIso;
 
     const billingTask = db.taskInstances.find(
-      (t) => t.dealId === deal.id && t.code === "TASK_BILLING_INVOICE"
+      (t) => t.dealId === deal.id && t.code === "TASK_BILLING_INVOICE",
     );
     if (billingTask) {
       billingTask.state = "COMPLETED";
@@ -1780,7 +1847,7 @@ export async function registerDealBilling(params: {
 
     const afterTasks = recalculateTaskStates(
       db.taskInstances.filter((t) => t.dealId === deal.id),
-      dealDocs
+      dealDocs,
     );
     for (const ut of afterTasks) {
       const orig = db.taskInstances.find((o) => o.id === ut.id);
@@ -1794,7 +1861,7 @@ export async function registerDealBilling(params: {
       deal,
       afterTasks,
       dealDocs,
-      false
+      false,
     );
     syncDealStatusFromSummary(deal, afterSummary, false);
 
@@ -1839,17 +1906,17 @@ export async function authorizeDealRelease(params: {
   assertPermission(
     ctx,
     "release:authorize",
-    "Sua função não possui permissão para autorizar a entrega de veículos."
+    "Sua função não possui permissão para autorizar a entrega de veículos.",
   );
 
-  return withTransaction((db) => {
+  return await withTransaction((db) => {
     const deal = db.deals.find((d) => d.id === dealId);
     if (!deal) throw new Error("Negociação não encontrada.");
     assertOrganizationAccess(ctx, deal.organizationId);
 
     if (deal.status === "DELIVERED") {
       throw new ConcurrencyConflictError(
-        "O veículo desta negociação já foi entregue."
+        "O veículo desta negociação já foi entregue.",
       );
     }
 
@@ -1858,16 +1925,16 @@ export async function authorizeDealRelease(params: {
       deal.concurrencyVersion !== expectedConcurrencyVersion
     ) {
       throw new ConcurrencyConflictError(
-        `Conflito de concorrência detectado: os dados da negociação foram alterados por outro usuário (versão atual: v${deal.concurrencyVersion}, versão esperada: v${expectedConcurrencyVersion}). Atualize a página e revise os dados.`
+        `Conflito de concorrência detectado: os dados da negociação foram alterados por outro usuário (versão atual: v${deal.concurrencyVersion}, versão esperada: v${expectedConcurrencyVersion}). Atualize a página e revise os dados.`,
       );
     }
 
     const existingActiveAuth = db.releaseAuthorizations.find(
-      (ra) => ra.dealId === deal.id && ra.status === "ACTIVE"
+      (ra) => ra.dealId === deal.id && ra.status === "ACTIVE",
     );
     if (existingActiveAuth) {
       throw new ConcurrencyConflictError(
-        "Já existe uma autorização de entrega ativa para esta negociação."
+        "Já existe uma autorização de entrega ativa para esta negociação.",
       );
     }
 
@@ -1878,7 +1945,7 @@ export async function authorizeDealRelease(params: {
       deal,
       recalculated,
       dealDocs,
-      false
+      false,
     );
 
     const nowIso = new Date().toISOString();
@@ -1913,7 +1980,7 @@ export async function authorizeDealRelease(params: {
 
       throw new PreconditionBlockedError(
         `Autorização de entrega bloqueada: existem ${summary.deliveryBlockers.length} requisito(s) obrigatório(s) impeditivo(s).`,
-        summary.deliveryBlockers
+        summary.deliveryBlockers,
       );
     }
 
@@ -1948,7 +2015,7 @@ export async function authorizeDealRelease(params: {
     db.releaseAuthorizations.push(releaseAuth);
 
     const authTask = db.taskInstances.find(
-      (t) => t.dealId === deal.id && t.code === "TASK_RELEASE_AUTH"
+      (t) => t.dealId === deal.id && t.code === "TASK_RELEASE_AUTH",
     );
     if (authTask) {
       authTask.state = "COMPLETED";
@@ -1959,7 +2026,7 @@ export async function authorizeDealRelease(params: {
     }
 
     const deliveryTask = db.taskInstances.find(
-      (t) => t.dealId === deal.id && t.code === "TASK_CONFIRM_DELIVERY"
+      (t) => t.dealId === deal.id && t.code === "TASK_CONFIRM_DELIVERY",
     );
     if (deliveryTask) {
       deliveryTask.state = "AVAILABLE";
@@ -2035,27 +2102,27 @@ export async function confirmPhysicalDelivery(params: {
   assertPermission(
     ctx,
     "delivery:confirm",
-    "Sua função não possui permissão para registrar a entrega física do veículo."
+    "Sua função não possui permissão para registrar a entrega física do veículo.",
   );
 
-  return withTransaction((db) => {
+  return await withTransaction((db) => {
     const deal = db.deals.find((d) => d.id === dealId);
     if (!deal) throw new Error("Negociação não encontrada.");
     assertOrganizationAccess(ctx, deal.organizationId);
 
     if (deal.status === "DELIVERED") {
       throw new ConcurrencyConflictError(
-        "A entrega física deste veículo já foi registrada anteriormente."
+        "A entrega física deste veículo já foi registrada anteriormente.",
       );
     }
 
     // 1. Exigir autorização válida
     const activeAuth = db.releaseAuthorizations.find(
-      (ra) => ra.dealId === deal.id && ra.status === "ACTIVE"
+      (ra) => ra.dealId === deal.id && ra.status === "ACTIVE",
     );
     if (!activeAuth || deal.status !== "DELIVERY_AUTHORIZED") {
       throw new Error(
-        "Entrega bloqueada: não há Autorização Formal de Liberação válida e ativa para esta negociação."
+        "Entrega bloqueada: não há Autorização Formal de Liberação válida e ativa para esta negociação.",
       );
     }
 
@@ -2070,7 +2137,7 @@ export async function confirmPhysicalDelivery(params: {
 
     if (!matchesVin && !matchesCode && !matchesQr) {
       throw new Error(
-        `Falha na reconfirmação física do veículo: o identificador informado ('${confirmedVehicleIdentifier}') não corresponde ao chassi (${vehicle.vin}) nem ao código interno (${vehicle.internalCode}) do veículo autorizado.`
+        `Falha na reconfirmação física do veículo: o identificador informado ('${confirmedVehicleIdentifier}') não corresponde ao chassi (${vehicle.vin}) nem ao código interno (${vehicle.internalCode}) do veículo autorizado.`,
       );
     }
 
@@ -2082,7 +2149,7 @@ export async function confirmPhysicalDelivery(params: {
       deal,
       recalculated,
       dealDocs,
-      true
+      true,
     );
 
     if (!summary.deliveryEligible) {
@@ -2093,13 +2160,13 @@ export async function confirmPhysicalDelivery(params: {
       deal.status = "ACTIVE";
       throw new PreconditionBlockedError(
         "A autorização foi invalidada porque um ou mais requisitos deixaram de estar válidos na revalidação final.",
-        summary.deliveryBlockers
+        summary.deliveryBlockers,
       );
     }
 
     if (!recipientName.trim() || !recipientDocument.trim()) {
       throw new Error(
-        "Informe o nome completo e o documento de quem está recebendo as chaves."
+        "Informe o nome completo e o documento de quem está recebendo as chaves.",
       );
     }
 
@@ -2107,7 +2174,7 @@ export async function confirmPhysicalDelivery(params: {
     activeAuth.status = "CONSUMED_BY_DELIVERY";
 
     const deliveryTask = db.taskInstances.find(
-      (t) => t.dealId === deal.id && t.code === "TASK_CONFIRM_DELIVERY"
+      (t) => t.dealId === deal.id && t.code === "TASK_CONFIRM_DELIVERY",
     );
     if (deliveryTask) {
       deliveryTask.state = "COMPLETED";
@@ -2181,7 +2248,7 @@ export async function registerPostDeliveryAddendum(params: {
     throw new Error("Descreva a retificação ou observação pós-entrega.");
   }
 
-  return withTransaction((db) => {
+  return await withTransaction((db) => {
     const deal = db.deals.find((d) => d.id === dealId);
     if (!deal) throw new Error("Negociação não encontrada.");
     assertOrganizationAccess(ctx, deal.organizationId);
@@ -2189,7 +2256,7 @@ export async function registerPostDeliveryAddendum(params: {
     const delivery = db.deliveries.find((d) => d.dealId === deal.id);
     if (!delivery) {
       throw new Error(
-        "Adendos pós-entrega só podem ser registrados em negociações já entregues."
+        "Adendos pós-entrega só podem ser registrados em negociações já entregues.",
       );
     }
 

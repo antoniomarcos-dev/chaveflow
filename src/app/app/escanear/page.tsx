@@ -1,8 +1,6 @@
-import React from "react";
-import { getServerSessionContext } from "@/lib/server-session";
 import { listVehiclesForOrg } from "@/application/vehicle-service";
-import { scannerCapabilitiesAdapter } from "@/infrastructure/adapters";
 import { VehicleQrScannerClient } from "@/components/VehicleQrScannerClient";
+import { requireInternalSession } from "@/lib/server-session";
 
 export default async function EscanearVeiculoPage({
   searchParams,
@@ -10,10 +8,10 @@ export default async function EscanearVeiculoPage({
   searchParams: Promise<{ code?: string }>;
 }) {
   const sp = await searchParams;
-  const ctx = (await getServerSessionContext())!;
-  const vehicles = listVehiclesForOrg({ ctx });
+  const ctx = await requireInternalSession();
+  const vehicles = await listVehiclesForOrg({ ctx });
 
-  const demoVehicles = vehicles.map((v) => ({
+  const labelVehicles = vehicles.map((v) => ({
     id: v.id,
     internalCode: v.internalCode,
     qrToken: v.qrToken,
@@ -27,8 +25,7 @@ export default async function EscanearVeiculoPage({
   return (
     <VehicleQrScannerClient
       initialCode={sp.code}
-      demoVehicles={demoVehicles}
-      scannerCapabilities={scannerCapabilitiesAdapter.getCapabilitiesSummary()}
+      labelVehicles={labelVehicles}
     />
   );
 }

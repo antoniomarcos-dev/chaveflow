@@ -1,7 +1,9 @@
 "use client";
 
-import React, { useCallback, useEffect, useRef, useState } from "react";
-import Link from "next/link";
+import type {
+  QrScanResolutionResult,
+  VehicleWithDealStatus,
+} from "@/application/vehicle-service";
 import jsQR from "jsqr";
 import {
   AlertCircle,
@@ -16,16 +18,13 @@ import {
   QrCode,
   Search,
   ShieldAlert,
-  Sparkles,
   Upload,
 } from "lucide-react";
-import type {
-  QrScanResolutionResult,
-  VehicleWithDealStatus,
-} from "@/application/vehicle-service";
+import Link from "next/link";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { StockStatusBadge } from "./StatusBadge";
 
-interface DemoVehicleOption {
+interface VehicleOption {
   id: string;
   internalCode: string;
   qrToken: string;
@@ -38,23 +37,17 @@ interface DemoVehicleOption {
 
 export function VehicleQrScannerClient({
   initialCode,
-  demoVehicles,
-  scannerCapabilities,
+  labelVehicles,
 }: {
   initialCode?: string;
-  demoVehicles: DemoVehicleOption[];
-  scannerCapabilities: {
-    qrCodeInternal: { implemented: true; description: string };
-    barcode1D: { implemented: false; description: string };
-    vinOcr: { implemented: false; description: string };
-  };
+  labelVehicles: VehicleOption[];
 }) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const rafRef = useRef<number | null>(null);
   const lastScannedCodeRef = useRef<{ code: string; timestamp: number } | null>(
-    null
+    null,
   );
 
   const [cameraState, setCameraState] = useState<
@@ -64,7 +57,7 @@ export function VehicleQrScannerClient({
   const [manualInput, setManualInput] = useState(initialCode || "");
   const [loadingResolve, setLoadingResolve] = useState(false);
   const [scanResult, setScanResult] = useState<QrScanResolutionResult | null>(
-    null
+    null,
   );
   const [showPrintableSheet, setShowPrintableSheet] = useState(false);
   const [qrSvgMap, setQrSvgMap] = useState<Record<string, string>>({});
@@ -135,7 +128,7 @@ export function VehicleQrScannerClient({
         setLoadingResolve(false);
       }
     },
-    [stopCamera]
+    [stopCamera],
   );
 
   // Se veio com ?code= na URL, resolve automaticamente uma vez
@@ -156,7 +149,7 @@ export function VehicleQrScannerClient({
     ) {
       setCameraState("UNAVAILABLE");
       setCameraErrorMsg(
-        "Câmera indisponível neste dispositivo ou navegador. Utilize a busca manual ou selecione uma etiqueta demonstrativa abaixo."
+        "Câmera indisponível neste dispositivo ou navegador. Utilize a busca manual use o código interno do veículo.",
       );
       return;
     }
@@ -198,7 +191,7 @@ export function VehicleQrScannerClient({
               0,
               0,
               canvas.width,
-              canvas.height
+              canvas.height,
             );
             const code = jsQR(
               imageData.data,
@@ -206,7 +199,7 @@ export function VehicleQrScannerClient({
               imageData.height,
               {
                 inversionAttempts: "dontInvert",
-              }
+              },
             );
             if (code && code.data && code.data.trim().length > 0) {
               resolveCodeOnServer(code.data);
@@ -220,18 +213,15 @@ export function VehicleQrScannerClient({
       rafRef.current = requestAnimationFrame(tick);
     } catch (err) {
       const name = err instanceof Error ? err.name : "";
-      if (
-        name === "NotAllowedError" ||
-        name === "PermissionDeniedError"
-      ) {
+      if (name === "NotAllowedError" || name === "PermissionDeniedError") {
         setCameraState("DENIED");
         setCameraErrorMsg(
-          "Permissão de acesso à câmera foi negada. Autorize a câmera nas configurações do navegador ou utilize a busca manual abaixo."
+          "Permissão de acesso à câmera foi negada. Autorize a câmera nas configurações do navegador ou utilize a busca manual abaixo.",
         );
       } else {
         setCameraState("UNAVAILABLE");
         setCameraErrorMsg(
-          "Não foi possível acessar a câmera traseira neste dispositivo. Utilize a busca manual ou as etiquetas demonstrativas."
+          "Não foi possível acessar a câmera traseira neste dispositivo. Utilize a busca manual o código interno do veículo.",
         );
       }
     }
@@ -256,7 +246,7 @@ export function VehicleQrScannerClient({
           resolveCodeOnServer(decoded.data);
         } else {
           setCameraErrorMsg(
-            "Nenhum QR Code válido foi detectado na imagem enviada."
+            "Nenhum QR Code válido foi detectado na imagem enviada.",
           );
         }
       }
@@ -270,7 +260,7 @@ export function VehicleQrScannerClient({
     setShowPrintableSheet(next);
     if (next && Object.keys(qrSvgMap).length === 0) {
       const map: Record<string, string> = {};
-      for (const v of demoVehicles) {
+      for (const v of labelVehicles) {
         const res = await fetch("/api/vehicles", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -301,7 +291,8 @@ export function VehicleQrScannerClient({
             Escanear Veículo
           </h1>
           <p className="text-xs sm:text-sm text-slate-600 mt-0.5">
-            O QR Code contém apenas um identificador opaco (<code>cf://v/...</code>), sem dados pessoais ou credenciais.
+            O QR Code contém apenas um identificador opaco (
+            <code>cf://v/...</code>), sem dados pessoais ou credenciais.
           </p>
         </div>
 
@@ -314,7 +305,7 @@ export function VehicleQrScannerClient({
           <span>
             {showPrintableSheet
               ? "Ocultar Etiquetas QR"
-              : "Ver / Imprimir Etiquetas QR de Demonstração"}
+              : "Ver / Imprimir Etiquetas QR do Estoque"}
           </span>
         </button>
       </div>
@@ -380,7 +371,9 @@ export function VehicleQrScannerClient({
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <Camera className="h-5 w-5 text-teal-400" />
-              <h2 className="text-base font-bold">Leitor de QR Code (Câmera)</h2>
+              <h2 className="text-base font-bold">
+                Leitor de QR Code (Câmera)
+              </h2>
             </div>
             <span className="text-[11px] bg-slate-800 text-slate-300 px-2.5 py-1 rounded-md font-medium">
               Preferência: Câmera Traseira
@@ -397,7 +390,8 @@ export function VehicleQrScannerClient({
                   Pronto para escanear a etiqueta do veículo
                 </p>
                 <p className="text-xs text-slate-400 max-w-sm mx-auto">
-                  O acesso à câmera só é solicitado após o seu clique e é encerrado imediatamente ao sair desta tela.
+                  O acesso à câmera só é solicitado após o seu clique e é
+                  encerrado imediatamente ao sair desta tela.
                 </p>
               </div>
               <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
@@ -485,14 +479,6 @@ export function VehicleQrScannerClient({
           )}
 
           {/* Interface de Evolução: Código de Barras 1D e OCR de Chassi */}
-          <div className="pt-3 border-t border-slate-800 text-[11px] text-slate-400 space-y-1">
-            <div className="font-semibold text-slate-300">
-              Capacidades do Adaptador de Leitura:
-            </div>
-            <div>• {scannerCapabilities.qrCodeInternal.description}</div>
-            <div>• Código de Barras 1D: {scannerCapabilities.barcode1D.description}</div>
-            <div>• OCR de Chassi (VIN): {scannerCapabilities.vinOcr.description}</div>
-          </div>
         </div>
 
         {/* Busca Manual Alternativa */}
@@ -505,7 +491,8 @@ export function VehicleQrScannerClient({
               </h2>
             </div>
             <p className="text-xs text-slate-600">
-              Caso a etiqueta esteja danificada ou você esteja em um computador sem câmera, informe o código interno, chassi (VIN) ou token QR:
+              Caso a etiqueta esteja danificada ou você esteja em um computador
+              sem câmera, informe o código interno, chassi (VIN) ou token QR:
             </p>
 
             <form
@@ -528,7 +515,7 @@ export function VehicleQrScannerClient({
                   type="text"
                   value={manualInput}
                   onChange={(e) => setManualInput(e.target.value)}
-                  placeholder="Ex: PIN-BYD-001 ou 9BWSU19F08B301001"
+                  placeholder="C?digo interno, placa, chassi ou modelo"
                   className="mt-1 w-full rounded-lg border border-slate-300 px-3.5 py-2.5 text-sm font-mono text-slate-900"
                 />
               </div>
@@ -540,53 +527,12 @@ export function VehicleQrScannerClient({
               >
                 <Search className="h-4 w-4 text-teal-400" />
                 <span>
-                  {loadingResolve ? "Localizando veículo..." : "Identificar Veículo"}
+                  {loadingResolve
+                    ? "Localizando veículo..."
+                    : "Identificar Veículo"}
                 </span>
               </button>
             </form>
-          </div>
-
-          {/* Alternativa explícita de Demonstração */}
-          <div className="pt-4 border-t border-slate-200 space-y-2.5">
-            <div className="flex items-center gap-1.5 text-xs font-bold text-amber-800">
-              <Sparkles className="h-4 w-4 text-amber-600" />
-              <span>Abrir Veículo de Demonstração (Simulador de Leitura QR):</span>
-            </div>
-            <p className="text-[11px] text-slate-500">
-              Clique em um veículo demonstrativo abaixo para executar exatamente o mesmo fluxo pós-leitura do QR Code:
-            </p>
-            <div className="space-y-1.5 max-h-60 overflow-y-auto pr-1">
-              {demoVehicles.map((v) => (
-                <button
-                  key={v.id}
-                  type="button"
-                  onClick={() => {
-                    setManualInput(`cf://v/${v.qrToken}`);
-                    lastScannedCodeRef.current = null;
-                    resolveCodeOnServer(`cf://v/${v.qrToken}`);
-                  }}
-                  className="w-full text-left rounded-lg border border-slate-200 hover:border-teal-600 hover:bg-teal-50/40 p-2.5 transition flex items-center justify-between gap-2"
-                >
-                  <div className="min-w-0">
-                    <div className="text-xs font-bold text-slate-900 truncate">
-                      {v.internalCode} • {v.brand} {v.model} ({v.color})
-                    </div>
-                    <div className="text-[10px] font-mono text-slate-500">
-                      QR: cf://v/{v.qrToken}
-                    </div>
-                  </div>
-                  <span
-                    className={`shrink-0 rounded px-2 py-0.5 text-[10px] font-bold ${
-                      v.activeDealNumber
-                        ? "bg-teal-100 text-teal-900"
-                        : "bg-slate-100 text-slate-700"
-                    }`}
-                  >
-                    {v.activeDealNumber || "Sem negociação"}
-                  </span>
-                </button>
-              ))}
-            </div>
           </div>
         </div>
       </div>
@@ -598,10 +544,11 @@ export function VehicleQrScannerClient({
             <div>
               <span className="inline-flex items-center gap-1 text-xs font-bold text-amber-800 bg-amber-100 px-2 py-0.5 rounded">
                 <ShieldAlert className="h-3.5 w-3.5" />
-                ETIQUETAS INTERNAS DEMONSTRATIVAS — PINAUTO BYD CERES/GO
+                ETIQUETAS INTERNAS DO ESTOQUE
               </span>
               <h3 className="text-base font-bold text-slate-900 mt-1">
-                Aponte a câmera do celular para qualquer etiqueta ou imprima para o pátio
+                Aponte a câmera do celular para qualquer etiqueta ou imprima
+                para o pátio
               </h3>
             </div>
             <button
@@ -615,7 +562,7 @@ export function VehicleQrScannerClient({
           </div>
 
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {demoVehicles.map((v) => (
+            {labelVehicles.map((v) => (
               <div
                 key={v.id}
                 className="rounded-xl border-2 border-slate-800 p-4 flex flex-col items-center text-center space-y-2"
@@ -627,7 +574,8 @@ export function VehicleQrScannerClient({
                   {v.internalCode} — {v.brand} {v.model}
                 </div>
                 <div className="text-xs text-slate-600">
-                  Cor: {v.color} • Chassi: <code className="font-mono">{v.vin}</code>
+                  Cor: {v.color} • Chassi:{" "}
+                  <code className="font-mono">{v.vin}</code>
                 </div>
                 {qrSvgMap[v.id] ? (
                   <div
@@ -658,9 +606,7 @@ function IdentifiedVehicleCard({
   result: Extract<
     QrScanResolutionResult,
     {
-      outcome:
-        | "IDENTIFIED_WITH_ACTIVE_DEAL"
-        | "IDENTIFIED_NO_ACTIVE_DEAL";
+      outcome: "IDENTIFIED_WITH_ACTIVE_DEAL" | "IDENTIFIED_NO_ACTIVE_DEAL";
     }
   >;
   onReset: () => void;
@@ -680,7 +626,7 @@ function IdentifiedVehicleCard({
       <div className="grid sm:grid-cols-12 gap-4 items-center">
         <div className="sm:col-span-4">
           <img
-            src={v.photos[0] || "/vehicles/song-plus.svg"}
+            src={v.photos[0] || "/vehicle-placeholder.svg"}
             alt={`${v.brand} ${v.model}`}
             className="w-full rounded-xl border border-slate-200 object-cover"
           />
@@ -748,7 +694,8 @@ function IdentifiedVehicleCard({
                   <span>Sem negociação ativa no momento</span>
                 </div>
                 <p className="text-slate-600 mt-0.5">
-                  Você pode consultar o cadastro completo ou iniciar a abertura guiada de uma negociação.
+                  Você pode consultar o cadastro completo ou iniciar a abertura
+                  guiada de uma negociação.
                 </p>
               </div>
               <div className="flex flex-wrap items-center gap-2 shrink-0">

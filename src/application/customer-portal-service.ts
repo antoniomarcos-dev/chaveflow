@@ -1,3 +1,4 @@
+import { AuthorizationError } from "@/domain/permissions";
 import {
   AuthenticatedContext,
   DEAL_STATUS_LABELS,
@@ -5,7 +6,6 @@ import {
   WORKFLOW_STAGES,
   WorkflowStageCode,
 } from "@/domain/types";
-import { AuthorizationError } from "@/domain/permissions";
 import { loadDatabaseState, withTransaction } from "@/infrastructure/database";
 
 export interface CustomerSafeDealView {
@@ -58,23 +58,25 @@ export interface CustomerSafeDealView {
   }>;
 }
 
-export function listDealsForAuthenticatedCustomer(
-  ctx: AuthenticatedContext
-): Array<{
-  dealId: string;
-  dealNumber: string;
-  vehicleLabel: string;
-  statusLabel: string;
-  updatedAt: string;
-}> {
-  const db = loadDatabaseState();
+export async function listDealsForAuthenticatedCustomer(
+  ctx: AuthenticatedContext,
+): Promise<
+  Array<{
+    dealId: string;
+    dealNumber: string;
+    vehicleLabel: string;
+    statusLabel: string;
+    updatedAt: string;
+  }>
+> {
+  const db = await loadDatabaseState();
 
   const matchingCustomerIds = db.customers
     .filter(
       (c) =>
         c.organizationId === ctx.organization.id &&
         (c.profileId === ctx.profile.id ||
-          c.email.toLowerCase() === ctx.profile.email.toLowerCase())
+          c.email.toLowerCase() === ctx.profile.email.toLowerCase()),
     )
     .map((c) => c.id);
 
@@ -87,7 +89,7 @@ export function listDealsForAuthenticatedCustomer(
       (d) =>
         d.organizationId === ctx.organization.id &&
         matchingCustomerIds.includes(d.customerId) &&
-        d.status !== "DRAFT"
+        d.status !== "DRAFT",
     )
     .map((d) => {
       const veh = db.vehicles.find((v) => v.id === d.vehicleId)!;
@@ -101,13 +103,13 @@ export function listDealsForAuthenticatedCustomer(
     });
 }
 
-export function getCustomerSafeDealView(params: {
+export async function getCustomerSafeDealView(params: {
   ctx: AuthenticatedContext | null;
   dealId?: string;
   accessToken?: string;
-}): CustomerSafeDealView {
+}): Promise<CustomerSafeDealView> {
   const { ctx, dealId, accessToken } = params;
-  const db = loadDatabaseState();
+  const db = await loadDatabaseState();
 
   let targetDealId = dealId;
   let authorizedCustomerId: string | null = null;
@@ -119,45 +121,45 @@ export function getCustomerSafeDealView(params: {
     const isVehicleQr = db.vehicles.some(
       (v) =>
         v.qrToken.toLowerCase() === cleanToken.toLowerCase() ||
-        v.internalCode.toLowerCase() === cleanToken.toLowerCase()
+        v.internalCode.toLowerCase() === cleanToken.toLowerCase(),
     );
     if (isVehicleQr) {
       throw new AuthorizationError(
         "Acesso negado: o QR Code do veículo é de uso interno da concessionária e não concede acesso à área do comprador.",
         "VEHICLE_QR_FORBIDDEN_FOR_CUSTOMER_PORTAL",
-        403
+        403,
       );
     }
 
     const grant = db.customerAccessGrants.find(
-      (g) => g.accessToken === cleanToken
+      (g) => g.accessToken === cleanToken,
     );
     if (!grant) {
       throw new AuthorizationError(
         "Link de convite inválido ou não encontrado.",
         "INVALID_ACCESS_GRANT",
-        403
+        403,
       );
     }
     if (grant.revokedAt) {
       throw new AuthorizationError(
         "Este convite de acesso foi revogado pela concessionária.",
         "REVOKED_ACCESS_GRANT",
-        403
+        403,
       );
     }
     if (new Date(grant.expiresAt).getTime() < Date.now()) {
       throw new AuthorizationError(
         "Este convite de acesso expirou. Solicite um novo link ao seu vendedor.",
         "EXPIRED_ACCESS_GRANT",
-        403
+        403,
       );
     }
     if (targetDealId && grant.dealId !== targetDealId) {
       throw new AuthorizationError(
         "Este convite não permite acessar outra negociação.",
         "GRANT_DEAL_MISMATCH",
-        403
+        403,
       );
     }
 
@@ -171,7 +173,7 @@ export function getCustomerSafeDealView(params: {
       (c) =>
         c.organizationId === ctx.organization.id &&
         (c.profileId === ctx.profile.id ||
-          c.email.toLowerCase() === ctx.profile.email.toLowerCase())
+          c.email.toLowerCase() === ctx.profile.email.toLowerCase()),
     );
     if (customerRecords.length > 0) {
       authorizedCustomerId = customerRecords[0].id;
@@ -180,7 +182,7 @@ export function getCustomerSafeDealView(params: {
       const d = db.deals.find(
         (deal) =>
           deal.id === targetDealId &&
-          deal.organizationId === ctx.organization.id
+          deal.organizationId === ctx.organization.id,
       );
       authorizedCustomerId = d?.customerId ?? null;
     }
@@ -190,7 +192,7 @@ export function getCustomerSafeDealView(params: {
     throw new AuthorizationError(
       "Acesso não autorizado à área do cliente.",
       "CUSTOMER_UNAUTHORIZED",
-      403
+      403,
     );
   }
 
@@ -206,7 +208,7 @@ export function getCustomerSafeDealView(params: {
     throw new AuthorizationError(
       "Acesso negado: o cliente só pode acessar suas próprias negociações.",
       "CUSTOMER_ISOLATION_VIOLATION",
-      403
+      403,
     );
   }
 
@@ -265,7 +267,7 @@ export function getCustomerSafeDealView(params: {
 
   // Regra: Previsão de entrega somente quando confirmada por pessoa autorizada!
   const isConfirmed = Boolean(
-    deal.confirmedDeliveryDate && deal.confirmedDeliveryBy
+    deal.confirmedDeliveryDate && deal.confirmedDeliveryBy,
   );
 
   return {
@@ -294,7 +296,7 @@ export function getCustomerSafeDealView(params: {
       confirmedDateIso: isConfirmed ? deal.confirmedDeliveryDate : null,
       publicMessage: isConfirmed
         ? `Entrega confirmada pela concessionária para ${new Date(
-            deal.confirmedDeliveryDate!
+            deal.confirmedDeliveryDate!,
           ).toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo" })}.`
         : "Em preparação e conferência. A data de entrega será exibida aqui assim que confirmada oficialmente pela liberação.",
     },
@@ -309,13 +311,19 @@ export async function revokeCustomerAccessGrant(params: {
   dealId: string;
 }): Promise<void> {
   const { ctx, dealId } = params;
-  return withTransaction((db) => {
+  if (ctx.profile.isCustomerOnly || !ctx.permissions.includes("deal:view"))
+    throw new AuthorizationError(
+      "Somente a equipe interna pode revogar convites.",
+      "FORBIDDEN",
+      403,
+    );
+  return await withTransaction((db) => {
     const nowIso = new Date().toISOString();
     for (const g of db.customerAccessGrants.filter(
       (gr) =>
         gr.organizationId === ctx.organization.id &&
         gr.dealId === dealId &&
-        !gr.revokedAt
+        !gr.revokedAt,
     )) {
       g.revokedAt = nowIso;
     }

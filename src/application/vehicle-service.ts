@@ -1,4 +1,9 @@
-import crypto from "crypto";
+import {
+  assertInternalStaff,
+  assertOrganizationAccess,
+  assertPermission,
+  hasPermission,
+} from "@/domain/permissions";
 import {
   AuthenticatedContext,
   Deal,
@@ -6,13 +11,8 @@ import {
   VehicleInputSchema,
   VehicleStockStatus,
 } from "@/domain/types";
-import {
-  assertInternalStaff,
-  assertOrganizationAccess,
-  assertPermission,
-  hasPermission,
-} from "@/domain/permissions";
 import { loadDatabaseState, withTransaction } from "@/infrastructure/database";
+import crypto from "crypto";
 
 export interface VehicleWithDealStatus extends Vehicle {
   branchName: string;
@@ -31,18 +31,18 @@ export function isDealActiveStatus(status: Deal["status"]): boolean {
   );
 }
 
-export function listVehiclesForOrg(params: {
+export async function listVehiclesForOrg(params: {
   ctx: AuthenticatedContext;
   search?: string;
   branchId?: string;
   stockStatus?: VehicleStockStatus | "ALL";
-}): VehicleWithDealStatus[] {
+}): Promise<VehicleWithDealStatus[]> {
   const { ctx, search, branchId, stockStatus } = params;
   assertInternalStaff(ctx);
 
-  const db = loadDatabaseState();
+  const db = await loadDatabaseState();
   const orgVehicles = db.vehicles.filter(
-    (v) => v.organizationId === ctx.organization.id
+    (v) => v.organizationId === ctx.organization.id,
   );
 
   const q = (search || "").trim().toLowerCase();
@@ -52,7 +52,11 @@ export function listVehiclesForOrg(params: {
       if (branchId && branchId !== "ALL" && v.branchId !== branchId) {
         return false;
       }
-      if (stockStatus && stockStatus !== "ALL" && v.stockStatus !== stockStatus) {
+      if (
+        stockStatus &&
+        stockStatus !== "ALL" &&
+        v.stockStatus !== stockStatus
+      ) {
         return false;
       }
       if (q) {
@@ -75,8 +79,7 @@ export function listVehiclesForOrg(params: {
     .map((v) => {
       const branch = db.branches.find((b) => b.id === v.branchId);
       const vehicleDeals = db.deals.filter(
-        (d) =>
-          d.organizationId === ctx.organization.id && d.vehicleId === v.id
+        (d) => d.organizationId === ctx.organization.id && d.vehicleId === v.id,
       );
       const activeDeal =
         vehicleDeals.find((d) => isDealActiveStatus(d.status)) ?? null;
@@ -98,10 +101,10 @@ export function listVehiclesForOrg(params: {
     });
 }
 
-export function getVehicleDetails(params: {
+export async function getVehicleDetails(params: {
   ctx: AuthenticatedContext;
   vehicleId: string;
-}): {
+}): Promise<{
   vehicle: VehicleWithDealStatus;
   dealHistory: Array<{
     id: string;
@@ -113,11 +116,11 @@ export function getVehicleDetails(params: {
     createdAt: string;
     updatedAt: string;
   }>;
-} {
+}> {
   const { ctx, vehicleId } = params;
   assertInternalStaff(ctx);
 
-  const db = loadDatabaseState();
+  const db = await loadDatabaseState();
   const vehicle = db.vehicles.find((v) => v.id === vehicleId);
   if (!vehicle) {
     throw new Error("Veículo não encontrado.");
@@ -131,7 +134,7 @@ export function getVehicleDetails(params: {
     ? db.deals.filter(
         (d) =>
           d.organizationId === ctx.organization.id &&
-          d.vehicleId === vehicle.id
+          d.vehicleId === vehicle.id,
       )
     : [];
 
@@ -181,12 +184,21 @@ export async function createOrUpdateVehicle(params: {
   assertPermission(
     ctx,
     "vehicle:manage",
-    "Sua função não possui permissão para cadastrar ou editar veículos."
+    "Sua função não possui permissão para cadastrar ou editar veículos.",
   );
 
   const parsed = VehicleInputSchema.parse(input);
 
-  return withTransaction((db) => {
+  return await withTransaction((db) => {
+    if (
+      !db.branches.some(
+        (b) =>
+          b.id === parsed.branchId &&
+          b.organizationId === ctx.organization.id &&
+          b.isActive,
+      )
+    )
+      throw new Error("Unidade inválida para esta organização.");
     const cleanVin = parsed.vin.trim().toUpperCase();
     const cleanInternalCode = parsed.internalCode.trim().toUpperCase();
 
@@ -194,11 +206,11 @@ export async function createOrUpdateVehicle(params: {
       (v) =>
         v.organizationId === ctx.organization.id &&
         v.vin.toUpperCase() === cleanVin &&
-        v.id !== vehicleId
+        v.id !== vehicleId,
     );
     if (duplicateVin) {
       throw new Error(
-        `Chassi duplicado na organização: o chassi '${cleanVin}' já pertence ao veículo ${duplicateVin.internalCode} (${duplicateVin.brand} ${duplicateVin.model}).`
+        `Chassi duplicado na organização: o chassi '${cleanVin}' já pertence ao veículo ${duplicateVin.internalCode} (${duplicateVin.brand} ${duplicateVin.model}).`,
       );
     }
 
@@ -206,11 +218,11 @@ export async function createOrUpdateVehicle(params: {
       (v) =>
         v.organizationId === ctx.organization.id &&
         v.internalCode.toUpperCase() === cleanInternalCode &&
-        v.id !== vehicleId
+        v.id !== vehicleId,
     );
     if (duplicateCode) {
       throw new Error(
-        `Código interno duplicado na organização: '${cleanInternalCode}' já está em uso.`
+        `Código interno duplicado na organização: '${cleanInternalCode}' já está em uso.`,
       );
     }
 
@@ -277,9 +289,7 @@ export async function createOrUpdateVehicle(params: {
       plate: parsed.plate ? parsed.plate.toUpperCase() : null,
       condition: parsed.condition,
       photos:
-        parsed.photos.length > 0
-          ? parsed.photos
-          : ["/vehicles/song-plus.svg"],
+        parsed.photos.length > 0 ? parsed.photos : ["/vehicle-placeholder.svg"],
       stockStatus: parsed.stockStatus,
       entryDate: parsed.entryDate,
       internalNotes: parsed.internalNotes ?? null,
@@ -373,16 +383,16 @@ export async function processVehicleCsvImport(params: {
       : 0;
 
   const dataLines = lines.slice(startIdx);
-  const db = loadDatabaseState();
+  const db = await loadDatabaseState();
   const existingVins = new Set(
     db.vehicles
       .filter((v) => v.organizationId === ctx.organization.id)
-      .map((v) => v.vin.toUpperCase())
+      .map((v) => v.vin.toUpperCase()),
   );
   const existingCodes = new Set(
     db.vehicles
       .filter((v) => v.organizationId === ctx.organization.id)
-      .map((v) => v.internalCode.toUpperCase())
+      .map((v) => v.internalCode.toUpperCase()),
   );
 
   const seenVinsInBatch = new Set<string>();
@@ -439,7 +449,7 @@ export async function processVehicleCsvImport(params: {
       plate: plateRaw ? plateRaw.toUpperCase() : null,
       condition: conditionNormalized as "NEW" | "USED",
       branchId,
-      photos: ["/vehicles/song-plus.svg"],
+      photos: ["/vehicle-placeholder.svg"],
       stockStatus: "AVAILABLE" as const,
       entryDate: entryDateRaw || new Date().toISOString().slice(0, 10),
       internalNotes: notesRaw || null,
@@ -456,7 +466,7 @@ export async function processVehicleCsvImport(params: {
 
     if (existingVins.has(candidate.vin) || seenVinsInBatch.has(candidate.vin)) {
       rowErrors.push(
-        `Chassi '${candidate.vin}' duplicado no estoque ou no próprio arquivo CSV.`
+        `Chassi '${candidate.vin}' duplicado no estoque ou no próprio arquivo CSV.`,
       );
     }
 
@@ -465,7 +475,7 @@ export async function processVehicleCsvImport(params: {
       seenCodesInBatch.has(candidate.internalCode)
     ) {
       rowErrors.push(
-        `Código interno '${candidate.internalCode}' duplicado no estoque ou no arquivo CSV.`
+        `Código interno '${candidate.internalCode}' duplicado no estoque ou no arquivo CSV.`,
       );
     }
 
@@ -527,7 +537,7 @@ export async function processVehicleCsvImport(params: {
           color: pv.color,
           plate: pv.plate,
           condition: pv.condition,
-          photos: ["/vehicles/song-plus.svg"],
+          photos: ["/vehicle-placeholder.svg"],
           stockStatus: "AVAILABLE",
           entryDate: pv.entryDate,
           internalNotes: pv.internalNotes,
@@ -625,10 +635,10 @@ export function extractOpaqueTokenFromQrPayload(rawInput: string): string {
   return trimmed;
 }
 
-export function resolveScannedVehicleCode(params: {
+export async function resolveScannedVehicleCode(params: {
   ctx: AuthenticatedContext | null;
   rawQrCode: string;
-}): QrScanResolutionResult {
+}): Promise<QrScanResolutionResult> {
   const token = extractOpaqueTokenFromQrPayload(params.rawQrCode);
 
   // Regra: Se o usuário não estiver autenticado, solicitar login sem expor dados restritos
@@ -638,7 +648,7 @@ export function resolveScannedVehicleCode(params: {
       message:
         "Autenticação obrigatória para identificar o veículo e acessar dados operacionais. Faça login para continuar.",
       loginRedirectUrl: `/login?redirect=${encodeURIComponent(
-        `/app/escanear?code=${encodeURIComponent(token)}`
+        `/app/escanear?code=${encodeURIComponent(token)}`,
       )}`,
     };
   }
@@ -653,7 +663,7 @@ export function resolveScannedVehicleCode(params: {
     };
   }
 
-  const db = loadDatabaseState();
+  const db = await loadDatabaseState();
   const normalizedToken = token.toLowerCase();
 
   // Busca somente dentro da organização do usuário autenticado (Isolamento Multi-Tenant)
@@ -662,7 +672,7 @@ export function resolveScannedVehicleCode(params: {
       v.organizationId === params.ctx!.organization.id &&
       (v.qrToken.toLowerCase() === normalizedToken ||
         v.internalCode.toLowerCase() === normalizedToken ||
-        v.vin.toLowerCase() === normalizedToken)
+        v.vin.toLowerCase() === normalizedToken),
   );
 
   if (!vehicle) {
@@ -673,7 +683,7 @@ export function resolveScannedVehicleCode(params: {
     };
   }
 
-  const details = getVehicleDetails({
+  const details = await getVehicleDetails({
     ctx: params.ctx,
     vehicleId: vehicle.id,
   });

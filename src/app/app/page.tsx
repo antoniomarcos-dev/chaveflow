@@ -1,5 +1,10 @@
-import React from "react";
-import Link from "next/link";
+import { listDealsForOrg } from "@/application/deal-service";
+import { listVehiclesForOrg } from "@/application/vehicle-service";
+import { DealStatusBadge, StockStatusBadge } from "@/components/StatusBadge";
+import { ROLE_LABELS, WORKFLOW_STAGES } from "@/domain/types";
+import { computeUserNextAction } from "@/domain/workflow-engine";
+import { loadDatabaseState } from "@/infrastructure/database";
+import { requireInternalSession } from "@/lib/server-session";
 import {
   AlertTriangle,
   ArrowRight,
@@ -7,34 +12,27 @@ import {
   CheckCircle2,
   ClipboardCheck,
   FileSpreadsheet,
-  Play,
   PlusCircle,
   QrCode,
   ShieldCheck,
 } from "lucide-react";
-import { getServerSessionContext } from "@/lib/server-session";
-import { listDealsForOrg } from "@/application/deal-service";
-import { listVehiclesForOrg } from "@/application/vehicle-service";
-import { AREA_LABELS, ROLE_LABELS, WORKFLOW_STAGES } from "@/domain/types";
-import { DealStatusBadge, StockStatusBadge } from "@/components/StatusBadge";
-import { computeUserNextAction } from "@/domain/workflow-engine";
-import { loadDatabaseState } from "@/infrastructure/database";
+import Link from "next/link";
 
 export default async function OperationalHomePage() {
-  const ctx = (await getServerSessionContext())!;
-  const deals = listDealsForOrg({ ctx });
-  const vehicles = listVehiclesForOrg({ ctx });
-  const db = loadDatabaseState();
+  const ctx = await requireInternalSession();
+  const deals = await listDealsForOrg({ ctx });
+  const vehicles = await listVehiclesForOrg({ ctx });
+  const db = await loadDatabaseState();
 
   const activeDeals = deals.filter(
     (d) =>
       d.deal.status === "ACTIVE" ||
       d.deal.status === "ELIGIBLE_FOR_AUTHORIZATION" ||
-      d.deal.status === "DELIVERY_AUTHORIZED"
+      d.deal.status === "DELIVERY_AUTHORIZED",
   );
 
   const availableVehicles = vehicles.filter(
-    (v) => v.stockStatus === "AVAILABLE" && !v.activeDeal
+    (v) => v.stockStatus === "AVAILABLE" && !v.activeDeal,
   );
 
   return (
@@ -75,76 +73,6 @@ export default async function OperationalHomePage() {
         </div>
       </div>
 
-      {/* Guia do Roteiro Demonstrativo Principal (15 Passos) */}
-      <section
-        aria-label="Roteiro Demonstrativo Principal"
-        className="rounded-2xl bg-[#0f172a] text-white p-6 border border-slate-800 shadow-md"
-      >
-        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 border-b border-slate-800 pb-4">
-          <div>
-            <span className="inline-flex items-center gap-1.5 rounded-md bg-teal-500/20 border border-teal-400/40 px-2.5 py-0.5 text-xs font-bold text-teal-300">
-              <Play className="h-3.5 w-3.5" />
-              ROTEIRO DEMONSTRATIVO PRINCIPAL (15 PASSOS)
-            </span>
-            <h2 className="text-lg font-bold text-white mt-2">
-              História Guiada: Venda Financiada com Usado na Troca — BYD Song Plus DM-i (PIN-BYD-001)
-            </h2>
-            <p className="text-xs text-slate-300 mt-1">
-              Execute a história completa de ponta a ponta alternando entre Vendedor, Documental, Financeiro, Faturamento, Responsável pela Liberação, Operação e Cliente no seletor superior.
-            </p>
-          </div>
-          <div className="flex flex-wrap items-center gap-2.5 shrink-0">
-            <Link
-              href="/app/escanear?code=qr-pin-byd-001-songplus"
-              className="inline-flex items-center gap-2 rounded-lg bg-teal-500 hover:bg-teal-400 px-4 py-2 text-xs font-bold text-slate-950 transition"
-            >
-              <QrCode className="h-4 w-4" />
-              <span>Passo 1: Escanear PIN-BYD-001</span>
-            </Link>
-            <Link
-              href="/app/negociacoes/deal-001"
-              className="inline-flex items-center gap-2 rounded-lg border border-slate-700 bg-slate-800 hover:bg-slate-700 px-4 py-2 text-xs font-bold text-white transition"
-            >
-              <span>Abrir Passaporte NEG-2026-0001</span>
-              <ArrowRight className="h-3.5 w-3.5" />
-            </Link>
-          </div>
-        </div>
-
-        <div className="mt-4 grid sm:grid-cols-2 lg:grid-cols-5 gap-3 text-xs">
-          <div className="rounded-xl bg-slate-900/90 border border-slate-800 p-3">
-            <div className="font-bold text-teal-400">1 a 5 • Vendedor</div>
-            <p className="text-slate-300 mt-1">
-              Escaneia QR de <strong>PIN-BYD-001</strong>, confirma dados, abre o passaporte <strong>NEG-2026-0001</strong>, vê pendência do <em>Laudo do Usado na Troca</em> e envia o documento.
-            </p>
-          </div>
-          <div className="rounded-xl bg-slate-900/90 border border-slate-800 p-3">
-            <div className="font-bold text-teal-400">6 a 8 • Documental</div>
-            <p className="text-slate-300 mt-1">
-              Alterna para <strong>Patrícia (Documental)</strong>, confere o laudo enviado e aprova. O passaporte atualiza automaticamente o dossiê documental.
-            </p>
-          </div>
-          <div className="rounded-xl bg-slate-900/90 border border-slate-800 p-3">
-            <div className="font-bold text-teal-400">9 a 11 • Financeiro & NF</div>
-            <p className="text-slate-300 mt-1">
-              Tentativa prematura de liberar é bloqueada. <strong>Roberto (Financeiro)</strong> aprova a entrada PIX e <strong>Juliana (Faturamento)</strong> registra a Nota Fiscal.
-            </p>
-          </div>
-          <div className="rounded-xl bg-slate-900/90 border border-slate-800 p-3">
-            <div className="font-bold text-teal-400">12 e 13 • Liberação & Entrega</div>
-            <p className="text-slate-300 mt-1">
-              <strong>Marcos (Liberação)</strong> autoriza a entrega. <strong>Diego (Operação)</strong> reconfirma o chassi <code>9BWSU19F08B301001</code> e registra a entrega.
-            </p>
-          </div>
-          <div className="rounded-xl bg-slate-900/90 border border-slate-800 p-3">
-            <div className="font-bold text-teal-400">14 e 15 • Cliente & Auditoria</div>
-            <p className="text-slate-300 mt-1">
-              <strong>Helena (Cliente)</strong> visualiza a atualização permitida sem dados internos, e a linha de auditoria preserva todos os eventos.
-            </p>
-          </div>
-        </div>
-      </section>
-
       {/* Indicadores Rápidos */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-xs">
@@ -170,7 +98,7 @@ export default async function OperationalHomePage() {
               deals.filter(
                 (d) =>
                   d.deal.status === "ELIGIBLE_FOR_AUTHORIZATION" ||
-                  (d.summary.deliveryEligible && d.deal.status === "ACTIVE")
+                  (d.summary.deliveryEligible && d.deal.status === "ACTIVE"),
               ).length
             }
           </div>
@@ -214,7 +142,8 @@ export default async function OperationalHomePage() {
               Passaportes Digitais da Unidade
             </h2>
             <p className="text-xs text-slate-500">
-              Visão em tempo real do veículo, situação, próxima ação do seu perfil e bloqueios impeditivos.
+              Visão em tempo real do veículo, situação, próxima ação do seu
+              perfil e bloqueios impeditivos.
             </p>
           </div>
           <Link
@@ -229,7 +158,7 @@ export default async function OperationalHomePage() {
         <div className="grid lg:grid-cols-2 gap-4">
           {deals.map(({ deal, vehicle, customer, sellerName, summary }) => {
             const dealTasks = db.taskInstances.filter(
-              (t) => t.dealId === deal.id
+              (t) => t.dealId === deal.id,
             );
             const dealDocs = db.documents.filter((d) => d.dealId === deal.id);
             const nextAction = computeUserNextAction(
@@ -237,10 +166,10 @@ export default async function OperationalHomePage() {
               deal,
               dealTasks,
               dealDocs,
-              summary
+              summary,
             );
             const stageObj = WORKFLOW_STAGES.find(
-              (s) => s.code === summary.currentStage
+              (s) => s.code === summary.currentStage,
             );
 
             return (
@@ -327,7 +256,8 @@ export default async function OperationalHomePage() {
                     )}
                     <span className="text-slate-400">•</span>
                     <span className="text-slate-600 font-medium">
-                      Tarefas aplicáveis: {summary.completedApplicableTasksCount}/
+                      Tarefas aplicáveis:{" "}
+                      {summary.completedApplicableTasksCount}/
                       {summary.applicableTasksCount}
                     </span>
                   </div>
@@ -354,7 +284,8 @@ export default async function OperationalHomePage() {
               Estoque da Unidade ({vehicles.length} veículos)
             </h2>
             <p className="text-xs text-slate-500">
-              Situação do estoque separada da situação da negociação. Clique para imprimir etiqueta QR Code ou iniciar negociação.
+              Situação do estoque separada da situação da negociação. Clique
+              para imprimir etiqueta QR Code ou iniciar negociação.
             </p>
           </div>
           <Link

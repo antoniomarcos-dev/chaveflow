@@ -1,16 +1,10 @@
-import { describe, it, expect, beforeEach } from "vitest";
 import {
   buildAuthenticatedContext,
   inviteCollaborator,
 } from "@/application/auth-service";
-import {
-  createOrUpdateVehicle,
-  getVehicleDetails,
-  resolveScannedVehicleCode,
-} from "@/application/vehicle-service";
+import { getCustomerSafeDealView } from "@/application/customer-portal-service";
 import {
   authorizeDealRelease,
-  ConcurrencyConflictError,
   confirmPhysicalDelivery,
   createOrSaveGuidedDeal,
   getDealPassportView,
@@ -21,41 +15,52 @@ import {
   updateTaskOperationalState,
   uploadDocumentVersion,
 } from "@/application/deal-service";
-import { getCustomerSafeDealView } from "@/application/customer-portal-service";
-import { validateWorkflowDAG } from "@/domain/workflow-engine";
+import {
+  createOrUpdateVehicle,
+  getVehicleDetails,
+  resolveScannedVehicleCode,
+} from "@/application/vehicle-service";
 import { answerContextualQuestion } from "@/domain/contextual-assistant";
-import { resetDemoDatabase } from "@/infrastructure/database";
-import { DEMO_BRANCH_ID } from "@/infrastructure/seed-data";
+import { validateWorkflowDAG } from "@/domain/workflow-engine";
+import { saveDatabaseState } from "@/infrastructure/database";
+import { beforeEach, describe, expect, it } from "vitest";
+import { createInitialSeedState, DEMO_BRANCH_ID } from "./fixtures/seed-data";
 
 process.env.CHAVEFLOW_TEST_IN_MEMORY = "true";
 
 describe("ChaveFlow — Suite de Testes Prioritários de Engenharia e Regras de Negócio", () => {
   beforeEach(() => {
-    resetDemoDatabase();
+    saveDatabaseState(createInitialSeedState());
   });
 
   it("1. Isolamento entre organizações: usuário de outra organização não acessa veículos nem negociações da Pinauto", async () => {
-    const otherOrgManager = buildAuthenticatedContext("user-other-org")!;
+    const otherOrgManager =
+      (await buildAuthenticatedContext("user-other-org"))!;
     expect(otherOrgManager.organization.id).toBe("org-cerrado-isolated");
+    expect(
+      await buildAuthenticatedContext("user-other-org", "org-pinauto-demo"),
+    ).toBeNull();
 
     // Tentativa de consultar negociação da Pinauto deve falhar com violação de isolamento
-    expect(() =>
-      getDealPassportView({
-        ctx: otherOrgManager,
-        dealId: "deal-001",
-      })
-    ).toThrow(/outra organização/i);
+    await expect(
+      async () =>
+        await getDealPassportView({
+          ctx: otherOrgManager,
+          dealId: "deal-001",
+        }),
+    ).rejects.toThrow(/outra organização/i);
 
     // Tentativa de consultar veículo da Pinauto deve falhar
-    expect(() =>
-      getVehicleDetails({
-        ctx: otherOrgManager,
-        vehicleId: "veh-001",
-      })
-    ).toThrow(/outra organização/i);
+    await expect(
+      async () =>
+        await getVehicleDetails({
+          ctx: otherOrgManager,
+          vehicleId: "veh-001",
+        }),
+    ).rejects.toThrow(/outra organização/i);
 
     // Escanear QR Code de veículo da Pinauto logado na outra organização não deve reconhecer nem vazar dados
-    const scanRes = resolveScannedVehicleCode({
+    const scanRes = await resolveScannedVehicleCode({
       ctx: otherOrgManager,
       rawQrCode: "cf://v/qr-pin-byd-001-songplus",
     });
@@ -63,46 +68,53 @@ describe("ChaveFlow — Suite de Testes Prioritários de Engenharia e Regras de 
   });
 
   it("2. Acesso indevido de cliente e proteção de cadastro público: cliente só acessa própria negociação, não usa QR do veículo e não vê dados internos", async () => {
-    const helenaCtx = buildAuthenticatedContext("user-cliente-helena")!;
-    const agroCtx = buildAuthenticatedContext("user-cliente-agro")!;
+    const helenaCtx = (await buildAuthenticatedContext("user-cliente-helena"))!;
+    const agroCtx = (await buildAuthenticatedContext("user-cliente-agro"))!;
 
     // Helena acessa sua própria negociação (deal-001) com visão filtrada segura
-    const helenaView = getCustomerSafeDealView({
+    const helenaView = await getCustomerSafeDealView({
       ctx: helenaCtx,
       dealId: "deal-001",
     });
     expect(helenaView.dealNumber).toBe("NEG-2026-0001");
     // Previsão de entrega NÃO está confirmada em deal-001, logo não deve exibir data confirmada
-    expect(helenaView.deliveryForecast.isConfirmedByAuthorizedStaff).toBe(false);
+    expect(helenaView.deliveryForecast.isConfirmedByAuthorizedStaff).toBe(
+      false,
+    );
     expect(helenaView.deliveryForecast.confirmedDateIso).toBeNull();
     // Documento interno de usado na troca (isCustomerVisible=false) não aparece para o cliente
     expect(
-      helenaView.documentRequests.some((d) => d.title.includes("Usado na Troca"))
+      helenaView.documentRequests.some((d) =>
+        d.title.includes("Usado na Troca"),
+      ),
     ).toBe(false);
 
     // Helena tentando acessar a negociação de outro cliente (deal-002 da Agropecuária) é bloqueada
-    expect(() =>
-      getCustomerSafeDealView({
-        ctx: helenaCtx,
-        dealId: "deal-002",
-      })
-    ).toThrow(/próprias negociações/i);
+    await expect(
+      async () =>
+        await getCustomerSafeDealView({
+          ctx: helenaCtx,
+          dealId: "deal-002",
+        }),
+    ).rejects.toThrow(/próprias negociações/i);
 
     // Agropecuária tentando acessar o Passaporte Interno da concessionária é bloqueada
-    expect(() =>
-      getDealPassportView({
-        ctx: agroCtx,
-        dealId: "deal-002",
-      })
-    ).toThrow(/equipe interna/i);
+    await expect(
+      async () =>
+        await getDealPassportView({
+          ctx: agroCtx,
+          dealId: "deal-002",
+        }),
+    ).rejects.toThrow(/equipe interna/i);
 
     // QR Code do veículo NUNCA concede acesso à área do comprador
-    expect(() =>
-      getCustomerSafeDealView({
-        ctx: null,
-        accessToken: "qr-pin-byd-001-songplus",
-      })
-    ).toThrow(/QR Code do veículo/i);
+    await expect(
+      async () =>
+        await getCustomerSafeDealView({
+          ctx: null,
+          accessToken: "qr-pin-byd-001-songplus",
+        }),
+    ).rejects.toThrow(/QR Code do veículo/i);
 
     // Cadastro público não pode escolher funções privilegiadas
     await expect(
@@ -114,12 +126,12 @@ describe("ChaveFlow — Suite de Testes Prioritários de Engenharia e Regras de 
         phone: "62999999999",
         branchId: DEMO_BRANCH_ID,
         roles: ["ADMIN"],
-      })
+      }),
     ).rejects.toThrow(/cadastro público não pode escolher funções/i);
   });
 
   it("3. Permissões de aprovação no servidor: vendedor não pode aprovar financeiro, documental nem autorizar entrega", async () => {
-    const sellerCtx = buildAuthenticatedContext("user-vendedor")!;
+    const sellerCtx = (await buildAuthenticatedContext("user-vendedor"))!;
 
     await expect(
       recordTaskFormalApproval({
@@ -128,19 +140,19 @@ describe("ChaveFlow — Suite de Testes Prioritários de Engenharia e Regras de 
         taskCode: "TASK_PAYMENT_PROOF",
         decision: "APPROVED",
         justification: "Tentando aprovar pelo vendedor",
-      })
+      }),
     ).rejects.toThrow(/Somente a função Financeiro/i);
 
     await expect(
       authorizeDealRelease({
         ctx: sellerCtx,
         dealId: "deal-003",
-      })
+      }),
     ).rejects.toThrow(/permissão para autorizar a entrega/i);
   });
 
   it("4. Condições de geração de tarefas: financiamento, usado na troca e procuração alteram tarefas aplicáveis e registram dispensa por regra", async () => {
-    const sellerCtx = buildAuthenticatedContext("user-vendedor")!;
+    const sellerCtx = (await buildAuthenticatedContext("user-vendedor"))!;
 
     // Criar negociação à vista, sem financiamento, sem troca, mas COM procuração no veículo disponível veh-005 (BYD Seal)
     const { deal } = await createOrSaveGuidedDeal({
@@ -163,14 +175,18 @@ describe("ChaveFlow — Suite de Testes Prioritários de Engenharia e Regras de 
       },
     });
 
-    const passport = getDealPassportView({
+    const passport = await getDealPassportView({
       ctx: sellerCtx,
       dealId: deal.id,
     });
 
     const poaTask = passport.tasks.find((t) => t.code === "TASK_POA_DOCS")!;
-    const tradeInTask = passport.tasks.find((t) => t.code === "TASK_TRADE_IN_EVAL")!;
-    const finTask = passport.tasks.find((t) => t.code === "TASK_FINANCING_CONTRACT")!;
+    const tradeInTask = passport.tasks.find(
+      (t) => t.code === "TASK_TRADE_IN_EVAL",
+    )!;
+    const finTask = passport.tasks.find(
+      (t) => t.code === "TASK_FINANCING_CONTRACT",
+    )!;
 
     // Procuração deve estar aplicável (AVAILABLE)
     expect(poaTask.state).toBe("AVAILABLE");
@@ -194,19 +210,20 @@ describe("ChaveFlow — Suite de Testes Prioritários de Engenharia e Regras de 
     expect(cyclicCheck.cyclePath).toEqual(["A", "B", "C", "A"]);
 
     // Em deal-002, TASK_DOSSIER_REVIEW depende de TASK_BUYER_DOCS e TASK_POA_DOCS
-    const docCtx = buildAuthenticatedContext("user-documental")!;
+    const docCtx = (await buildAuthenticatedContext("user-documental"))!;
     await expect(
       recordTaskFormalApproval({
         ctx: docCtx,
         dealId: "deal-002",
         taskCode: "TASK_DOSSIER_REVIEW",
         decision: "APPROVED",
-        justification: "Tentando aprovar dossiê fora de ordem antes de concluir coleta",
-      })
+        justification:
+          "Tentando aprovar dossiê fora de ordem antes de concluir coleta",
+      }),
     ).rejects.toThrow(/pré-requisito/i);
 
     // Mas a preparação física (TASK_PDI_PREPARATION) não depende do documental nem do financeiro e pode avançar em paralelo!
-    const opsCtx = buildAuthenticatedContext("user-operacao")!;
+    const opsCtx = (await buildAuthenticatedContext("user-operacao"))!;
     const pdiCompleted = await updateTaskOperationalState({
       ctx: opsCtx,
       dealId: "deal-002",
@@ -218,7 +235,7 @@ describe("ChaveFlow — Suite de Testes Prioritários de Engenharia e Regras de 
   });
 
   it("6. Bloqueio de liberação: tentativa de autorizar entrega com pendências é bloqueada e lista todos os requisitos impeditivos", async () => {
-    const releaseCtx = buildAuthenticatedContext("user-liberacao")!;
+    const releaseCtx = (await buildAuthenticatedContext("user-liberacao"))!;
 
     try {
       await authorizeDealRelease({
@@ -231,14 +248,14 @@ describe("ChaveFlow — Suite de Testes Prioritários de Engenharia e Regras de 
       const blockedErr = err as PreconditionBlockedError;
       expect(blockedErr.blockers.length).toBeGreaterThan(0);
       expect(
-        blockedErr.blockers.some((b) => b.code === "TASK_PAYMENT_PROOF")
+        blockedErr.blockers.some((b) => b.code === "TASK_PAYMENT_PROOF"),
       ).toBe(true);
     }
   });
 
   it("7. Invalidação de aprovação por substituição de documento aprovado: preserva versão anterior, marca aprovação como OUTDATED, reabre tarefa e invalida autorização", async () => {
-    const releaseCtx = buildAuthenticatedContext("user-liberacao")!;
-    const sellerCtx = buildAuthenticatedContext("user-vendedor")!;
+    const releaseCtx = (await buildAuthenticatedContext("user-liberacao"))!;
+    const sellerCtx = (await buildAuthenticatedContext("user-vendedor"))!;
 
     // Em deal-003, todos os requisitos estão prontos. Vamos emitir a autorização primeiro:
     const auth = await authorizeDealRelease({
@@ -248,14 +265,14 @@ describe("ChaveFlow — Suite de Testes Prioritários de Engenharia e Regras de 
     });
     expect(auth.status).toBe("ACTIVE");
 
-    const beforeView = getDealPassportView({
+    const beforeView = await getDealPassportView({
       ctx: releaseCtx,
       dealId: "deal-003",
     });
     expect(beforeView.deal.status).toBe("DELIVERY_AUTHORIZED");
 
     const approvedBuyerDoc = beforeView.documents.find(
-      (d) => d.requirementCode === "DOC_BUYER_ID"
+      (d) => d.requirementCode === "DOC_BUYER_ID",
     )!;
     expect(approvedBuyerDoc.status).toBe("APPROVED");
     expect(approvedBuyerDoc.currentVersionNumber).toBe(1);
@@ -275,32 +292,34 @@ describe("ChaveFlow — Suite de Testes Prioritários de Engenharia e Regras de 
     expect(replaceRes.document.status).toBe("OUTDATED");
     expect(replaceRes.reopenedTasksCount).toBeGreaterThan(0);
 
-    const afterView = getDealPassportView({
+    const afterView = await getDealPassportView({
       ctx: releaseCtx,
       dealId: "deal-003",
     });
 
     // Preserva versão 1 e adiciona versão 2
-    const updatedDoc = afterView.documents.find((d) => d.id === approvedBuyerDoc.id)!;
+    const updatedDoc = afterView.documents.find(
+      (d) => d.id === approvedBuyerDoc.id,
+    )!;
     expect(updatedDoc.versions.length).toBe(2);
 
     // Aprovação documental dependente foi marcada como OUTDATED
-    expect(
-      afterView.approvals.some((a) => a.status === "OUTDATED")
-    ).toBe(true);
+    expect(afterView.approvals.some((a) => a.status === "OUTDATED")).toBe(true);
 
     // Autorização de entrega anterior foi automaticamente INVALIDADA e o status voltou para ACTIVE!
     expect(afterView.activeReleaseAuthorization).toBeNull();
     expect(
-      afterView.allReleaseAuthorizations.some((ra) => ra.status === "INVALIDATED")
+      afterView.allReleaseAuthorizations.some(
+        (ra) => ra.status === "INVALIDATED",
+      ),
     ).toBe(true);
     expect(afterView.deal.status).toBe("ACTIVE");
     expect(afterView.summary.deliveryEligible).toBe(false);
   });
 
   it("8. Tentativas concorrentes de liberação ou entrega: impede dupla autorização ativa e dupla entrega", async () => {
-    const releaseCtx = buildAuthenticatedContext("user-liberacao")!;
-    const opsCtx = buildAuthenticatedContext("user-operacao")!;
+    const releaseCtx = (await buildAuthenticatedContext("user-liberacao"))!;
+    const opsCtx = (await buildAuthenticatedContext("user-operacao"))!;
 
     // Duas chamadas concorrentes de autorização na mesma negociação elegível (deal-003)
     const results = await Promise.allSettled([
@@ -339,13 +358,17 @@ describe("ChaveFlow — Suite de Testes Prioritários de Engenharia e Regras de 
       }),
     ]);
 
-    expect(deliveryResults.filter((r) => r.status === "fulfilled").length).toBe(1);
-    expect(deliveryResults.filter((r) => r.status === "rejected").length).toBe(1);
+    expect(deliveryResults.filter((r) => r.status === "fulfilled").length).toBe(
+      1,
+    );
+    expect(deliveryResults.filter((r) => r.status === "rejected").length).toBe(
+      1,
+    );
   });
 
   it("9. Prevenção de negociação ativa duplicada e chassi duplicado na organização", async () => {
-    const sellerCtx = buildAuthenticatedContext("user-vendedor")!;
-    const adminCtx = buildAuthenticatedContext("user-admin")!;
+    const sellerCtx = (await buildAuthenticatedContext("user-vendedor"))!;
+    const adminCtx = (await buildAuthenticatedContext("user-admin"))!;
 
     // veh-001 já possui a negociação ativa NEG-2026-0001
     await expect(
@@ -364,7 +387,7 @@ describe("ChaveFlow — Suite de Testes Prioritários de Engenharia e Regras de 
           hasPowerOfAttorney: false,
           saveAsDraft: false,
         },
-      })
+      }),
     ).rejects.toThrow(/já possui uma negociação ativa/i);
 
     // Tentativa de cadastrar veículo com chassi já existente na organização
@@ -384,21 +407,21 @@ describe("ChaveFlow — Suite de Testes Prioritários de Engenharia e Regras de 
           branchId: DEMO_BRANCH_ID,
           entryDate: "2026-11-09",
         },
-      })
+      }),
     ).rejects.toThrow(/Chassi duplicado/i);
   });
 
   it("10. Roteiro Demonstrativo Principal de ponta a ponta (Passos 1 a 15)", async () => {
-    const sellerCtx = buildAuthenticatedContext("user-vendedor")!;
-    const docCtx = buildAuthenticatedContext("user-documental")!;
-    const finCtx = buildAuthenticatedContext("user-financeiro")!;
-    const billCtx = buildAuthenticatedContext("user-faturamento")!;
-    const releaseCtx = buildAuthenticatedContext("user-liberacao")!;
-    const opsCtx = buildAuthenticatedContext("user-operacao")!;
-    const helenaCtx = buildAuthenticatedContext("user-cliente-helena")!;
+    const sellerCtx = (await buildAuthenticatedContext("user-vendedor"))!;
+    const docCtx = (await buildAuthenticatedContext("user-documental"))!;
+    const finCtx = (await buildAuthenticatedContext("user-financeiro"))!;
+    const billCtx = (await buildAuthenticatedContext("user-faturamento"))!;
+    const releaseCtx = (await buildAuthenticatedContext("user-liberacao"))!;
+    const opsCtx = (await buildAuthenticatedContext("user-operacao"))!;
+    const helenaCtx = (await buildAuthenticatedContext("user-cliente-helena"))!;
 
     // Passos 1, 2 e 3: Vendedor escaneia QR Code de PIN-BYD-001, confirma dados e acessa o passaporte NEG-2026-0001
-    const scanRes = resolveScannedVehicleCode({
+    const scanRes = await resolveScannedVehicleCode({
       ctx: sellerCtx,
       rawQrCode: "cf://v/qr-pin-byd-001-songplus",
     });
@@ -410,10 +433,10 @@ describe("ChaveFlow — Suite de Testes Prioritários de Engenharia e Regras de 
     const dealId = scanRes.activeDealId;
 
     // Passo 4: Visualiza pendência documental (DOC_TRADE_IN_LAUDO) e seu responsável
-    let passport = getDealPassportView({ ctx: sellerCtx, dealId });
+    let passport = await getDealPassportView({ ctx: sellerCtx, dealId });
     expect(passport.userNextAction.actionType).toBe("UPLOAD_DOCUMENT");
     const tradeInDoc = passport.documents.find(
-      (d) => d.requirementCode === "DOC_TRADE_IN_LAUDO"
+      (d) => d.requirementCode === "DOC_TRADE_IN_LAUDO",
     )!;
     expect(tradeInDoc.status).toBe("REQUESTED");
 
@@ -424,12 +447,14 @@ describe("ChaveFlow — Suite de Testes Prioritários de Engenharia e Regras de 
       documentId: tradeInDoc.id,
       originalFilename: "Laudo_Vistoria_Corolla_Troca_DEMO.pdf",
       mimeType: "application/pdf",
-      contentBuffer: Buffer.from("%PDF-1.4 Documento Demonstrativo Vistoria Usado"),
+      contentBuffer: Buffer.from(
+        "%PDF-1.4 Documento Demonstrativo Vistoria Usado",
+      ),
       uploadNotes: "Laudo cautelar aprovado sem restrições.",
     });
 
     // Passos 6, 7 e 8: Usuário documental recebe a tarefa, confere e aprova; passaporte atualiza próxima ação
-    passport = getDealPassportView({ ctx: docCtx, dealId });
+    passport = await getDealPassportView({ ctx: docCtx, dealId });
     expect(passport.userNextAction.actionType).toBe("REVIEW_DOCUMENT");
 
     await reviewDocumentVersion({
@@ -440,7 +465,7 @@ describe("ChaveFlow — Suite de Testes Prioritários de Engenharia e Regras de 
       justification: "Laudo cautelar e CRLV do usado conferidos e aprovados.",
     });
 
-    passport = getDealPassportView({ ctx: docCtx, dealId });
+    passport = await getDealPassportView({ ctx: docCtx, dealId });
     expect(passport.summary.pillars.documentation.status).toBe("OK");
 
     // Passo 9: Tentativa prematura de autorização é bloqueada por requisito financeiro pendente (TASK_PAYMENT_PROOF) e falta de NF
@@ -448,7 +473,7 @@ describe("ChaveFlow — Suite de Testes Prioritários de Engenharia e Regras de 
       authorizeDealRelease({
         ctx: releaseCtx,
         dealId,
-      })
+      }),
     ).rejects.toThrow(PreconditionBlockedError);
 
     // Passo 10: Financeiro registra sua aprovação com evidência
@@ -461,7 +486,7 @@ describe("ChaveFlow — Suite de Testes Prioritários de Engenharia e Regras de 
     });
 
     // Passo 11: Os demais requisitos demonstrativos são concluídos (Faturamento registra a Nota Fiscal)
-    passport = getDealPassportView({ ctx: billCtx, dealId });
+    passport = await getDealPassportView({ ctx: billCtx, dealId });
     expect(passport.summary.billingEligible).toBe(true);
 
     await registerDealBilling({
@@ -471,7 +496,7 @@ describe("ChaveFlow — Suite de Testes Prioritários de Engenharia e Regras de 
       notes: "Faturamento emitido após liberação financeira e documental.",
     });
 
-    passport = getDealPassportView({ ctx: releaseCtx, dealId });
+    passport = await getDealPassportView({ ctx: releaseCtx, dealId });
     expect(passport.summary.deliveryEligible).toBe(true);
     expect(passport.deal.status).toBe("ELIGIBLE_FOR_AUTHORIZATION");
 
@@ -484,7 +509,7 @@ describe("ChaveFlow — Suite de Testes Prioritários de Engenharia e Regras de 
     });
     expect(releaseAuth.status).toBe("ACTIVE");
 
-    passport = getDealPassportView({ ctx: opsCtx, dealId });
+    passport = await getDealPassportView({ ctx: opsCtx, dealId });
     expect(passport.deal.status).toBe("DELIVERY_AUTHORIZED");
 
     // Passo 13: A operação reconfirma o veículo (chassi) e registra a entrega
@@ -494,25 +519,28 @@ describe("ChaveFlow — Suite de Testes Prioritários de Engenharia e Regras de 
       confirmedVehicleIdentifier: "9BWSU19F08B301001",
       recipientName: "Helena Martins",
       recipientDocument: "123.456.789-00",
-      deliveryNotes: "Veículo entregue com bateria em 100% e chave NFC configurada.",
+      deliveryNotes:
+        "Veículo entregue com bateria em 100% e chave NFC configurada.",
     });
     expect(delivery.confirmedVin).toBe("9BWSU19F08B301001");
 
     // Passo 14: O cliente visualiza a atualização permitida
-    const customerView = getCustomerSafeDealView({
+    const customerView = await getCustomerSafeDealView({
       ctx: helenaCtx,
       dealId,
     });
     expect(customerView.status).toBe("DELIVERED");
-    expect(customerView.deliveryForecast.isConfirmedByAuthorizedStaff).toBe(true);
+    expect(customerView.deliveryForecast.isConfirmedByAuthorizedStaff).toBe(
+      true,
+    );
     expect(
       customerView.customerUpdates.some((u) =>
-        u.summary.includes("Entrega física das chaves realizada")
-      )
+        u.summary.includes("Entrega física das chaves realizada"),
+      ),
     ).toBe(true);
 
     // Passo 15: O histórico preserva todos os eventos e o assistente contextual responde sem inventar procedimentos
-    const finalPassport = getDealPassportView({ ctx: sellerCtx, dealId });
+    const finalPassport = await getDealPassportView({ ctx: sellerCtx, dealId });
     expect(finalPassport.auditEvents.length).toBeGreaterThanOrEqual(8);
 
     const assistantReply = answerContextualQuestion({

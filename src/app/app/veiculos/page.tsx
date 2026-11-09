@@ -1,16 +1,15 @@
-import React from "react";
-import { getServerSessionContext } from "@/lib/server-session";
 import { listVehiclesForOrg } from "@/application/vehicle-service";
+import { VehiclesCatalogClient } from "@/components/VehiclesCatalogClient";
 import { hasPermission } from "@/domain/permissions";
 import { loadDatabaseState } from "@/infrastructure/database";
-import { VehiclesCatalogClient } from "@/components/VehiclesCatalogClient";
+import { requireInternalSession } from "@/lib/server-session";
 
 export default async function VeiculosPage() {
-  const ctx = (await getServerSessionContext())!;
-  const vehicles = listVehiclesForOrg({ ctx });
-  const db = loadDatabaseState();
+  const ctx = await requireInternalSession();
+  const vehicles = await listVehiclesForOrg({ ctx });
+  const db = await loadDatabaseState();
   const branches = db.branches.filter(
-    (b) => b.organizationId === ctx.organization.id
+    (b) => b.organizationId === ctx.organization.id,
   );
 
   return (

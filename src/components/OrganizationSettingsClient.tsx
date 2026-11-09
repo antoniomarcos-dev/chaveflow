@@ -1,17 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
-import { useRouter } from "next/navigation";
-import {
-  AlertCircle,
-  Building2,
-  CheckCircle2,
-  History,
-  Lock,
-  Plug,
-  UserPlus,
-  Users,
-} from "lucide-react";
+import { ROLE_PERMISSION_MAP } from "@/domain/permissions";
 import {
   AuditEvent,
   Branch,
@@ -20,8 +9,18 @@ import {
   ROLE_LABELS,
   RoleCode,
 } from "@/domain/types";
-import { ROLE_PERMISSION_MAP } from "@/domain/permissions";
 import { formatDateTimeBr } from "@/lib/format";
+import {
+  AlertCircle,
+  Building2,
+  CheckCircle2,
+  History,
+  Lock,
+  UserPlus,
+  Users,
+} from "lucide-react";
+import { useRouter } from "next/navigation";
+import React, { useState } from "react";
 
 export function OrganizationSettingsClient({
   organization,
@@ -49,7 +48,7 @@ export function OrganizationSettingsClient({
   const [showInviteForm, setShowInviteForm] = useState(false);
   const [email, setEmail] = useState("");
   const [fullName, setFullName] = useState("");
-  const [phone, setPhone] = useState("(62) 99199-0000");
+  const [phone, setPhone] = useState("");
   const [branchId, setBranchId] = useState(branches[0]?.id || "");
   const [selectedRoles, setSelectedRoles] = useState<RoleCode[]>(["SELLER"]);
   const [loading, setLoading] = useState(false);
@@ -58,7 +57,7 @@ export function OrganizationSettingsClient({
 
   function toggleRole(r: RoleCode) {
     setSelectedRoles((prev) =>
-      prev.includes(r) ? prev.filter((x) => x !== r) : [...prev, r]
+      prev.includes(r) ? prev.filter((x) => x !== r) : [...prev, r],
     );
   }
 
@@ -86,7 +85,7 @@ export function OrganizationSettingsClient({
         return;
       }
       setSuccess(
-        `Colaborador '${fullName}' convidado e vinculado à organização com sucesso!`
+        `Colaborador '${fullName}' convidado e vinculado à organização com sucesso!`,
       );
       setShowInviteForm(false);
       setEmail("");
@@ -109,7 +108,8 @@ export function OrganizationSettingsClient({
             Administração, Funções e Auditoria
           </h1>
           <p className="text-xs sm:text-sm text-slate-600 mt-0.5">
-            Controle de organização, unidades, convite de colaboradores, matriz de permissões e trilha de auditoria imutável.
+            Controle de organização, unidades, convite de colaboradores, matriz
+            de permissões e trilha de auditoria imutável.
           </p>
         </div>
 
@@ -252,7 +252,7 @@ export function OrganizationSettingsClient({
               {organization.name}
             </div>
             <div className="text-slate-600">
-              CNPJ Demonstrativo: <code>{organization.cnpj}</code> • Slug:{" "}
+              CNPJ: <code>{organization.cnpj}</code> • Slug:{" "}
               <code>{organization.slug}</code>
             </div>
           </div>
@@ -283,41 +283,6 @@ export function OrganizationSettingsClient({
         </section>
 
         {/* Estado Explícito de Integrações e Adaptadores */}
-        <section className="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs space-y-3">
-          <div className="flex items-center gap-2">
-            <Plug className="h-5 w-5 text-teal-600" />
-            <h2 className="text-base font-bold text-slate-900">
-              Estado de Integrações e Adaptadores
-            </h2>
-          </div>
-          <div className="space-y-2 text-xs">
-            <div className="rounded-xl bg-slate-50 border border-slate-200 p-3">
-              <div className="font-bold text-slate-900">
-                Persistência e Banco de Dados
-              </div>
-              <p className="text-slate-600 mt-0.5">
-                Modo Demonstrativo Local Ativo (<code>.data/chaveflow-db.json</code> + Storage privado <code>.data/private-storage/</code>) + Migração PostgreSQL/Supabase com RLS completa em{" "}
-                <code>supabase/migrations/0001_chaveflow_schema.sql</code>.
-              </p>
-            </div>
-            <div className="rounded-xl bg-slate-50 border border-slate-200 p-3">
-              <div className="font-bold text-slate-900">
-                Assistente Contextual (IA)
-              </div>
-              <p className="text-slate-600 mt-0.5">
-                Operando como <strong>Assistente de Consulta Determinístico</strong> (sem depender de provedor externo de IA). Nunca aprova etapas nem simula modelo externo.
-              </p>
-            </div>
-            <div className="rounded-xl bg-slate-50 border border-slate-200 p-3">
-              <div className="font-bold text-slate-900">
-                Notificações Externas (E-mail e WhatsApp)
-              </div>
-              <p className="text-slate-600 mt-0.5">
-                Adaptadores preparados em <code>src/infrastructure/adapters.ts</code>. Sem provedor SMTP/WhatsApp configurado no ambiente, as notificações são registradas exclusivamente na central interna, sem declarar envio externo.
-              </p>
-            </div>
-          </div>
-        </section>
       </div>
 
       {/* Usuários e Matriz de Permissões */}
@@ -358,7 +323,9 @@ export function OrganizationSettingsClient({
         <div className="pt-3 space-y-2">
           <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
             <Lock className="h-3.5 w-3.5" />
-            <span>Matriz de Permissões Verificadas no Servidor por Função:</span>
+            <span>
+              Matriz de Permissões Verificadas no Servidor por Função:
+            </span>
           </h3>
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-2.5 text-xs">
             {(Object.keys(ROLE_PERMISSION_MAP) as RoleCode[]).map((role) => (
@@ -389,7 +356,8 @@ export function OrganizationSettingsClient({
               Trilha de Auditoria da Organização ({auditEvents.length} eventos)
             </h2>
             <p className="text-xs text-slate-500">
-              Registro cronológico imutável de todas as ações relevantes (criações, aprovações, bloqueios, substituições e entregas).
+              Registro cronológico imutável de todas as ações relevantes
+              (criações, aprovações, bloqueios, substituições e entregas).
             </p>
           </div>
         </div>

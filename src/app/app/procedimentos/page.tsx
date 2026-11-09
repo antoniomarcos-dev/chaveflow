@@ -1,24 +1,23 @@
-import React from "react";
-import { getServerSessionContext } from "@/lib/server-session";
 import { listProceduresForOrg } from "@/application/report-and-admin-service";
+import { ProceduresAdminClient } from "@/components/ProceduresAdminClient";
 import { hasPermission } from "@/domain/permissions";
 import { loadDatabaseState } from "@/infrastructure/database";
-import { ProceduresAdminClient } from "@/components/ProceduresAdminClient";
+import { requireInternalSession } from "@/lib/server-session";
 
 export default async function ProcedimentosPage() {
-  const ctx = (await getServerSessionContext())!;
-  const procedures = listProceduresForOrg(ctx);
-  const db = loadDatabaseState();
+  const ctx = await requireInternalSession();
+  const procedures = await listProceduresForOrg(ctx);
+  const db = await loadDatabaseState();
 
   const wfTemplate = db.workflowTemplates.find(
-    (wt) => wt.organizationId === ctx.organization.id
+    (wt) => wt.organizationId === ctx.organization.id,
   )!;
   const taskTemplates = db.taskTemplates
     .filter((tt) => tt.workflowVersionId === wfTemplate.activeVersionId)
     .sort((a, b) => a.sortOrder - b.sortOrder);
 
   const documentRequirements = db.documentRequirements.filter(
-    (dr) => dr.workflowVersionId === wfTemplate.activeVersionId
+    (dr) => dr.workflowVersionId === wfTemplate.activeVersionId,
   );
 
   const internalStaff = db.memberships
@@ -26,7 +25,7 @@ export default async function ProcedimentosPage() {
       (m) =>
         m.organizationId === ctx.organization.id &&
         m.isActive &&
-        !m.roles.includes("CUSTOMER")
+        !m.roles.includes("CUSTOMER"),
     )
     .map((m) => {
       const p = db.profiles.find((pr) => pr.id === m.profileId)!;

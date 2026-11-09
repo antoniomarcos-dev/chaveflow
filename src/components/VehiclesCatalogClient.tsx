@@ -1,8 +1,15 @@
 "use client";
 
-import React, { useState } from "react";
-import Link from "next/link";
-import { useRouter } from "next/navigation";
+import type {
+  CsvImportResult,
+  VehicleWithDealStatus,
+} from "@/application/vehicle-service";
+import {
+  Branch,
+  VEHICLE_STOCK_STATUS_LABELS,
+  VehicleStockStatus,
+} from "@/domain/types";
+import { formatDateBr } from "@/lib/format";
 import {
   AlertCircle,
   Car,
@@ -12,13 +19,10 @@ import {
   QrCode,
   Search,
 } from "lucide-react";
-import type {
-  CsvImportResult,
-  VehicleWithDealStatus,
-} from "@/application/vehicle-service";
-import { Branch, VEHICLE_STOCK_STATUS_LABELS, VehicleStockStatus } from "@/domain/types";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useState } from "react";
 import { DealStatusBadge, StockStatusBadge } from "./StatusBadge";
-import { formatDateBr } from "@/lib/format";
 
 export function VehiclesCatalogClient({
   vehicles,
@@ -35,11 +39,11 @@ export function VehiclesCatalogClient({
   const [search, setSearch] = useState("");
   const [branchFilter, setBranchFilter] = useState("ALL");
   const [statusFilter, setStatusFilter] = useState<VehicleStockStatus | "ALL">(
-    "ALL"
+    "ALL",
   );
   const [showCsvPanel, setShowCsvPanel] = useState(false);
   const [csvText, setCsvText] = useState(
-    "codigo_interno;chassi;marca;modelo;versao;ano_fab;ano_mod;cor;condicao;placa;data_entrada;observacoes\nPIN-BYD-007;9BWDL11A05B307007;BYD;Dolphin Plus;EV 204cv;2025;2026;Azul Surfing;NOVO;;2026-11-09;Lote demonstrativo CSV\nPIN-BYD-008;9BWSU19F08B301001;BYD;Song Pro;DM-i;2025;2026;Branco;NOVO;;2026-11-09;Linha com chassi duplicado para demonstrar relatorio de erro"
+    "codigo_interno;chassi;marca;modelo;versao;ano_fab;ano_mod;cor;condicao;placa;data_entrada;observacoes",
   );
   const [csvBranchId, setCsvBranchId] = useState(branches[0]?.id || "");
   const [csvReport, setCsvReport] = useState<CsvImportResult | null>(null);
@@ -99,7 +103,8 @@ export function VehiclesCatalogClient({
             Veículos e Estoque ({filtered.length})
           </h1>
           <p className="text-xs sm:text-sm text-slate-600 mt-0.5">
-            O cadastro do veículo é permanente; cada negociação possui seu próprio passaporte e histórico.
+            O cadastro do veículo é permanente; cada negociação possui seu
+            próprio passaporte e histórico.
           </p>
         </div>
 
@@ -175,7 +180,8 @@ export function VehiclesCatalogClient({
             </div>
             <div className="sm:col-span-12">
               <label className="block text-xs font-semibold text-slate-700">
-                Conteúdo CSV (inclui exemplo válido + exemplo de chassi duplicado para testar validação)
+                Conteúdo CSV (inclui exemplo válido + exemplo de chassi
+                duplicado para testar validação)
               </label>
               <textarea
                 rows={4}
@@ -197,9 +203,7 @@ export function VehiclesCatalogClient({
             </button>
             <button
               type="button"
-              disabled={
-                csvLoading || !csvReport || csvReport.validCount === 0
-              }
+              disabled={csvLoading || !csvReport || csvReport.validCount === 0}
               onClick={() => handleCsvAction(true)}
               className="rounded-lg bg-teal-600 hover:bg-teal-700 px-4 py-2 text-xs font-bold text-white disabled:opacity-40"
             >
@@ -335,7 +339,7 @@ export function VehiclesCatalogClient({
               <div>
                 <div className="relative h-40 bg-slate-900">
                   <img
-                    src={v.photos[0] || "/vehicles/song-plus.svg"}
+                    src={v.photos[0] || "/vehicle-placeholder.svg"}
                     alt={`${v.brand} ${v.model}`}
                     className="w-full h-full object-cover"
                   />

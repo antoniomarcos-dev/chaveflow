@@ -1,10 +1,9 @@
-import React from "react";
-import Link from "next/link";
-import { ShieldAlert } from "lucide-react";
-import { getServerSessionContext } from "@/lib/server-session";
 import { getCustomerSafeDealView } from "@/application/customer-portal-service";
 import { CustomerPortalViewClient } from "@/components/CustomerPortalViewClient";
 import { AuthorizationError } from "@/domain/permissions";
+import { getServerSessionContext } from "@/lib/server-session";
+import { ShieldAlert } from "lucide-react";
+import Link from "next/link";
 
 export default async function CustomerDealDetailPage({
   params,
@@ -18,7 +17,7 @@ export default async function CustomerDealDetailPage({
   const ctx = await getServerSessionContext();
 
   try {
-    const view = getCustomerSafeDealView({
+    const view = await getCustomerSafeDealView({
       ctx,
       dealId: id,
       accessToken: sp.token,

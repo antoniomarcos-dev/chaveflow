@@ -1,28 +1,25 @@
 "use client";
 
-import React, { useState } from "react";
-import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { CustomerSafeDealView } from "@/application/customer-portal-service";
+import { DealStatus, DocumentStatus } from "@/domain/types";
+import { formatDateTimeBr } from "@/lib/format";
 import {
-  KeyRound,
+  AlertTriangle,
+  ArrowLeft,
+  Calendar,
   CheckCircle2,
   Clock,
   FileText,
-  Upload,
-  Phone,
+  KeyRound,
   Mail,
-  UserCheck,
+  Phone,
   ShieldCheck,
-  Calendar,
-  AlertTriangle,
-  Sparkles,
-  ArrowLeft,
-  Lock,
+  UserCheck,
 } from "lucide-react";
-import { CustomerSafeDealView } from "@/application/customer-portal-service";
-import { DealStatus, DocumentStatus } from "@/domain/types";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useState } from "react";
 import { DealStatusBadge, DocumentStatusBadge } from "./StatusBadge";
-import { formatDateTimeBr } from "@/lib/format";
 
 export function CustomerPortalViewClient({
   view,
@@ -38,53 +35,16 @@ export function CustomerPortalViewClient({
     text: string;
   } | null>(null);
 
-  async function handleCustomerDemoUpload(docId: string, docTitle: string) {
-    setFeedback(null);
-    setLoadingDocId(docId);
-    try {
-      const res = await fetch("/api/deals", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          action: "UPLOAD_DEMO_DOCUMENT",
-          dealId: view.dealId,
-          documentId: docId,
-          filename: `${docTitle.replace(/[^a-zA-Z0-9]/g, "_")}_Cliente.pdf`,
-          uploadNotes: "Enviado pelo comprador no Portal do Cliente",
-          accessToken,
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        setFeedback({
-          type: "error",
-          text: data.error || "Não foi possível enviar o documento.",
-        });
-      } else {
-        setFeedback({
-          type: "success",
-          text: `Documento '${docTitle}' enviado com sucesso para análise da concessionária!`,
-        });
-        router.refresh();
-      }
-    } catch {
-      setFeedback({
-        type: "error",
-        text: "Falha de conexão ao enviar documento.",
-      });
-    } finally {
-      setLoadingDocId(null);
-    }
-  }
-
   async function handleRealFileUpload(
     docId: string,
     docTitle: string,
-    file: File
+    file: File,
   ) {
     setFeedback(null);
     setLoadingDocId(docId);
     try {
+      if (file.size > 4 * 1024 * 1024)
+        throw new Error("O arquivo deve ter até 4 MB.");
       const fd = new FormData();
       fd.append("dealId", view.dealId);
       fd.append("documentId", docId);
@@ -123,47 +83,6 @@ export function CustomerPortalViewClient({
 
   return (
     <div className="min-h-screen bg-slate-50 pb-12">
-      {/* Barra demonstrativa de segurança do Portal do Cliente */}
-      <div className="bg-amber-950 text-amber-100 border-b border-amber-800 px-4 py-2 text-xs">
-        <div className="max-w-3xl mx-auto flex flex-wrap items-center justify-between gap-2">
-          <div className="flex items-center gap-2">
-            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-amber-400 text-amber-950 font-bold uppercase tracking-wider text-[10px]">
-              <Sparkles className="w-3 h-3" /> Modo Demonstrativo • Área do Comprador
-            </span>
-            <span className="text-amber-200/90">
-              Pinauto BYD • Ceres/GO (Concessionária Demonstrativa)
-            </span>
-          </div>
-          <div className="flex flex-wrap items-center gap-1.5">
-            <Link
-              href="/cliente?token=tok-cliente-helena-neg0001"
-              className="px-2 py-0.5 rounded bg-amber-900/90 hover:bg-amber-800 border border-amber-700 text-[11px] font-medium"
-            >
-              Cliente 1 (Helena • NEG-0001)
-            </Link>
-            <Link
-              href="/cliente?token=tok-cliente-agro-neg0002"
-              className="px-2 py-0.5 rounded bg-amber-900/90 hover:bg-amber-800 border border-amber-700 text-[11px] font-medium"
-            >
-              Cliente 2 (Agropecuária • NEG-0002)
-            </Link>
-            <Link
-              href="/cliente?token=qr-pin-byd-001-songplus"
-              className="px-2 py-0.5 rounded bg-rose-900/90 hover:bg-rose-800 border border-rose-700 text-rose-100 text-[11px] font-medium"
-              title="Testar regra de segurança: QR Code de veículo nunca concede acesso à área do cliente"
-            >
-              Testar Bloqueio QR Veículo
-            </Link>
-            <Link
-              href="/app"
-              className="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-white text-[11px] font-medium"
-            >
-              Painel da Concessionária
-            </Link>
-          </div>
-        </div>
-      </div>
-
       {/* Cabeçalho mobile-friendly */}
       <header className="bg-white border-b border-slate-200">
         <div className="max-w-3xl mx-auto px-4 py-4 flex items-center justify-between gap-3">
@@ -181,7 +100,7 @@ export function CustomerPortalViewClient({
                 </span>
               </div>
               <p className="text-xs text-slate-500">
-                Acompanhamento transparente da sua aquisição • Pinauto BYD Ceres/GO
+                Acompanhamento transparente da sua aquisição
               </p>
             </div>
           </div>
@@ -220,7 +139,7 @@ export function CustomerPortalViewClient({
           <div className="p-5 sm:p-6 flex flex-col sm:flex-row items-start sm:items-center gap-5">
             <div className="w-full sm:w-44 h-28 rounded-xl bg-slate-900 flex items-center justify-center p-2 shrink-0">
               <img
-                src={view.vehicle.photos[0] || "/vehicles/byd-song-plus.svg"}
+                src={view.vehicle.photos[0] || "/vehicle-placeholder.svg"}
                 alt={`${view.vehicle.brand} ${view.vehicle.model}`}
                 className="w-full h-full object-contain"
               />
@@ -239,9 +158,12 @@ export function CustomerPortalViewClient({
               </h1>
 
               <p className="text-xs text-slate-600">
-                Cor: <strong className="text-slate-800">{view.vehicle.color}</strong>{" "}
+                Cor:{" "}
+                <strong className="text-slate-800">{view.vehicle.color}</strong>{" "}
                 • Ano/Modelo:{" "}
-                <strong className="text-slate-800">{view.vehicle.modelYear}</strong>{" "}
+                <strong className="text-slate-800">
+                  {view.vehicle.modelYear}
+                </strong>{" "}
                 • Comprador:{" "}
                 <strong className="text-slate-800">{view.customerName}</strong>
               </p>
@@ -280,7 +202,8 @@ export function CustomerPortalViewClient({
             Etapas da sua Aquisição
           </h2>
           <p className="text-xs text-slate-500 mb-4">
-            Acompanhe em qual fase está a preparação documental e operacional do seu veículo.
+            Acompanhe em qual fase está a preparação documental e operacional do
+            seu veículo.
           </p>
 
           <div className="space-y-2.5">
@@ -294,8 +217,8 @@ export function CustomerPortalViewClient({
                     isCurrent
                       ? "bg-blue-50/70 border-blue-300"
                       : isCompleted
-                      ? "bg-emerald-50/40 border-emerald-200"
-                      : "bg-slate-50/60 border-slate-200 opacity-75"
+                        ? "bg-emerald-50/40 border-emerald-200"
+                        : "bg-slate-50/60 border-slate-200 opacity-75"
                   }`}
                 >
                   <div
@@ -303,8 +226,8 @@ export function CustomerPortalViewClient({
                       isCompleted
                         ? "bg-emerald-600 text-white"
                         : isCurrent
-                        ? "bg-blue-600 text-white"
-                        : "bg-slate-200 text-slate-600"
+                          ? "bg-blue-600 text-white"
+                          : "bg-slate-200 text-slate-600"
                     }`}
                   >
                     {isCompleted ? (
@@ -325,15 +248,15 @@ export function CustomerPortalViewClient({
                           isCompleted
                             ? "bg-emerald-100 text-emerald-800"
                             : isCurrent
-                            ? "bg-blue-100 text-blue-800"
-                            : "bg-slate-200 text-slate-600"
+                              ? "bg-blue-100 text-blue-800"
+                              : "bg-slate-200 text-slate-600"
                         }`}
                       >
                         {isCompleted
                           ? "Concluída"
                           : isCurrent
-                          ? "Etapa atual"
-                          : "Próxima etapa"}
+                            ? "Etapa atual"
+                            : "Próxima etapa"}
                       </span>
                     </div>
                     <p className="text-xs text-slate-600 mt-0.5">
@@ -355,7 +278,8 @@ export function CustomerPortalViewClient({
                 Seus Documentos Solicitados
               </h2>
               <p className="text-xs text-slate-500">
-                Envie ou consulte a situação dos documentos necessários para o faturamento e entrega.
+                Envie ou consulte a situação dos documentos necessários para o
+                faturamento e entrega.
               </p>
             </div>
           </div>
@@ -371,7 +295,9 @@ export function CustomerPortalViewClient({
                     <span className="text-xs font-bold text-slate-900">
                       {doc.title}
                     </span>
-                    <DocumentStatusBadge status={doc.status as DocumentStatus} />
+                    <DocumentStatusBadge
+                      status={doc.status as DocumentStatus}
+                    />
                     {doc.currentVersionNumber > 0 && (
                       <span className="text-[11px] font-mono text-slate-500">
                         v{doc.currentVersionNumber}
@@ -389,22 +315,8 @@ export function CustomerPortalViewClient({
 
                 {doc.customerActionNeeded && view.status !== "DELIVERED" && (
                   <div className="flex flex-wrap items-center gap-2 shrink-0">
-                    <button
-                      type="button"
-                      disabled={loadingDocId === doc.id}
-                      onClick={() =>
-                        handleCustomerDemoUpload(doc.id, doc.title)
-                      }
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold shadow-sm disabled:opacity-50"
-                    >
-                      <Upload className="w-3.5 h-3.5" />
-                      {loadingDocId === doc.id
-                        ? "Enviando..."
-                        : "Enviar PDF Demonstrativo"}
-                    </button>
-
                     <label className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 text-xs font-medium cursor-pointer">
-                      <span>Arquivo real</span>
+                      <span>Enviar documento (até 4 MB)</span>
                       <input
                         type="file"
                         accept=".pdf,.png,.jpg,.jpeg,.webp,.txt"

@@ -1,10 +1,15 @@
 "use client";
 
-import React, { useState } from "react";
+import {
+  Branch,
+  VEHICLE_STOCK_STATUS_LABELS,
+  Vehicle,
+  VehicleStockStatus,
+} from "@/domain/types";
+import { AlertCircle, ArrowLeft, Car, Save } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { AlertCircle, ArrowLeft, Car, Save } from "lucide-react";
-import { Branch, VEHICLE_STOCK_STATUS_LABELS, Vehicle, VehicleStockStatus } from "@/domain/types";
+import React, { useState } from "react";
 
 export function VehicleFormClient({
   branches,
@@ -15,38 +20,34 @@ export function VehicleFormClient({
 }) {
   const router = useRouter();
   const [internalCode, setInternalCode] = useState(
-    existingVehicle?.internalCode || "PIN-BYD-009"
+    existingVehicle?.internalCode || "",
   );
   const [vin, setVin] = useState(existingVehicle?.vin || "");
-  const [brand, setBrand] = useState(existingVehicle?.brand || "BYD");
-  const [model, setModel] = useState(existingVehicle?.model || "Song Pro DM-i");
-  const [trim, setTrim] = useState(
-    existingVehicle?.trim || "1.5 Plug-in Hybrid GS"
-  );
+  const [brand, setBrand] = useState(existingVehicle?.brand || "");
+  const [model, setModel] = useState(existingVehicle?.model || "");
+  const [trim, setTrim] = useState(existingVehicle?.trim || "");
   const [manufacturingYear, setManufacturingYear] = useState(
-    existingVehicle?.manufacturingYear || 2025
+    existingVehicle?.manufacturingYear || new Date().getFullYear(),
   );
   const [modelYear, setModelYear] = useState(
-    existingVehicle?.modelYear || 2026
+    existingVehicle?.modelYear || new Date().getFullYear(),
   );
-  const [color, setColor] = useState(
-    existingVehicle?.color || "Branco Snow"
-  );
+  const [color, setColor] = useState(existingVehicle?.color || "");
   const [plate, setPlate] = useState(existingVehicle?.plate || "");
   const [condition, setCondition] = useState<"NEW" | "USED">(
-    existingVehicle?.condition || "NEW"
+    existingVehicle?.condition || "NEW",
   );
   const [branchId, setBranchId] = useState(
-    existingVehicle?.branchId || branches[0]?.id || ""
+    existingVehicle?.branchId || branches[0]?.id || "",
   );
   const [stockStatus, setStockStatus] = useState<VehicleStockStatus>(
-    existingVehicle?.stockStatus || "AVAILABLE"
+    existingVehicle?.stockStatus || "AVAILABLE",
   );
   const [entryDate, setEntryDate] = useState(
-    existingVehicle?.entryDate || "2026-11-09"
+    existingVehicle?.entryDate || new Date().toLocaleDateString("en-CA"),
   );
   const [internalNotes, setInternalNotes] = useState(
-    existingVehicle?.internalNotes || ""
+    existingVehicle?.internalNotes || "",
   );
 
   const [error, setError] = useState<string | null>(null);
@@ -75,7 +76,7 @@ export function VehicleFormClient({
             plate: plate.trim() || null,
             condition,
             branchId,
-            photos: existingVehicle?.photos || ["/vehicles/song-plus.svg"],
+            photos: existingVehicle?.photos || ["/vehicle-placeholder.svg"],
             stockStatus,
             entryDate,
             internalNotes: internalNotes.trim() || null,
@@ -119,7 +120,8 @@ export function VehicleFormClient({
                 : "Novo Cadastro de Veículo no Estoque"}
             </h1>
             <p className="text-xs text-slate-500">
-              Os atributos são recuperados do cadastro da concessionária (sem tentar deduzir atributos pelo chassi).
+              Os atributos são recuperados do cadastro da concessionária (sem
+              tentar deduzir atributos pelo chassi).
             </p>
           </div>
         </div>
@@ -302,7 +304,7 @@ export function VehicleFormClient({
               >
                 {(
                   Object.keys(
-                    VEHICLE_STOCK_STATUS_LABELS
+                    VEHICLE_STOCK_STATUS_LABELS,
                   ) as VehicleStockStatus[]
                 ).map((st) => (
                   <option key={st} value={st}>
@@ -355,8 +357,8 @@ export function VehicleFormClient({
                 {saving
                   ? "Salvando..."
                   : existingVehicle
-                  ? "Salvar Alterações"
-                  : "Cadastrar Veículo e Gerar QR Code"}
+                    ? "Salvar Alterações"
+                    : "Cadastrar Veículo e Gerar QR Code"}
               </span>
             </button>
           </div>

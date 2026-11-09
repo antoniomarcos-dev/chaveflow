@@ -1,15 +1,5 @@
 "use client";
 
-import React, { useState } from "react";
-import { useRouter } from "next/navigation";
-import {
-  BookOpen,
-  CheckCircle2,
-  Clock,
-  FilePlus,
-  ShieldAlert,
-  SlidersHorizontal,
-} from "lucide-react";
 import {
   AREA_LABELS,
   DocumentRequirement,
@@ -18,6 +8,16 @@ import {
   TaskTemplate,
 } from "@/domain/types";
 import { formatDateTimeBr } from "@/lib/format";
+import {
+  BookOpen,
+  CheckCircle2,
+  Clock,
+  FilePlus,
+  ShieldAlert,
+  SlidersHorizontal,
+} from "lucide-react";
+import { useRouter } from "next/navigation";
+import React, { useState } from "react";
 
 interface EnrichedProcedure {
   id: string;
@@ -63,19 +63,15 @@ export function ProceduresAdminClient({
 }) {
   const router = useRouter();
   const [showNewForm, setShowNewForm] = useState(false);
-  const [code, setCode] = useState("PROC-COM-02");
-  const [title, setTitle] = useState(
-    "Conferência de Acessórios e Carregador Wallbox (Regra Demonstrativa)"
-  );
+  const [code, setCode] = useState("");
+  const [title, setTitle] = useState("");
   const [responsibleArea, setResponsibleArea] =
     useState<ResponsibleArea>("OPERATIONS");
-  const [content, setContent] = useState(
-    "Procedimento demonstrativo sujeito à validação da concessionária para conferência de itens de série e carregadores."
-  );
+  const [content, setContent] = useState("");
   const [secNum, setSecNum] = useState("1.1");
-  const [secHeading, setSecHeading] = useState("Checklist de Carregamento");
+  const [secHeading, setSecHeading] = useState("");
   const [secBody, setSecBody] = useState(
-    "Conferir presença do carregador portátil e registrar número de série antes da autorização de liberação."
+    "Conferir presença do carregador portátil e registrar número de série antes da autorização de liberação.",
   );
   const [publishImmediately, setPublishImmediately] = useState(true);
   const [loading, setLoading] = useState(false);
@@ -111,7 +107,7 @@ export function ProceduresAdminClient({
         setFeedback(
           publishImmediately
             ? "Nova versão de procedimento publicada e ativa para orientações oficiais!"
-            : "Rascunho de procedimento salvo (não alimenta orientações oficiais até ser publicado)."
+            : "Rascunho de procedimento salvo (não alimenta orientações oficiais até ser publicado).",
         );
         router.refresh();
       } else {
@@ -136,7 +132,7 @@ export function ProceduresAdminClient({
       const data = await res.json();
       if (res.ok && data.ok) {
         setFeedback(
-          "Versão promovida de Rascunho para Publicado! Agora alimenta as orientações oficiais."
+          "Versão promovida de Rascunho para Publicado! Agora alimenta as orientações oficiais.",
         );
         router.refresh();
       }
@@ -148,7 +144,7 @@ export function ProceduresAdminClient({
   async function handleUpdateSla(
     taskTemplateId: string,
     slaHours: number,
-    defaultAssigneeId: string | null
+    defaultAssigneeId: string | null,
   ) {
     setLoading(true);
     try {
@@ -176,13 +172,16 @@ export function ProceduresAdminClient({
         <div>
           <span className="inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-amber-800 bg-amber-100 px-2.5 py-0.5 rounded">
             <ShieldAlert className="h-3.5 w-3.5" />
-            <span>Regras Demonstrativas Sujeitas à Validação da Concessionária</span>
+            <span>Procedimentos da organização</span>
           </span>
           <h1 className="text-2xl font-extrabold text-slate-900 mt-2">
             Procedimentos, Modelos de Processo e Prazos
           </h1>
           <p className="text-xs sm:text-sm text-slate-600 mt-0.5">
-            Somente procedimentos com estado <strong>Publicado</strong> alimentam as orientações oficiais das tarefas e o Assistente Contextual. Alterar o modelo não modifica silenciosamente negociações já abertas.
+            Somente procedimentos com estado <strong>Publicado</strong>{" "}
+            alimentam as orientações oficiais das tarefas e o Assistente
+            Contextual. Alterar o modelo não modifica silenciosamente
+            negociações já abertas.
           </p>
         </div>
 
@@ -417,15 +416,15 @@ export function ProceduresAdminClient({
                             ver.status === "PUBLISHED"
                               ? "bg-emerald-100 text-emerald-900"
                               : ver.status === "DRAFT"
-                              ? "bg-amber-100 text-amber-900"
-                              : "bg-slate-200 text-slate-700"
+                                ? "bg-amber-100 text-amber-900"
+                                : "bg-slate-200 text-slate-700"
                           }`}
                         >
                           {ver.status === "PUBLISHED"
                             ? "PUBLICADO (Alimenta Orientações)"
                             : ver.status === "DRAFT"
-                            ? "RASCUNHO (Oculto do Assistente)"
-                            : "ARQUIVADO"}
+                              ? "RASCUNHO (Oculto do Assistente)"
+                              : "ARQUIVADO"}
                         </span>
                         <div className="text-[11px] text-slate-500 mt-0.5">
                           Autor: {ver.authorName} •{" "}
@@ -460,10 +459,12 @@ export function ProceduresAdminClient({
           <SlidersHorizontal className="h-5 w-5 text-teal-600" />
           <div>
             <h2 className="text-base font-bold text-slate-900">
-              Modelo de Processo Versionado — Prazos (SLA), Dependências e Condições
+              Modelo de Processo Versionado — Prazos (SLA), Dependências e
+              Condições
             </h2>
             <p className="text-xs text-slate-500">
-              Configure o prazo operacional (em horas) e o responsável padrão para novas negociações.
+              Configure o prazo operacional (em horas) e o responsável padrão
+              para novas negociações.
             </p>
           </div>
         </div>
@@ -512,7 +513,7 @@ export function ProceduresAdminClient({
                         handleUpdateSla(
                           tpl.id,
                           Number(e.target.value),
-                          tpl.defaultAssigneeId
+                          tpl.defaultAssigneeId,
                         )
                       }
                       className="w-16 rounded border border-slate-300 px-2 py-1 text-xs font-bold text-slate-900"
@@ -524,7 +525,7 @@ export function ProceduresAdminClient({
                       handleUpdateSla(
                         tpl.id,
                         tpl.slaHours,
-                        e.target.value || null
+                        e.target.value || null,
                       )
                     }
                     className="rounded border border-slate-300 px-2 py-1 text-xs text-slate-900"
@@ -545,7 +546,8 @@ export function ProceduresAdminClient({
         {/* Documentos Exigidos por Condição */}
         <div className="pt-4 space-y-2">
           <h3 className="text-sm font-bold text-slate-900">
-            Matriz de Documentos Exigidos por Condição da Negociação ({documentRequirements.length})
+            Matriz de Documentos Exigidos por Condição da Negociação (
+            {documentRequirements.length})
           </h3>
           <div className="grid sm:grid-cols-2 gap-3 text-xs">
             {documentRequirements.map((dr) => (

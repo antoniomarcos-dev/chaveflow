@@ -1,22 +1,24 @@
-import { NextRequest, NextResponse } from "next/server";
-import QRCode from "qrcode";
-import { getServerSessionContext } from "@/lib/server-session";
 import {
   createOrUpdateVehicle,
   processVehicleCsvImport,
   resolveScannedVehicleCode,
 } from "@/application/vehicle-service";
 import { AuthorizationError } from "@/domain/permissions";
+import { assertSameOriginRequest } from "@/lib/request-security";
+import { getServerSessionContext } from "@/lib/server-session";
+import { NextRequest, NextResponse } from "next/server";
+import QRCode from "qrcode";
 import { ZodError } from "zod";
 
 export async function POST(req: NextRequest) {
   try {
+    assertSameOriginRequest(req);
     const body = await req.json();
     const action = body.action as string;
 
     if (action === "RESOLVE_QR_SCAN") {
       const ctx = await getServerSessionContext();
-      const result = resolveScannedVehicleCode({
+      const result = await resolveScannedVehicleCode({
         ctx,
         rawQrCode: String(body.rawQrCode || ""),
       });
@@ -41,7 +43,7 @@ export async function POST(req: NextRequest) {
     if (!ctx) {
       return NextResponse.json(
         { error: "Sessão expirada ou usuário não autenticado." },
-        { status: 401 }
+        { status: 401 },
       );
     }
 
@@ -69,7 +71,7 @@ export async function POST(req: NextRequest) {
     if (err instanceof AuthorizationError) {
       return NextResponse.json(
         { error: err.message, code: err.code },
-        { status: err.statusCode }
+        { status: err.statusCode },
       );
     }
     if (err instanceof ZodError) {
@@ -78,7 +80,7 @@ export async function POST(req: NextRequest) {
           error: err.issues.map((i) => i.message).join(" • "),
           issues: err.issues,
         },
-        { status: 400 }
+        { status: 400 },
       );
     }
     const msg =

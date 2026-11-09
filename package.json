@@ -9,19 +9,22 @@
     "start": "next start",
     "lint": "tsc --noEmit",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "db:setup": "tsx scripts/setup-database.ts"
   },
   "dependencies": {
-    "@supabase/supabase-js": "^2.49.1",
+    "@next/env": "^16.4.6",
     "clsx": "^2.1.1",
     "jsqr": "^1.4.0",
     "lucide-react": "^0.475.0",
-    "next": "15.2.4",
+    "next": "^16.4.6",
+    "postgres": "^4.1.0",
     "qrcode": "^1.5.4",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
+    "sharp": "^0.35.5",
     "tailwind-merge": "^3.0.2",
-    "zod": "^3.24.2"
+    "zod": "^4.6.7"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.0.9",
@@ -30,7 +33,11 @@
     "@types/react": "^19.0.10",
     "@types/react-dom": "^19.0.4",
     "tailwindcss": "^4.0.9",
+    "tsx": "^4.23.15",
     "typescript": "^5.8.2",
-    "vitest": "^3.0.7"
+    "vitest": "^5.1.0"
+  },
+  "engines": {
+    "node": "22.x"
   }
 }

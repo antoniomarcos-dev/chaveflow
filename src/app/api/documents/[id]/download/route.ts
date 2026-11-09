@@ -1,14 +1,14 @@
-import { NextRequest, NextResponse } from "next/server";
-import { getServerSessionContext } from "@/lib/server-session";
 import {
   loadDatabaseState,
   readPrivateFileBlob,
   verifyTemporaryDocumentToken,
 } from "@/infrastructure/database";
+import { getServerSessionContext } from "@/lib/server-session";
+import { NextRequest, NextResponse } from "next/server";
 
 export async function GET(
   req: NextRequest,
-  context: { params: Promise<{ id: string }> }
+  context: { params: Promise<{ id: string }> },
 ) {
   const { id: documentId } = await context.params;
   const url = new URL(req.url);
@@ -22,47 +22,41 @@ export async function GET(
         error:
           "Acesso negado ao documento privado: link temporário inválido ou expirado.",
       },
-      { status: 403 }
+      { status: 403 },
     );
   }
 
   const sessionCtx = await getServerSessionContext();
-  if (
-    sessionCtx &&
-    sessionCtx.organization.id !== verified.organizationId
-  ) {
+  if (sessionCtx && sessionCtx.organization.id !== verified.organizationId) {
     return NextResponse.json(
       { error: "Isolamento por organização: acesso negado." },
-      { status: 403 }
+      { status: 403 },
     );
   }
 
-  const db = loadDatabaseState();
+  const db = await loadDatabaseState();
   const docVersion = db.documentVersions.find(
     (dv) =>
       dv.documentId === documentId &&
       dv.versionNumber === (verified.versionNumber || versionParam) &&
-      dv.organizationId === verified.organizationId
+      dv.organizationId === verified.organizationId,
   );
 
   if (!docVersion) {
     return NextResponse.json(
       { error: "Versão do documento não encontrada." },
-      { status: 404 }
+      { status: 404 },
     );
   }
 
-  const blob = readPrivateFileBlob(
-    docVersion.storageKey,
-    docVersion.extractedTextPreview || undefined
-  );
+  const blob = await readPrivateFileBlob(docVersion.storageKey);
 
   return new NextResponse(new Uint8Array(blob), {
     status: 200,
     headers: {
       "Content-Type": docVersion.mimeType || "application/octet-stream",
       "Content-Disposition": `inline; filename="${encodeURIComponent(
-        docVersion.originalFilename
+        docVersion.originalFilename,
       )}"`,
       "Cache-Control": "private, no-store, max-age=0",
     },

@@ -1,95 +1,80 @@
-import { NextRequest, NextResponse } from "next/server";
-import {
+﻿import {
   authenticateWithCredentials,
   inviteCollaborator,
   SESSION_COOKIE_NAME,
-  switchDemoPersona,
 } from "@/application/auth-service";
-import { getServerSessionContext } from "@/lib/server-session";
+import {
+  resetPassword,
+  sendPasswordReset,
+} from "@/application/password-reset-service";
 import { AuthorizationError } from "@/domain/permissions";
-import { resetDemoDatabase } from "@/infrastructure/database";
-
+import {
+  assertSameOriginRequest,
+  enforceRateLimit,
+} from "@/lib/request-security";
+import { getServerSessionContext } from "@/lib/server-session";
+import { NextRequest, NextResponse } from "next/server";
 export async function POST(req: NextRequest) {
   try {
+    assertSameOriginRequest(req);
     const body = await req.json();
-    const action = body.action as string;
-
-    if (action === "LOGIN") {
+    if (["LOGIN", "RECOVER_PASSWORD", "RESET_PASSWORD"].includes(body.action)) {
+      const ip =
+        req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
+      await enforceRateLimit(`auth:${ip}`, 30);
+      if (body.action === "RECOVER_PASSWORD")
+        await enforceRateLimit(
+          `recover:${String(body.email || "")
+            .trim()
+            .toLowerCase()}`,
+          5,
+        );
+    }
+    if (body.action === "LOGIN") {
       const { context, sessionToken } = await authenticateWithCredentials({
         email: String(body.email || ""),
-        password: body.password ? String(body.password) : undefined,
+        password: String(body.password || ""),
       });
-
       const res = NextResponse.json({
         ok: true,
-        profile: {
-          id: context.profile.id,
-          fullName: context.profile.fullName,
-          email: context.profile.email,
-          isCustomerOnly: context.profile.isCustomerOnly,
-        },
-        roles: context.roles,
         redirectTo: context.profile.isCustomerOnly ? "/cliente" : "/app",
       });
-
       res.cookies.set(SESSION_COOKIE_NAME, sessionToken, {
         httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
         sameSite: "lax",
         path: "/",
-        maxAge: 60 * 60 * 24 * 7,
+        maxAge: 7 * 86400,
       });
-
       return res;
     }
-
-    if (action === "SWITCH_DEMO_PERSONA") {
-      const { context, sessionToken } = await switchDemoPersona({
-        targetProfileId: String(body.targetProfileId || ""),
-      });
-
-      const res = NextResponse.json({
-        ok: true,
-        profile: {
-          id: context.profile.id,
-          fullName: context.profile.fullName,
-          isCustomerOnly: context.profile.isCustomerOnly,
-        },
-        roles: context.roles,
-        redirectTo: context.profile.isCustomerOnly ? "/cliente" : "/app",
-      });
-
-      res.cookies.set(SESSION_COOKIE_NAME, sessionToken, {
-        httpOnly: true,
-        sameSite: "lax",
-        path: "/",
-        maxAge: 60 * 60 * 24 * 7,
-      });
-
-      return res;
-    }
-
-    if (action === "LOGOUT") {
+    if (body.action === "LOGOUT") {
       const res = NextResponse.json({ ok: true });
       res.cookies.delete(SESSION_COOKIE_NAME);
       return res;
     }
-
-    if (action === "RECOVER_PASSWORD") {
+    if (body.action === "RECOVER_PASSWORD") {
       const email = String(body.email || "").trim();
-      if (!email || !email.includes("@")) {
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))
         return NextResponse.json(
-          { error: "Informe um endereço de e-mail válido." },
-          { status: 400 }
+          { error: "Informe um e-mail válido." },
+          { status: 400 },
         );
-      }
+      await sendPasswordReset(email);
       return NextResponse.json({
         ok: true,
         message:
-          "Solicitação registrada. Em ambiente demonstrativo sem provedor SMTP externo configurado, nenhum e-mail externo foi disparado — utilize a senha demonstrativa 'chaveflow123' ou o seletor de persona.",
+          "Se o e-mail estiver cadastrado, você receberá um link para definir sua senha.",
       });
     }
-
-    if (action === "INVITE_COLLABORATOR") {
+    if (body.action === "RESET_PASSWORD") {
+      await resetPassword(
+        String(body.token || ""),
+        String(body.password || ""),
+      );
+      return NextResponse.json({ ok: true });
+    }
+    if (body.action === "INVITE_COLLABORATOR") {
       const ctx = await getServerSessionContext();
       const result = await inviteCollaborator({
         ctx,
@@ -102,25 +87,19 @@ export async function POST(req: NextRequest) {
       });
       return NextResponse.json({ ok: true, ...result });
     }
-
-    if (action === "RESET_DEMO_DB") {
-      resetDemoDatabase();
-      return NextResponse.json({
-        ok: true,
-        message:
-          "Dados demonstrativos da Pinauto BYD Ceres/GO restaurados ao estado inicial do roteiro.",
-      });
-    }
-
     return NextResponse.json({ error: "Ação inválida." }, { status: 400 });
   } catch (err) {
-    if (err instanceof AuthorizationError) {
+    if (err instanceof AuthorizationError)
       return NextResponse.json(
-        { error: err.message, code: err.code },
-        { status: err.statusCode }
+        { error: err.message },
+        { status: err.statusCode },
       );
-    }
-    const msg = err instanceof Error ? err.message : "Erro interno no servidor.";
-    return NextResponse.json({ error: msg }, { status: 400 });
+    return NextResponse.json(
+      {
+        error:
+          err instanceof Error ? err.message : "Erro ao processar solicitação.",
+      },
+      { status: 400 },
+    );
   }
 }

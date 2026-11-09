@@ -1,21 +1,23 @@
-import { NextRequest, NextResponse } from "next/server";
-import { getServerSessionContext } from "@/lib/server-session";
+import { revokeCustomerAccessGrant } from "@/application/customer-portal-service";
 import {
   createOrPublishProcedureVersion,
   markNotificationAsRead,
   publishExistingDraftProcedureVersion,
   updateTaskTemplateSlaAndDefaultAssignee,
 } from "@/application/report-and-admin-service";
-import { revokeCustomerAccessGrant } from "@/application/customer-portal-service";
 import { AuthorizationError } from "@/domain/permissions";
+import { assertSameOriginRequest } from "@/lib/request-security";
+import { getServerSessionContext } from "@/lib/server-session";
+import { NextRequest, NextResponse } from "next/server";
 
 export async function POST(req: NextRequest) {
   try {
+    assertSameOriginRequest(req);
     const ctx = await getServerSessionContext();
     if (!ctx) {
       return NextResponse.json(
         { error: "Autenticação obrigatória." },
-        { status: 401 }
+        { status: 401 },
       );
     }
 
@@ -80,7 +82,7 @@ export async function POST(req: NextRequest) {
     if (err instanceof AuthorizationError) {
       return NextResponse.json(
         { error: err.message, code: err.code },
-        { status: err.statusCode }
+        { status: err.statusCode },
       );
     }
     const msg =

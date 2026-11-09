@@ -1,8 +1,14 @@
 "use client";
 
-import React, { useState } from "react";
-import Link from "next/link";
-import { useRouter } from "next/navigation";
+import type { VehicleWithDealStatus } from "@/application/vehicle-service";
+import {
+  Branch,
+  Customer,
+  Deal,
+  TaskTemplate,
+  TradeInVehicle,
+} from "@/domain/types";
+import { evaluateApplicabilityConditions } from "@/domain/workflow-engine";
 import {
   AlertCircle,
   ArrowLeft,
@@ -14,15 +20,9 @@ import {
   SlidersHorizontal,
   User,
 } from "lucide-react";
-import type { VehicleWithDealStatus } from "@/application/vehicle-service";
-import {
-  Branch,
-  Customer,
-  Deal,
-  TaskTemplate,
-  TradeInVehicle,
-} from "@/domain/types";
-import { evaluateApplicabilityConditions } from "@/domain/workflow-engine";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useState } from "react";
 
 export function GuidedDealWizardClient({
   availableVehicles,
@@ -49,19 +49,20 @@ export function GuidedDealWizardClient({
 }) {
   const router = useRouter();
   const [step, setStep] = useState<1 | 2 | 3 | 4 | 5>(1);
+  const [submissionId] = useState(() => crypto.randomUUID());
   const [vehicleId, setVehicleId] = useState(
     existingDraft?.vehicleId ||
       preselectedVehicleId ||
       availableVehicles[0]?.id ||
-      ""
+      "",
   );
 
   // Passo 2: Comprador
   const [customerMode, setCustomerMode] = useState<"EXISTING" | "NEW">(
-    "EXISTING"
+    existingDraft?.customerId || customers.length ? "EXISTING" : "NEW",
   );
   const [customerId, setCustomerId] = useState(
-    existingDraft?.customerId || customers[0]?.id || ""
+    existingDraft?.customerId || customers[0]?.id || "",
   );
   const [newPersonType, setNewPersonType] = useState<"PF" | "PJ">("PF");
   const [newDocNumber, setNewDocNumber] = useState("");
@@ -72,65 +73,63 @@ export function GuidedDealWizardClient({
 
   // Passo 3: Condições da Negociação
   const [buyerType, setBuyerType] = useState<"PF" | "PJ">(
-    existingDraft?.buyerType || "PF"
+    existingDraft?.buyerType || "PF",
   );
   const [paymentMethod, setPaymentMethod] = useState<
     "CASH" | "FINANCING" | "CONSORTIUM" | "LEASING"
   >(existingDraft?.paymentMethod || "FINANCING");
   const [hasFinancing, setHasFinancing] = useState<boolean>(
-    existingDraft ? existingDraft.hasFinancing : true
+    existingDraft ? existingDraft.hasFinancing : true,
   );
   const [financingInstitution, setFinancingInstitution] = useState(
-    existingDraft?.financingInstitution || "Banco Santander Financiamentos"
+    existingDraft?.financingInstitution || "",
   );
   const [hasTradeIn, setHasTradeIn] = useState<boolean>(
-    existingDraft ? existingDraft.hasTradeIn : false
+    existingDraft ? existingDraft.hasTradeIn : false,
   );
   const [tradeInBrand, setTradeInBrand] = useState(
-    existingDraftTradeIn?.brand || "Honda"
+    existingDraftTradeIn?.brand || "",
   );
   const [tradeInModel, setTradeInModel] = useState(
-    existingDraftTradeIn?.model || "HR-V EXL 1.8"
+    existingDraftTradeIn?.model || "",
   );
   const [tradeInYear, setTradeInYear] = useState(
-    existingDraftTradeIn?.modelYear || 2020
+    existingDraftTradeIn?.modelYear || new Date().getFullYear(),
   );
   const [tradeInColor, setTradeInColor] = useState(
-    existingDraftTradeIn?.color || "Cinza Barium"
+    existingDraftTradeIn?.color || "",
   );
   const [tradeInPlate, setTradeInPlate] = useState(
-    existingDraftTradeIn?.plate || "QTP9A11"
+    existingDraftTradeIn?.plate || "",
   );
-  const [tradeInVin, setTradeInVin] = useState(
-    existingDraftTradeIn?.vin || "93HRV202011223344"
-  );
+  const [tradeInVin, setTradeInVin] = useState(existingDraftTradeIn?.vin || "");
   const [tradeInValue, setTradeInValue] = useState(
-    existingDraftTradeIn?.appraisedValue || 95000
+    existingDraftTradeIn?.appraisedValue || 0,
   );
   const [tradeInNotes, setTradeInNotes] = useState(
-    existingDraftTradeIn?.notes || ""
+    existingDraftTradeIn?.notes || "",
   );
 
   const [hasPowerOfAttorney, setHasPowerOfAttorney] = useState<boolean>(
-    existingDraft ? existingDraft.hasPowerOfAttorney : false
+    existingDraft ? existingDraft.hasPowerOfAttorney : false,
   );
   const [attorneyName, setAttorneyName] = useState(
-    existingDraft?.attorneyName || ""
+    existingDraft?.attorneyName || "",
   );
   const [attorneyDocument, setAttorneyDocument] = useState(
-    existingDraft?.attorneyDocument || ""
+    existingDraft?.attorneyDocument || "",
   );
   const [expectedDeliveryDate, setExpectedDeliveryDate] = useState(
-    existingDraft?.expectedDeliveryDate || "2026-11-18"
+    existingDraft?.expectedDeliveryDate || "",
   );
   const [notes, setNotes] = useState(existingDraft?.notes || "");
 
   // Passo 4: Vendedor e Unidade
   const [sellerId, setSellerId] = useState(
-    existingDraft?.sellerId || defaultSellerId
+    existingDraft?.sellerId || defaultSellerId,
   );
   const [branchId, setBranchId] = useState(
-    existingDraft?.branchId || defaultBranchId
+    existingDraft?.branchId || defaultBranchId,
   );
 
   const [error, setError] = useState<string | null>(null);
@@ -149,7 +148,7 @@ export function GuidedDealWizardClient({
         hasTradeIn,
         hasPowerOfAttorney,
         vehicleCondition: selectedVehicle?.condition || "NEW",
-      }
+      },
     );
     return {
       template: tpl,
@@ -167,7 +166,7 @@ export function GuidedDealWizardClient({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           action: "CREATE_OR_SAVE_DEAL",
-          idempotencyKey: `wiz-${vehicleId}-${saveAsDraft ? "draft" : "final"}`,
+          idempotencyKey: `wiz-${submissionId}-${vehicleId}-${saveAsDraft ? "draft" : "final"}`,
           input: {
             vehicleId,
             branchId,
@@ -185,8 +184,7 @@ export function GuidedDealWizardClient({
                     address: newAddress,
                   }
                 : undefined,
-            buyerType:
-              customerMode === "NEW" ? newPersonType : buyerType,
+            buyerType: customerMode === "NEW" ? newPersonType : buyerType,
             paymentMethod,
             hasFinancing,
             financingInstitution: hasFinancing ? financingInstitution : null,
@@ -261,7 +259,8 @@ export function GuidedDealWizardClient({
             Abertura do Passaporte Digital da Negociação
           </h1>
           <p className="text-xs text-slate-500 mt-0.5">
-            As condições informadas definem automaticamente quais tarefas e documentos serão exigidos ou dispensados por regra.
+            As condições informadas definem automaticamente quais tarefas e
+            documentos serão exigidos ou dispensados por regra.
           </p>
         </div>
 
@@ -282,8 +281,8 @@ export function GuidedDealWizardClient({
                   step === item.num
                     ? "bg-[#0f172a] text-white border-slate-900"
                     : step > item.num
-                    ? "bg-teal-50 text-teal-900 border-teal-200"
-                    : "bg-slate-50 text-slate-500 border-slate-200"
+                      ? "bg-teal-50 text-teal-900 border-teal-200"
+                      : "bg-slate-50 text-slate-500 border-slate-200"
                 }`}
               >
                 {item.label}
@@ -313,7 +312,8 @@ export function GuidedDealWizardClient({
               <span>Etapa 1: Confirmar Veículo Vendido</span>
             </h2>
             <p className="text-xs text-slate-600">
-              Apenas veículos sem negociação ativa podem iniciar um novo passaporte ativo.
+              Apenas veículos sem negociação ativa podem iniciar um novo
+              passaporte ativo.
             </p>
 
             <div className="grid sm:grid-cols-2 gap-3">
@@ -524,7 +524,9 @@ export function GuidedDealWizardClient({
           <div className="space-y-5 pt-2">
             <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
               <SlidersHorizontal className="h-5 w-5 text-teal-600" />
-              <span>Etapa 3: Condições da Negociação (Determinam a Trilha)</span>
+              <span>
+                Etapa 3: Condições da Negociação (Determinam a Trilha)
+              </span>
             </h2>
 
             <div className="grid sm:grid-cols-2 gap-4">
@@ -534,9 +536,7 @@ export function GuidedDealWizardClient({
                 </label>
                 <select
                   value={buyerType}
-                  onChange={(e) =>
-                    setBuyerType(e.target.value as "PF" | "PJ")
-                  }
+                  onChange={(e) => setBuyerType(e.target.value as "PF" | "PJ")}
                   className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900"
                 >
                   <option value="PF">Pessoa Física (PF)</option>
@@ -552,10 +552,7 @@ export function GuidedDealWizardClient({
                   value={paymentMethod}
                   onChange={(e) => {
                     const pm = e.target.value as
-                      | "CASH"
-                      | "FINANCING"
-                      | "CONSORTIUM"
-                      | "LEASING";
+                      "CASH" | "FINANCING" | "CONSORTIUM" | "LEASING";
                     setPaymentMethod(pm);
                     if (pm === "FINANCING") setHasFinancing(true);
                   }}
@@ -616,7 +613,9 @@ export function GuidedDealWizardClient({
                 <div className="pt-2 border-t border-slate-200 space-y-3">
                   <div className="rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 text-xs text-amber-950 font-medium">
                     Atenção: Os dados abaixo referem-se exclusivamente ao{" "}
-                    <strong>veículo usado recebido na troca</strong> e são gravados em entidade separada do veículo vendido ({selectedVehicle?.internalCode}).
+                    <strong>veículo usado recebido na troca</strong> e são
+                    gravados em entidade separada do veículo vendido (
+                    {selectedVehicle?.internalCode}).
                   </div>
                   <div className="grid sm:grid-cols-3 gap-3">
                     <div>
@@ -776,7 +775,8 @@ export function GuidedDealWizardClient({
                   className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900"
                 />
                 <p className="text-[11px] text-slate-500 mt-1">
-                  Não é exibida ao cliente como previsão confirmada até validação formal da Liberação.
+                  Não é exibida ao cliente como previsão confirmada até
+                  validação formal da Liberação.
                 </p>
               </div>
               <div>
@@ -880,7 +880,9 @@ export function GuidedDealWizardClient({
           <div className="space-y-5 pt-2">
             <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
               <FileSpreadsheet className="h-5 w-5 text-teal-600" />
-              <span>Etapa 5: Revisão da Trilha Gerada pelo Motor de Processos</span>
+              <span>
+                Etapa 5: Revisão da Trilha Gerada pelo Motor de Processos
+              </span>
             </h2>
 
             <div className="rounded-xl bg-slate-50 border border-slate-200 p-4 grid sm:grid-cols-3 gap-3 text-xs">
@@ -900,10 +902,13 @@ export function GuidedDealWizardClient({
                 </strong>
               </div>
               <div>
-                <span className="text-slate-500 block">Troca / Procuração:</span>
+                <span className="text-slate-500 block">
+                  Troca / Procuração:
+                </span>
                 <strong className="text-slate-900">
-                  Usado: {hasTradeIn ? `${tradeInBrand} ${tradeInModel}` : "Não"}{" "}
-                  • Procuração: {hasPowerOfAttorney ? "Sim" : "Não"}
+                  Usado:{" "}
+                  {hasTradeIn ? `${tradeInBrand} ${tradeInModel}` : "Não"} •
+                  Procuração: {hasPowerOfAttorney ? "Sim" : "Não"}
                 </strong>
               </div>
             </div>

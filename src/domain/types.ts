@@ -127,43 +127,50 @@ export const WORKFLOW_STAGES: Array<{
     code: "REGISTRATION_DOCS",
     name: "Cadastro e Documentos",
     order: 2,
-    description: "Coleta de documentos do comprador, procuração e usado na troca.",
+    description:
+      "Coleta de documentos do comprador, procuração e usado na troca.",
   },
   {
     code: "FINANCIAL_REVIEW",
     name: "Conferência Financeira",
     order: 3,
-    description: "Validação de pagamento, contrato de financiamento e quitação.",
+    description:
+      "Validação de pagamento, contrato de financiamento e quitação.",
   },
   {
     code: "DOCUMENT_REVIEW",
     name: "Conferência Documental",
     order: 4,
-    description: "Análise formal de dossiê, procurações e laudo do veículo na troca.",
+    description:
+      "Análise formal de dossiê, procurações e laudo do veículo na troca.",
   },
   {
     code: "BILLING",
     name: "Faturamento",
     order: 5,
-    description: "Emissão e conferência da Nota Fiscal após requisitos financeiros e documentais.",
+    description:
+      "Emissão e conferência da Nota Fiscal após requisitos financeiros e documentais.",
   },
   {
     code: "PREPARATION",
     name: "Preparação",
     order: 6,
-    description: "Revisão de entrega (PDI), higienização, acessórios e carga de bateria.",
+    description:
+      "Revisão de entrega (PDI), higienização, acessórios e carga de bateria.",
   },
   {
     code: "AUTHORIZATION",
     name: "Autorização",
     order: 7,
-    description: "Conferência final de conformidade e emissão da autorização formal de liberação.",
+    description:
+      "Conferência final de conformidade e emissão da autorização formal de liberação.",
   },
   {
     code: "DELIVERY",
     name: "Entrega",
     order: 8,
-    description: "Reconfirmação física do chassi/QR Code e entrega das chaves ao comprador.",
+    description:
+      "Reconfirmação física do chassi/QR Code e entrega das chaves ao comprador.",
   },
 ];
 
@@ -192,7 +199,7 @@ export const VEHICLE_STOCK_STATUS_LABELS: Record<VehicleStockStatus, string> = {
 };
 
 export const VehicleInputSchema = z.object({
-  internalCode: z.string().trim().min(3, "Informe o identificador interno (ex: PIN-BYD-001)"),
+  internalCode: z.string().trim().min(3, "Informe o identificador interno"),
   vin: z
     .string()
     .trim()
@@ -269,7 +276,9 @@ export const ApplicabilityConditionSchema = z.object({
   humanExplanation: z.string().min(3),
 });
 
-export type ApplicabilityCondition = z.infer<typeof ApplicabilityConditionSchema>;
+export type ApplicabilityCondition = z.infer<
+  typeof ApplicabilityConditionSchema
+>;
 
 export interface DealConditionContext {
   buyerType: "PF" | "PJ";
@@ -603,7 +612,10 @@ export const GuidedDealInputSchema = z
       .object({
         personType: z.enum(["PF", "PJ"]),
         documentNumber: z.string().trim().min(11, "Informe CPF ou CNPJ válido"),
-        fullName: z.string().trim().min(3, "Informe o nome completo ou razão social"),
+        fullName: z
+          .string()
+          .trim()
+          .min(3, "Informe o nome completo ou razão social"),
         email: z.string().trim().email("Informe um e-mail válido"),
         phone: z.string().trim().min(8, "Informe o telefone"),
         address: z.string().optional(),
@@ -622,7 +634,9 @@ export const GuidedDealInputSchema = z
         color: z.string().trim().min(2, "Informe a cor do usado"),
         plate: z.string().trim().min(7, "Informe a placa do usado"),
         vin: z.string().trim().min(11, "Informe o chassi do usado"),
-        appraisedValue: z.coerce.number().positive("Informe o valor de avaliação"),
+        appraisedValue: z.coerce
+          .number()
+          .positive("Informe o valor de avaliação"),
         notes: z.string().optional().nullable(),
       })
       .optional()
@@ -651,7 +665,11 @@ export const GuidedDealInputSchema = z
           message: "Preencha os dados do novo comprador",
         });
       }
-      if (data.hasFinancing && (!data.financingInstitution || data.financingInstitution.trim().length < 2)) {
+      if (
+        data.hasFinancing &&
+        (!data.financingInstitution ||
+          data.financingInstitution.trim().length < 2)
+      ) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
           path: ["financingInstitution"],
@@ -665,7 +683,10 @@ export const GuidedDealInputSchema = z
           message: "Preencha os dados do veículo usado recebido na troca",
         });
       }
-      if (data.hasPowerOfAttorney && (!data.attorneyName || !data.attorneyDocument)) {
+      if (
+        data.hasPowerOfAttorney &&
+        (!data.attorneyName || !data.attorneyDocument)
+      ) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
           path: ["attorneyName"],
@@ -705,6 +726,7 @@ export interface Branch {
 }
 
 export interface UserProfile {
+  passwordChangedAt?: string;
   id: string;
   email: string;
   fullName: string;
