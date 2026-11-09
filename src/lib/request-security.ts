@@ -1,5 +1,5 @@
 import { AuthorizationError } from "@/domain/permissions";
-import { getSql } from "@/infrastructure/postgres";
+import { supabaseRpc } from "@/infrastructure/supabase";
 import { NextRequest } from "next/server";
 import crypto from "node:crypto";
 
@@ -22,14 +22,10 @@ export async function enforceRateLimit(key: string, limit: number) {
     .createHash("sha256")
     .update(`${window}:${key}`)
     .digest("hex");
-  const sql = getSql();
-  await sql`DELETE FROM chaveflow_rate_limits WHERE expires_at < now()`;
-  const rows =
-    await sql`INSERT INTO chaveflow_rate_limits(key_hash, attempts, expires_at)
-    VALUES (${hash}, 1, now() + interval '15 minutes')
-    ON CONFLICT (key_hash) DO UPDATE SET attempts = chaveflow_rate_limits.attempts + 1
-    RETURNING attempts`;
-  if (rows[0].attempts > limit)
+  const attempts = await supabaseRpc<number>("chaveflow_rate_limit", {
+    p_key_hash: hash,
+  });
+  if (attempts > limit)
     throw new AuthorizationError(
       "Muitas tentativas. Aguarde 15 minutos e tente novamente.",
       "RATE_LIMITED",

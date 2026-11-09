@@ -1,16 +1,21 @@
 import { getSigningSecret } from "@/lib/secrets";
 import { AsyncLocalStorage } from "node:async_hooks";
 import crypto from "node:crypto";
-import type { TransactionSql } from "postgres";
 import type { DatabaseState } from "./database-state";
 import { createEmptyState } from "./initial-state";
-import { getSql } from "./postgres";
+import {
+  commitSupabaseState,
+  readSupabaseState,
+  supabaseRpc,
+  type PendingPrivateFile,
+} from "./supabase";
 
 let memoryState: DatabaseState | null = null;
 let transactionLock: Promise<void> = Promise.resolve();
 const transactionContext = new AsyncLocalStorage<{
-  sql: TransactionSql;
   state: DatabaseState;
+  revision: string;
+  files: PendingPrivateFile[];
 }>();
 function isTestMemoryMode() {
   return (
@@ -23,10 +28,7 @@ export async function loadDatabaseState(): Promise<DatabaseState> {
   const context = transactionContext.getStore();
   if (context) return context.state;
   if (isTestMemoryMode()) return (memoryState ??= createEmptyState());
-  const rows = await getSql()`SELECT data FROM chaveflow_state WHERE id = 1`;
-  if (!rows.length)
-    throw new Error("Banco não inicializado. Execute npm run db:setup.");
-  return rows[0].data as DatabaseState;
+  return (await readSupabaseState()).state;
 }
 
 export function saveDatabaseState(state: DatabaseState): void {
@@ -40,18 +42,13 @@ export async function withTransaction<T>(
   if (transactionContext.getStore())
     throw new Error("Transações aninhadas não são suportadas.");
   if (!isTestMemoryMode()) {
-    return (await getSql().begin(async (sql) => {
-      const rows =
-        await sql`SELECT data FROM chaveflow_state WHERE id = 1 FOR UPDATE`;
-      if (!rows.length)
-        throw new Error("Banco não inicializado. Execute npm run db:setup.");
-      const state = rows[0].data as DatabaseState;
-      return transactionContext.run({ sql, state }, async () => {
-        const result = await operation(state);
-        await sql`UPDATE chaveflow_state SET data = ${sql.json(JSON.parse(JSON.stringify(state)))} WHERE id = 1`;
-        return result;
-      });
-    })) as T;
+    const snapshot = await readSupabaseState();
+    const files: PendingPrivateFile[] = [];
+    return transactionContext.run({ ...snapshot, files }, async () => {
+      const result = await operation(snapshot.state);
+      await commitSupabaseState(snapshot, files);
+      return result;
+    });
   }
   const previous = transactionLock;
   let release!: () => void;
@@ -143,8 +140,12 @@ export async function savePrivateFileBlob(params: {
     .digest("hex");
   if (isTestMemoryMode()) memoryBlobStore.set(storageKey, params.contentBuffer);
   else {
-    const sql = transactionContext.getStore()?.sql ?? getSql();
-    await sql`INSERT INTO chaveflow_files (storage_key, content) VALUES (${storageKey}, ${params.contentBuffer})`;
+    const context = transactionContext.getStore();
+    if (!context) throw new Error("O envio de arquivo exige uma transação.");
+    context.files.push({
+      storage_key: storageKey,
+      content_base64: params.contentBuffer.toString("base64"),
+    });
   }
   return { storageKey, checksumSha256 };
 }
@@ -153,11 +154,12 @@ export async function readPrivateFileBlob(storageKey: string): Promise<Buffer> {
     if (memoryBlobStore.has(storageKey))
       return memoryBlobStore.get(storageKey)!;
   }
-  const rows =
-    await getSql()`SELECT content FROM chaveflow_files WHERE storage_key = ${storageKey}`;
-  if (!rows.length)
+  const content = await supabaseRpc<string | null>("chaveflow_read_file", {
+    p_storage_key: storageKey,
+  });
+  if (content === null)
     throw new Error("Arquivo não encontrado no armazenamento privado.");
-  return Buffer.from(rows[0].content);
+  return Buffer.from(content, "base64");
 }
 export function createTemporaryDocumentToken(params: {
   documentId: string;
