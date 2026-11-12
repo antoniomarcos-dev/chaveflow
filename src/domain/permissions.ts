@@ -1,8 +1,13 @@
 import {
   AuthenticatedContext,
+  Deal,
+  DealDocument,
+  Membership,
   PermissionCode,
   ResponsibleArea,
   RoleCode,
+  UserProfile,
+  Vehicle,
 } from "./types";
 
 export const ROLE_PERMISSION_MAP: Record<RoleCode, PermissionCode[]> = {
@@ -95,6 +100,7 @@ export const AREA_TO_ROLES: Record<ResponsibleArea, RoleCode[]> = {
   RELEASE: ["RELEASE_OFFICER", "MANAGER", "ADMIN"],
   MANAGEMENT: ["MANAGER", "ADMIN"],
 };
+export const AREA_COMPATIBLE_ROLES = AREA_TO_ROLES;
 
 export function resolvePermissionsForRoles(roles: RoleCode[]): PermissionCode[] {
   const set = new Set<PermissionCode>();
@@ -193,4 +199,122 @@ export function assertInternalStaff(
       403
     );
   }
+}
+
+export function isSellerOnlyContext(
+  ctx: Pick<AuthenticatedContext, "roles">
+): boolean {
+  return ctx.roles.length > 0 && ctx.roles.every((r) => r === "SELLER");
+}
+
+export function canAccessDealRecord(
+  ctx: Pick<AuthenticatedContext, "organization" | "profile" | "roles">,
+  deal: Pick<Deal, "organizationId" | "sellerId">
+): boolean {
+  if (ctx.organization.id !== deal.organizationId) return false;
+  if (
+    ctx.profile.isCustomerOnly ||
+    (ctx.roles.length === 1 && ctx.roles[0] === "CUSTOMER")
+  ) {
+    return false;
+  }
+  if (isSellerOnlyContext(ctx) && deal.sellerId !== ctx.profile.id) {
+    return false;
+  }
+  return true;
+}
+
+export function assertDealRecordAccess(
+  ctx: Pick<AuthenticatedContext, "organization" | "profile" | "roles">,
+  deal: Pick<Deal, "organizationId" | "sellerId">
+): void {
+  assertOrganizationAccess(ctx, deal.organizationId);
+  assertInternalStaff(ctx);
+  if (isSellerOnlyContext(ctx) && deal.sellerId !== ctx.profile.id) {
+    throw new AuthorizationError(
+      "Acesso restrito: o perfil Vendedor só pode acessar ou alterar negociações sob sua própria responsabilidade.",
+      "SELLER_OWN_DEALS_ONLY",
+      403
+    );
+  }
+}
+
+export function canReviewDocument(
+  ctx: Pick<AuthenticatedContext, "roles" | "permissions">,
+  doc: Pick<DealDocument, "responsibleArea">
+): boolean {
+  if (doc.responsibleArea === "FINANCE") {
+    return hasPermission(ctx, "approval:finance");
+  }
+  return (
+    hasPermission(ctx, "document:review") ||
+    hasPermission(ctx, "approval:documentation")
+  );
+}
+
+export function assertDocumentReviewPermission(
+  ctx: Pick<AuthenticatedContext, "roles" | "permissions">,
+  doc: Pick<DealDocument, "responsibleArea">
+): void {
+  if (doc.responsibleArea === "FINANCE") {
+    if (!hasPermission(ctx, "approval:finance")) {
+      throw new AuthorizationError(
+        "Sua função não possui autoridade financeira para conferir documentos da área Financeira.",
+        "FINANCE_REVIEW_FORBIDDEN",
+        403
+      );
+    }
+    return;
+  }
+  if (!canReviewDocument(ctx, doc)) {
+    throw new AuthorizationError(
+      "Sua função não possui permissão para conferir documentos.",
+      "INSUFFICIENT_PERMISSION",
+      403
+    );
+  }
+}
+
+export function isVehicleSellable(
+  vehicle: Pick<Vehicle, "stockStatus">,
+  hasConflictingActiveDeal: boolean
+): boolean {
+  if (hasConflictingActiveDeal) return false;
+  return vehicle.stockStatus === "AVAILABLE";
+}
+
+export function validateStaffAssigneeForArea(params: {
+  profiles: UserProfile[];
+  memberships: Membership[];
+  organizationId: string;
+  profileId: string;
+  responsibleArea: ResponsibleArea;
+}): { profile: UserProfile; membership: Membership } {
+  const {
+    profiles,
+    memberships,
+    organizationId,
+    profileId,
+    responsibleArea,
+  } = params;
+  const profile = profiles.find(
+    (p) => p.id === profileId && p.isActive && !p.isCustomerOnly
+  );
+  const membership = memberships.find(
+    (m) =>
+      m.organizationId === organizationId &&
+      m.profileId === profileId &&
+      m.isActive &&
+      !m.roles.every((r) => r === "CUSTOMER")
+  );
+  if (
+    !profile ||
+    !membership ||
+    !canActOnArea({ roles: membership.roles }, responsibleArea)
+  ) {
+    throw new Error(
+      "Selecione um responsável ativo da organização com acesso à área da tarefa."
+    );
+  }
+  return { profile, membership };
 }

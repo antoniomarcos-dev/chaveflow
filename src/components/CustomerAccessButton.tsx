@@ -1,18 +1,28 @@
 "use client";
-import { UserPlus } from "lucide-react";
+
+import { KeyRound, UserCheck, UserPlus } from "lucide-react";
 import { useState } from "react";
 import { AccountActivation, ActivationLinkCard } from "./ActivationLinkCard";
 
 export function CustomerAccessButton({
   dealId,
   compact = false,
+  isAccountActive = false,
 }: {
   dealId: string;
   compact?: boolean;
+  isAccountActive?: boolean;
 }) {
-  const [loading, setLoading] = useState(false),
-    [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
   const [access, setAccess] = useState<AccountActivation | null>(null);
+
+  const buttonLabel = loading
+    ? "Preparando acesso..."
+    : isAccountActive
+      ? "Conta ativa — Reemitir link"
+      : "Preparar acesso";
+
   return (
     <div className="space-y-3">
       <button
@@ -37,19 +47,25 @@ export function CustomerAccessButton({
             setError(
               e instanceof Error
                 ? e.message
-                : "Não foi possível criar o acesso.",
+                : "Não foi possível preparar o acesso.",
             );
           } finally {
             setLoading(false);
           }
         }}
-        className={`inline-flex items-center gap-2 rounded-xl border border-[#1684D8]/30 bg-[#EAF3FC] font-bold text-[#0B3B70] transition hover:bg-[#1684D8] hover:text-white disabled:opacity-50 ${compact ? "px-3 py-2 text-xs" : "px-4 py-2.5 text-sm"}`}
+        className={`inline-flex items-center gap-2 rounded-xl border border-[#1684D8]/30 bg-[#EAF3FC] font-bold text-[#0B3B70] transition hover:bg-[#1684D8] hover:text-white disabled:opacity-50 ${
+          compact ? "px-3 py-1.5 text-xs" : "px-4 py-2.5 text-sm"
+        }`}
       >
-        <UserPlus className="h-4 w-4" />
-        {loading ? "Preparando acesso…" : "Criar acesso do cliente"}
+        {isAccountActive ? (
+          <UserCheck className="h-4 w-4 text-[#1684D8]" />
+        ) : (
+          <UserPlus className="h-4 w-4" />
+        )}
+        <span>{buttonLabel}</span>
       </button>
       {error && (
-        <p role="alert" className="text-sm text-red-700">
+        <p role="alert" className="text-xs text-red-700 font-medium">
           {error}
         </p>
       )}

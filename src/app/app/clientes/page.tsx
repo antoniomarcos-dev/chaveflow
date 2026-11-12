@@ -181,7 +181,11 @@ export default async function CustomersPage({
                         ? "Conta vinculada · gere um novo link caso o comprador precise redefinir a senha."
                         : "Acesso à conta ainda não ativado pelo comprador."}
                     </p>
-                    <CustomerAccessButton dealId={customerDeals[0].id} compact />
+                    <CustomerAccessButton
+                      dealId={customerDeals[0].id}
+                      compact
+                      isAccountActive={Boolean(customer.profileId)}
+                    />
                   </div>
                 </article>
               );

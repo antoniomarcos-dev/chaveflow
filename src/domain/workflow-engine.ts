@@ -13,7 +13,12 @@ import {
   WORKFLOW_STAGES,
   WorkflowStageCode,
 } from "./types";
-import { canActOnArea, canApproveTaskRole, hasPermission } from "./permissions";
+import {
+  canActOnArea,
+  canApproveTaskRole,
+  canReviewDocument,
+  hasPermission,
+} from "./permissions";
 
 // ============================================================================
 // 1. AVALIADOR SEGURO E RESTRITO DE CONDIÇÕES (SEM EVAL)
@@ -170,7 +175,8 @@ export function isTaskSatisfiedAsDependency(task: TaskInstance): boolean {
 
 export function recalculateTaskStates(
   tasks: TaskInstance[],
-  documents: DealDocument[]
+  documents: DealDocument[],
+  referenceNowIso?: string
 ): TaskInstance[] {
   const byCode = new Map<string, TaskInstance>();
   const cloned = tasks.map((t) => ({ ...t }));
@@ -210,6 +216,16 @@ export function recalculateTaskStates(
         // Todas as dependências satisfeitas!
         if (task.state === "WAITING_PREREQUISITE") {
           task.state = "AVAILABLE";
+          if (!task.availableAt) {
+            const availIso =
+              referenceNowIso || task.updatedAt || new Date().toISOString();
+            task.availableAt = availIso;
+            if (task.slaHours && task.slaHours > 0) {
+              task.dueAt = new Date(
+                new Date(availIso).getTime() + task.slaHours * 60 * 60 * 1000
+              ).toISOString();
+            }
+          }
         }
 
         if (task.state === "COMPLETED") {
@@ -620,23 +636,23 @@ export function computeUserNextAction(
     };
   }
 
-  // 2. Verificar documentos aguardando conferência documental (para perfil DOCUMENTATION / ADMIN / MANAGER)
-  if (hasPermission(ctx, "document:review")) {
-    const docsToReview = documents.filter(
-      (d) => d.status === "UPLOADED_PENDING_REVIEW" || d.status === "OUTDATED"
-    );
-    if (docsToReview.length > 0) {
-      const doc = docsToReview[0];
-      return {
-        hasDirectAction: true,
-        headline: `Conferir documento enviado: ${doc.title} (v${doc.currentVersionNumber})`,
-        description: `O arquivo já foi anexado e aguarda sua conferência formal na área ${AREA_LABELS[doc.responsibleArea]}.`,
-        actionType: "REVIEW_DOCUMENT",
-        targetDocumentId: doc.id,
-        targetTaskCode: doc.taskCode ?? undefined,
-        responsibleAreaLabel: AREA_LABELS[doc.responsibleArea],
-      };
-    }
+  // 2. Verificar documentos aguardando conferência (reutilizando a mesma regra de autorização por área/função)
+  const docsToReview = documents.filter(
+    (d) =>
+      (d.status === "UPLOADED_PENDING_REVIEW" || d.status === "OUTDATED") &&
+      canReviewDocument(ctx, d)
+  );
+  if (docsToReview.length > 0) {
+    const doc = docsToReview[0];
+    return {
+      hasDirectAction: true,
+      headline: `Conferir documento enviado: ${doc.title} (v${doc.currentVersionNumber})`,
+      description: `O arquivo já foi anexado e aguarda sua conferência formal na área ${AREA_LABELS[doc.responsibleArea]}.`,
+      actionType: "REVIEW_DOCUMENT",
+      targetDocumentId: doc.id,
+      targetTaskCode: doc.taskCode ?? undefined,
+      responsibleAreaLabel: AREA_LABELS[doc.responsibleArea],
+    };
   }
 
   // 3. Verificar faturamento se elegível e usuário tem permissão billing:register
@@ -859,6 +875,12 @@ export function instantiateDealWorkflow(params: {
         blocksBilling: tpl.blocksBilling,
         blocksDelivery: tpl.blocksDelivery,
         procedureCode: tpl.procedureCode,
+        slaHours: tpl.slaHours,
+        availableAt: !evalResult.applicable
+          ? null
+          : isInitialIdentification || tpl.dependsOnTaskCodes.length === 0
+          ? nowIso
+          : null,
         dueAt: !evalResult.applicable ? null : dueAt,
         startedAt: isInitialIdentification ? nowIso : null,
         completedAt: isInitialIdentification ? nowIso : null,
@@ -869,7 +891,7 @@ export function instantiateDealWorkflow(params: {
       };
     });
 
-  const tasks = recalculateTaskStates(rawTasks, documents);
+  const tasks = recalculateTaskStates(rawTasks, documents, nowIso);
   return { tasks, documents };
 }
 

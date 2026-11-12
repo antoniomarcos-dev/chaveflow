@@ -132,6 +132,13 @@ export function VehiclesCatalogClient({
         </div>
 
         <div className="flex flex-wrap items-center gap-2.5">
+          <Link
+            href="/app/escanear"
+            className="inline-flex items-center gap-2 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 px-4 py-2.5 text-xs font-bold text-[#172B3A] transition"
+          >
+            <QrCode className="h-4 w-4 text-[#1684D8]" />
+            <span>Etiquetas QR e Leitor</span>
+          </Link>
           {canManageVehicles && (
             <>
               <button
@@ -147,7 +154,7 @@ export function VehiclesCatalogClient({
                 className="inline-flex items-center gap-2 rounded-xl bg-[#1684D8] hover:bg-[#126FB8] px-4 py-2.5 text-xs sm:text-sm font-bold text-white shadow-xs transition"
               >
                 <Plus className="h-4 w-4" />
-                <span>Cadastrar Veículo</span>
+                <span>Cadastrar veículo</span>
               </Link>
             </>
           )}
@@ -203,8 +210,7 @@ export function VehiclesCatalogClient({
             </div>
             <div className="sm:col-span-12">
               <label className="block text-xs font-semibold text-slate-700">
-                Conteúdo CSV (inclui exemplo válido + exemplo de chassi
-                duplicado para testar validação)
+                Linhas do arquivo CSV (separadas por ponto e vírgula)
               </label>
               <textarea
                 rows={4}
@@ -507,15 +513,17 @@ export function VehiclesCatalogClient({
                   >
                     Abrir Passaporte →
                   </Link>
+                ) : v.stockStatus === "AVAILABLE" && canCreateDeal ? (
+                  <Link
+                    href={`/app/negociacoes/nova?vehicleId=${v.id}`}
+                    className="rounded-lg bg-[#1684D8] hover:bg-[#126FB8] px-3 py-1.5 text-xs font-bold text-white transition"
+                  >
+                    + Iniciar Venda
+                  </Link>
                 ) : (
-                  canCreateDeal && (
-                    <Link
-                      href={`/app/negociacoes/nova?vehicleId=${v.id}`}
-                      className="rounded-lg bg-[#1684D8] hover:bg-[#126FB8] px-3 py-1.5 text-xs font-bold text-white transition"
-                    >
-                      + Iniciar Venda
-                    </Link>
-                  )
+                  <span className="text-[11px] font-semibold text-slate-500">
+                    {VEHICLE_STOCK_STATUS_LABELS[v.stockStatus]}
+                  </span>
                 )}
               </div>
             </div>

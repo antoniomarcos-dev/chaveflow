@@ -1,7 +1,7 @@
 import {
   assertInternalStaff,
   assertPermission,
-  canActOnArea,
+  validateStaffAssigneeForArea,
 } from "@/domain/permissions";
 import {
   AREA_LABELS,
@@ -69,6 +69,7 @@ export interface ManagerialDashboardData {
   };
   kpis: {
     activeDealsCount: number;
+    openedInPeriodCount: number;
     waitingDocumentsCount: number;
     waitingFinancialAnalysisCount: number;
     waitingDocumentAnalysisCount: number;
@@ -109,12 +110,20 @@ export interface ManagerialDashboardData {
       openTasks: number;
       completedTasks: number;
     }>;
+    byArea: Array<{
+      area: ResponsibleArea;
+      areaLabel: string;
+      openTasks: number;
+      unassignedOpenTasks: number;
+      completedTasks: number;
+    }>;
     byBranch: Array<{
       branchId: string;
       branchName: string;
       activeDeals: number;
       deliveredDeals: number;
     }>;
+    unassignedTasksCount: number;
   };
 }
 
@@ -146,17 +155,32 @@ export async function getManagerialDashboardData(params: {
     (v) => v.organizationId === ctx.organization.id,
   );
   const vehMap = new Map(orgVehicles.map((v) => [v.id, v]));
+  const delivMap = new Map(
+    db.deliveries
+      .filter((del) => del.organizationId === ctx.organization.id)
+      .map((del) => [del.dealId, del]),
+  );
 
+  // Negociações da organização filtradas por vendedor, modelo e status.
+  // Uma negociação entra no recorte do período se:
+  // - Está atualmente ativa (em andamento/elegível/autorizada), OU
+  // - Foi aberta no período (createdAt >= cutoffMs), OU
+  // - Foi entregue no período (delivery.deliveredAt >= cutoffMs).
   const filteredDeals = db.deals.filter((d) => {
     if (d.organizationId !== ctx.organization.id) return false;
-    if (new Date(d.createdAt).getTime() < cutoffMs) return false;
     if (sellerId !== "ALL" && d.sellerId !== sellerId) return false;
     if (statusFilter !== "ALL" && d.status !== statusFilter) return false;
     if (vehicleModel !== "ALL") {
       const veh = vehMap.get(d.vehicleId);
       if (!veh || veh.model !== vehicleModel) return false;
     }
-    return true;
+    const createdInPeriod = new Date(d.createdAt).getTime() >= cutoffMs;
+    const deliv = delivMap.get(d.id);
+    const deliveredInPeriod =
+      d.status === "DELIVERED" &&
+      deliv !== undefined &&
+      new Date(deliv.deliveredAt).getTime() >= cutoffMs;
+    return isDealActiveStatus(d.status) || createdInPeriod || deliveredInPeriod;
   });
 
   const filteredDealIds = new Set(filteredDeals.map((d) => d.id));
@@ -170,6 +194,7 @@ export async function getManagerialDashboardData(params: {
   );
 
   let activeDealsCount = 0;
+  let openedInPeriodCount = 0;
   let waitingDocumentsCount = 0;
   let waitingFinancialAnalysisCount = 0;
   let waitingDocumentAnalysisCount = 0;
@@ -190,6 +215,10 @@ export async function getManagerialDashboardData(params: {
       hasActiveAuth,
     );
 
+    if (new Date(deal.createdAt).getTime() >= cutoffMs) {
+      openedInPeriodCount++;
+    }
+
     if (isDealActiveStatus(deal.status)) {
       activeDealsCount++;
     }
@@ -203,7 +232,13 @@ export async function getManagerialDashboardData(params: {
       deliveryAuthorizedCount++;
     }
     if (deal.status === "DELIVERED") {
-      deliveredInPeriodCount++;
+      const deliv = delivMap.get(deal.id);
+      const deliveredTimestamp = deliv
+        ? new Date(deliv.deliveredAt).getTime()
+        : new Date(deal.updatedAt).getTime();
+      if (deliveredTimestamp >= cutoffMs) {
+        deliveredInPeriodCount++;
+      }
     }
 
     if (isDealActiveStatus(deal.status)) {
@@ -236,8 +271,10 @@ export async function getManagerialDashboardData(params: {
     }
   }
 
+  // Tarefas bloqueadas por pré-requisito (WAITING_PREREQUISITE) não contam como atrasadas antes de ficarem disponíveis
   const overdueTasksCount = orgTasks.filter(
     (t) =>
+      t.state !== "WAITING_PREREQUISITE" &&
       t.state !== "COMPLETED" &&
       t.state !== "WAIVED_BY_RULE" &&
       t.state !== "CANCELLED" &&
@@ -305,11 +342,11 @@ export async function getManagerialDashboardData(params: {
     }),
   );
 
-  // Cálculo do tempo mediano real entre venda (deal.createdAt) e entrega (delivery.deliveredAt)
+  // Cálculo do tempo mediano real entre venda (deal.createdAt) e entrega (delivery.deliveredAt) para entregas ocorridas no período
   const saleToDeliveryDurationsHours: number[] = [];
   for (const deal of filteredDeals.filter((d) => d.status === "DELIVERED")) {
-    const deliv = db.deliveries.find((del) => del.dealId === deal.id);
-    if (deliv) {
+    const deliv = delivMap.get(deal.id);
+    if (deliv && new Date(deliv.deliveredAt).getTime() >= cutoffMs) {
       const diffMs =
         new Date(deliv.deliveredAt).getTime() -
         new Date(deal.createdAt).getTime();
@@ -336,7 +373,7 @@ export async function getManagerialDashboardData(params: {
           ) / 10;
   }
 
-  // Tempo médio em cada etapa a partir dos timestamps reais das tarefas concluídas
+  // Tempo médio de execução das tarefas concluídas em cada etapa (desde liberação/início até conclusão)
   const hoursByStage = WORKFLOW_STAGES.map((st) => {
     const completedInStage = orgTasks.filter(
       (t) =>
@@ -347,7 +384,7 @@ export async function getManagerialDashboardData(params: {
     const durations: number[] = [];
     for (const ct of completedInStage) {
       const parentDeal = filteredDeals.find((d) => d.id === ct.dealId);
-      const startRef = ct.startedAt ?? parentDeal?.createdAt;
+      const startRef = ct.startedAt ?? ct.availableAt ?? parentDeal?.createdAt;
       if (startRef && ct.completedAt) {
         const diffH =
           (new Date(ct.completedAt).getTime() - new Date(startRef).getTime()) /
@@ -401,7 +438,7 @@ export async function getManagerialDashboardData(params: {
     };
   });
 
-  // Volume por responsável e unidade
+  // Volume por responsável, área e unidade (incluindo tarefas sem responsável nominal)
   const internalMembers = db.memberships.filter(
     (m) =>
       m.organizationId === ctx.organization.id &&
@@ -424,6 +461,52 @@ export async function getManagerialDashboardData(params: {
     };
   });
 
+  const unassignedTasks = orgTasks.filter((t) => !t.assigneeId);
+  const unassignedOpenCount = unassignedTasks.filter(
+    (t) =>
+      t.state !== "COMPLETED" &&
+      t.state !== "WAIVED_BY_RULE" &&
+      t.state !== "CANCELLED",
+  ).length;
+  const unassignedCompletedCount = unassignedTasks.filter(
+    (t) => t.state === "COMPLETED",
+  ).length;
+
+  if (unassignedOpenCount > 0 || unassignedCompletedCount > 0) {
+    byResponsible.push({
+      profileId: "unassigned",
+      fullName: "Fila da área (sem responsável nominal)",
+      openTasks: unassignedOpenCount,
+      completedTasks: unassignedCompletedCount,
+    });
+  }
+
+  const allAreas: ResponsibleArea[] = [
+    "COMMERCIAL",
+    "DOCUMENTATION",
+    "FINANCE",
+    "BILLING",
+    "OPERATIONS",
+    "RELEASE",
+    "MANAGEMENT",
+  ];
+  const byArea = allAreas.map((area) => {
+    const areaTasks = orgTasks.filter((t) => t.responsibleArea === area);
+    const openAreaTasks = areaTasks.filter(
+      (t) =>
+        t.state !== "COMPLETED" &&
+        t.state !== "WAIVED_BY_RULE" &&
+        t.state !== "CANCELLED",
+    );
+    return {
+      area,
+      areaLabel: AREA_LABELS[area],
+      openTasks: openAreaTasks.length,
+      unassignedOpenTasks: openAreaTasks.filter((t) => !t.assigneeId).length,
+      completedTasks: areaTasks.filter((t) => t.state === "COMPLETED").length,
+    };
+  });
+
   const orgBranches = db.branches.filter(
     (b) => b.organizationId === ctx.organization.id,
   );
@@ -433,9 +516,14 @@ export async function getManagerialDashboardData(params: {
     activeDeals: filteredDeals.filter(
       (d) => d.branchId === b.id && isDealActiveStatus(d.status),
     ).length,
-    deliveredDeals: filteredDeals.filter(
-      (d) => d.branchId === b.id && d.status === "DELIVERED",
-    ).length,
+    deliveredDeals: filteredDeals.filter((d) => {
+      if (d.branchId !== b.id || d.status !== "DELIVERED") return false;
+      const deliv = delivMap.get(d.id);
+      const ts = deliv
+        ? new Date(deliv.deliveredAt).getTime()
+        : new Date(d.updatedAt).getTime();
+      return ts >= cutoffMs;
+    }).length,
   }));
 
   const sellers = internalMembers
@@ -460,6 +548,7 @@ export async function getManagerialDashboardData(params: {
     },
     kpis: {
       activeDealsCount,
+      openedInPeriodCount,
       waitingDocumentsCount,
       waitingFinancialAnalysisCount,
       waitingDocumentAnalysisCount,
@@ -471,6 +560,8 @@ export async function getManagerialDashboardData(params: {
     indicatorDefinitions: {
       activeDealsCount:
         "Negociações com passaporte aberto em andamento, elegíveis para autorização ou autorizadas aguardando entrega física.",
+      openedInPeriodCount:
+        "Negociações abertas dentro do período selecionado (com base na data de abertura da negociação).",
       waitingDocumentsCount:
         "Negociações ativas que possuem pelo menos um documento obrigatório solicitado, rejeitado ou aguardando correção.",
       waitingFinancialAnalysisCount:
@@ -482,9 +573,11 @@ export async function getManagerialDashboardData(params: {
       deliveryAuthorizedCount:
         "Negociações com Autorização Formal de Entrega ativa, aguardando reconfirmação do chassi e entrega das chaves pela Operação.",
       deliveredInPeriodCount:
-        "Veículos cuja entrega física das chaves foi confirmada e auditada dentro do período filtrado.",
+        "Veículos cuja entrega física das chaves foi confirmada dentro do período filtrado (com base na data real de entrega).",
       overdueTasksCount:
-        "Tarefas aplicáveis não concluídas cujo prazo operacional (SLA) foi ultrapassado.",
+        "Tarefas já disponíveis para execução e não concluídas cujo prazo operacional (SLA) foi ultrapassado (tarefas ainda bloqueadas por pré-requisito não entram como atrasadas).",
+      hoursByStage:
+        "Tempo médio de execução das tarefas concluídas em cada etapa (da liberação/início da tarefa até sua conclusão).",
     },
     dealsByStage,
     pendingByReason,
@@ -493,7 +586,12 @@ export async function getManagerialDashboardData(params: {
     reworkByDeal,
     volumeByResponsibleAndBranch: {
       byResponsible,
+      byArea,
       byBranch,
+      unassignedTasksCount: byArea.reduce(
+        (acc, a) => acc + (a.unassignedOpenTasks || 0),
+        0,
+      ),
     },
   };
 }
@@ -729,21 +827,13 @@ export async function updateTaskTemplateSlaAndDefaultAssignee(params: {
     if (!tpl) throw new Error("Template de tarefa não encontrado.");
 
     if (defaultAssigneeId) {
-      const profile = db.profiles.find(
-        (p) => p.id === defaultAssigneeId && p.isActive && !p.isCustomerOnly,
-      );
-      const membership = db.memberships.find(
-        (m) =>
-          m.profileId === defaultAssigneeId &&
-          m.organizationId === ctx.organization.id &&
-          m.isActive,
-      );
-      if (
-        !profile ||
-        !membership ||
-        !canActOnArea({ roles: membership.roles }, tpl.responsibleArea)
-      )
-        throw new Error("Selecione um responsável ativo da área desta tarefa.");
+      validateStaffAssigneeForArea({
+        profileId: defaultAssigneeId,
+        organizationId: ctx.organization.id,
+        responsibleArea: tpl.responsibleArea,
+        profiles: db.profiles,
+        memberships: db.memberships,
+      });
     }
     if (
       tpl.slaHours === slaHours &&

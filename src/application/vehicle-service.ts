@@ -2,7 +2,9 @@ import {
   assertInternalStaff,
   assertOrganizationAccess,
   assertPermission,
+  canAccessDealRecord,
   hasPermission,
+  isVehicleSellable,
 } from "@/domain/permissions";
 import {
   AuthenticatedContext,
@@ -130,7 +132,7 @@ export async function getVehicleDetails(params: {
 
   const branch = db.branches.find((b) => b.id === vehicle.branchId);
   const canViewDeals = hasPermission(ctx, "deal:view");
-  const deals = canViewDeals
+  const allVehicleDeals = canViewDeals
     ? db.deals.filter(
         (d) =>
           d.organizationId === ctx.organization.id &&
@@ -138,9 +140,14 @@ export async function getVehicleDetails(params: {
       )
     : [];
 
-  const activeDeal = deals.find((d) => isDealActiveStatus(d.status)) ?? null;
+  const activeDeal =
+    allVehicleDeals.find((d) => isDealActiveStatus(d.status)) ?? null;
 
-  const dealHistory = deals.map((d) => {
+  const visibleDeals = allVehicleDeals.filter((d) =>
+    canAccessDealRecord(ctx, d),
+  );
+
+  const dealHistory = visibleDeals.map((d) => {
     const customer = db.customers.find((c) => c.id === d.customerId);
     const seller = db.profiles.find((p) => p.id === d.sellerId);
     return {
@@ -168,7 +175,7 @@ export async function getVehicleDetails(params: {
             buyerType: activeDeal.buyerType,
           }
         : null,
-      totalDealsCount: deals.length,
+      totalDealsCount: visibleDeals.length,
     },
     dealHistory,
   };
@@ -689,7 +696,14 @@ export async function resolveScannedVehicleCode(params: {
   });
 
   if (details.vehicle.activeDeal) {
-    const canAccessDeal = hasPermission(params.ctx, "deal:view");
+    const activeDealRecord = db.deals.find(
+      (d) => d.id === details.vehicle.activeDeal!.id,
+    );
+    const canAccessDeal =
+      hasPermission(params.ctx, "deal:view") &&
+      Boolean(
+        activeDealRecord && canAccessDealRecord(params.ctx, activeDealRecord),
+      );
     return {
       outcome: "IDENTIFIED_WITH_ACTIVE_DEAL",
       scannedCode: token,
@@ -699,22 +713,25 @@ export async function resolveScannedVehicleCode(params: {
       canAccessDeal,
       nextStepLabel: canAccessDeal
         ? `Abrir Passaporte Digital (${details.vehicle.activeDeal.dealNumber})`
-        : "Sua função não possui permissão para abrir a negociação",
+        : "Negociação vinculada a outro responsável — Ver veículo",
       nextStepUrl: canAccessDeal
         ? `/app/negociacoes/${details.vehicle.activeDeal.id}`
         : `/app/veiculos/${vehicle.id}`,
     };
   }
 
-  const canStartDeal = hasPermission(params.ctx, "deal:create");
+  const sellable = isVehicleSellable(vehicle, false);
+  const canStartDeal = hasPermission(params.ctx, "deal:create") && sellable;
   return {
     outcome: "IDENTIFIED_NO_ACTIVE_DEAL",
     scannedCode: token,
     vehicle: details.vehicle,
     canStartDeal,
     nextStepLabel: canStartDeal
-      ? "Iniciar Abertura Guiada de Negociação"
-      : "Ver Cadastro do Veículo",
+      ? "Iniciar Abertura de Negociação"
+      : !sellable
+        ? "Ver Cadastro do Veículo (indisponível para venda)"
+        : "Ver Cadastro do Veículo",
     nextStepUrl: canStartDeal
       ? `/app/negociacoes/nova?vehicleId=${vehicle.id}`
       : `/app/veiculos/${vehicle.id}`,

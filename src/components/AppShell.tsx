@@ -3,28 +3,23 @@
 import { NotificationItem, ROLE_LABELS, RoleCode } from "@/domain/types";
 import { formatDateTimeBr } from "@/lib/format";
 import {
-  BarChart3,
   Bell,
-  BookOpen,
   Building2,
   Car,
-  CheckSquare,
   ChevronLeft,
   ChevronRight,
   ClipboardCheck,
   FileSpreadsheet,
-  Home,
   LayoutDashboard,
   LogOut,
   Menu,
   QrCode,
   Settings,
-  Users,
   X,
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 
 export interface AppShellProps {
   children: React.ReactNode;
@@ -60,12 +55,42 @@ export function AppShell({
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
+  const menuButtonRef = useRef<HTMLButtonElement | null>(null);
+  const closeDrawerButtonRef = useRef<HTMLButtonElement | null>(null);
 
   const unreadCount = notifications.filter((n) => !n.isRead).length;
-  const isAdmin = roles.includes("ADMIN"),
-    isManager = isAdmin || roles.includes("MANAGER");
-  const canManageCustomers = isManager || roles.includes("SELLER");
+  const isAdmin = roles.includes("ADMIN");
+  const isManager = isAdmin || roles.includes("MANAGER");
+  const canAccessSettingsOrProcedures =
+    isAdmin ||
+    isManager ||
+    roles.includes("DOCUMENTATION") ||
+    roles.includes("FINANCE") ||
+    roles.includes("RELEASE_OFFICER");
   const userInitials = getInitials(user.fullName);
+
+  useEffect(() => {
+    if (!mobileMenuOpen && !notifOpen) return;
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape") {
+        if (mobileMenuOpen) {
+          setMobileMenuOpen(false);
+          menuButtonRef.current?.focus();
+        }
+        if (notifOpen) {
+          setNotifOpen(false);
+        }
+      }
+    }
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [mobileMenuOpen, notifOpen]);
+
+  useEffect(() => {
+    if (mobileMenuOpen) {
+      closeDrawerButtonRef.current?.focus();
+    }
+  }, [mobileMenuOpen]);
 
   async function handleLogout() {
     await fetch("/api/auth", {
@@ -92,86 +117,73 @@ export function AppShell({
   const navItems = [
     {
       href: "/app",
-      label: "Painel Operacional",
+      label: "Painel",
       Icon: LayoutDashboard,
       exact: true,
-      group: "OPERATIONAL" as const,
+      matchPrefixes: ["/app/relatorios"],
+      visible: true,
     },
     {
       href: "/app/negociacoes",
       label: "Negociações",
       Icon: FileSpreadsheet,
-      group: "OPERATIONAL" as const,
+      exact: false,
+      matchPrefixes: ["/app/negociacoes", "/app/clientes"],
+      visible: true,
     },
     {
       href: "/app/veiculos",
-      label: "Veículos e Estoque",
+      label: "Veículos",
       Icon: Car,
-      group: "OPERATIONAL" as const,
+      exact: false,
+      matchPrefixes: ["/app/veiculos"],
+      visible: true,
     },
     {
-      href: "/app/clientes",
-      label: "Clientes e Acessos",
-      Icon: Users,
-      group: "OPERATIONAL" as const,
-    },
-    {
-      href: "/app/aprovacoes",
-      label: "Faturamento, Docs e Liberações",
+      href: "/app/pendencias",
+      label: "Pendências",
       Icon: ClipboardCheck,
-      group: "OPERATIONAL" as const,
-    },
-    {
-      href: "/app/minhas-tarefas",
-      label: "Minhas Tarefas",
-      Icon: CheckSquare,
-      group: "OPERATIONAL" as const,
-    },
-    {
-      href: "/app/escanear",
-      label: "Escanear Veículo",
-      Icon: QrCode,
-      group: "OPERATIONAL" as const,
-    },
-    {
-      href: "/app/procedimentos",
-      label: "Procedimentos e Regras",
-      Icon: BookOpen,
-      group: "MANAGEMENT" as const,
-    },
-    {
-      href: "/app/relatorios",
-      label: "Relatórios e Indicadores",
-      Icon: BarChart3,
-      group: "MANAGEMENT" as const,
+      exact: false,
+      matchPrefixes: [
+        "/app/pendencias",
+        "/app/aprovacoes",
+        "/app/minhas-tarefas",
+      ],
+      visible: true,
     },
     {
       href: "/app/configuracoes",
-      label: "Configurações e Usuários",
+      label: "Configurações",
       Icon: Settings,
-      group: "MANAGEMENT" as const,
+      exact: false,
+      matchPrefixes: ["/app/configuracoes", "/app/procedimentos"],
+      visible: canAccessSettingsOrProcedures,
     },
-  ].filter((item) =>
-    item.href === "/app/configuracoes"
-      ? isAdmin
-      : item.href === "/app/relatorios"
-        ? isManager || roles.includes("RELEASE_OFFICER")
-        : item.href === "/app/clientes"
-          ? canManageCustomers
-          : item.href === "/app/aprovacoes"
-            ? !roles.every((r) => r === "SELLER")
-            : true,
-  );
+  ].filter((item) => item.visible);
 
-  const operationalItems = navItems.filter((i) => i.group === "OPERATIONAL");
-  const managementItems = navItems.filter((i) => i.group === "MANAGEMENT");
+  function isNavItemActive(item: (typeof navItems)[number]) {
+    if (item.exact) {
+      return (
+        pathname === item.href ||
+        item.matchPrefixes.some(
+          (p) => pathname === p || pathname.startsWith(`${p}/`),
+        )
+      );
+    }
+    return item.matchPrefixes.some(
+      (p) => pathname === p || pathname.startsWith(`${p}/`),
+    );
+  }
 
-  const activeNavItem =
-    navItems.find((item) =>
-      item.exact
-        ? pathname === item.href
-        : pathname === item.href || pathname.startsWith(`${item.href}/`),
-    ) || navItems[0];
+  const pageTitle = pathname.startsWith("/app/escanear")
+    ? "Escanear veículo"
+    : pathname.startsWith("/app/relatorios")
+      ? "Visão gerencial e indicadores"
+      : pathname.startsWith("/app/clientes")
+        ? "Clientes e acessos"
+        : pathname.startsWith("/app/procedimentos")
+          ? "Procedimentos operacionais"
+          : (navItems.find((i) => isNavItemActive(i))?.label ?? "Painel");
 
   return (
     <div className="min-h-screen flex flex-col bg-[#F4F7FA] text-[#172B3A]">
@@ -255,101 +267,37 @@ export function AppShell({
 
           <nav
             aria-label="Menu principal"
-            className="flex-1 px-3 py-4 space-y-5 overflow-y-auto"
+            className="flex-1 px-3 py-4 space-y-1.5 overflow-y-auto"
           >
-            {/* Grupo Operacional */}
-            <div className="space-y-1">
-              {!sidebarCollapsed && (
-                <div className="px-3 pb-1 text-[10px] font-bold uppercase tracking-widest text-[#EAF3FC]/60">
-                  Operação Conectada
-                </div>
-              )}
-              {operationalItems.map((item) => {
-                const isActive = item.exact
-                  ? pathname === item.href
-                  : pathname === item.href ||
-                    pathname.startsWith(`${item.href}/`);
-                const Icon = item.Icon;
+            {navItems.map((item) => {
+              const isActive = isNavItemActive(item);
+              const Icon = item.Icon;
 
-                return (
-                  <Link
-                    key={item.href}
-                    href={item.href}
-                    title={item.label}
-                    className={`flex items-center gap-3 rounded-xl px-3 py-2.5 text-xs sm:text-sm font-medium transition ${
-                      sidebarCollapsed ? "justify-center" : ""
-                    } ${
-                      isActive
-                        ? "bg-[#1684D8] text-white font-semibold shadow-xs"
-                        : "text-[#EAF3FC]/85 hover:bg-white/10 hover:text-white"
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  title={item.label}
+                  aria-current={isActive ? "page" : undefined}
+                  className={`flex items-center gap-3 rounded-xl px-3.5 py-2.5 text-sm font-medium transition ${
+                    sidebarCollapsed ? "justify-center" : ""
+                  } ${
+                    isActive
+                      ? "bg-[#1684D8] text-white font-semibold shadow-xs"
+                      : "text-[#EAF3FC]/90 hover:bg-white/10 hover:text-white"
+                  }`}
+                >
+                  <Icon
+                    className={`h-4 w-4 shrink-0 ${
+                      isActive ? "text-white" : "text-[#EAF3FC]/80"
                     }`}
-                  >
-                    <Icon
-                      className={`h-4 w-4 shrink-0 ${
-                        isActive ? "text-white" : "text-[#EAF3FC]/75"
-                      }`}
-                    />
-                    {!sidebarCollapsed && (
-                      <span className="truncate">{item.label}</span>
-                    )}
-                  </Link>
-                );
-              })}
-            </div>
-
-            {/* Grupo Gestão, Regras e Configurações */}
-            {managementItems.length > 0 && (
-              <div className="space-y-1 pt-2 border-t border-white/10">
-                {!sidebarCollapsed && (
-                  <div className="px-3 pb-1 text-[10px] font-bold uppercase tracking-widest text-[#EAF3FC]/60">
-                    Gestão e Governança
-                  </div>
-                )}
-                {managementItems.map((item) => {
-                  const isActive =
-                    pathname === item.href ||
-                    pathname.startsWith(`${item.href}/`);
-                  const Icon = item.Icon;
-
-                  return (
-                    <Link
-                      key={item.href}
-                      href={item.href}
-                      title={item.label}
-                      className={`flex items-center gap-3 rounded-xl px-3 py-2.5 text-xs sm:text-sm font-medium transition ${
-                        sidebarCollapsed ? "justify-center" : ""
-                      } ${
-                        isActive
-                          ? "bg-[#1684D8] text-white font-semibold shadow-xs"
-                          : "text-[#EAF3FC]/85 hover:bg-white/10 hover:text-white"
-                      }`}
-                    >
-                      <Icon
-                        className={`h-4 w-4 shrink-0 ${
-                          isActive ? "text-white" : "text-[#EAF3FC]/75"
-                        }`}
-                      />
-                      {!sidebarCollapsed && (
-                        <span className="truncate">{item.label}</span>
-                      )}
-                    </Link>
-                  );
-                })}
-              </div>
-            )}
-
-            <div className="pt-2 border-t border-white/10">
-              <Link
-                href="/"
-                title="Página inicial institucional"
-                className={`flex items-center gap-3 rounded-xl px-3 py-2 text-xs font-medium text-[#EAF3FC]/70 hover:bg-white/10 hover:text-white transition ${
-                  sidebarCollapsed ? "justify-center" : ""
-                }`}
-              >
-                <Home className="h-4 w-4 shrink-0" />
-                {!sidebarCollapsed && <span>Apresentação do Produto</span>}
-              </Link>
-            </div>
+                  />
+                  {!sidebarCollapsed && (
+                    <span className="truncate">{item.label}</span>
+                  )}
+                </Link>
+              );
+            })}
           </nav>
 
           {/* Identificação do Usuário e Ação de Sair na Parte Inferior */}
@@ -393,21 +341,24 @@ export function AppShell({
           <header className="no-print sticky top-0 z-30 bg-white border-b border-slate-200 px-4 lg:px-8 h-16 flex items-center justify-between gap-4 shadow-2xs">
             <div className="flex items-center gap-3 min-w-0">
               <button
+                ref={menuButtonRef}
                 type="button"
                 onClick={() => setMobileMenuOpen(true)}
                 className="lg:hidden rounded-lg p-2 text-[#172B3A] hover:bg-slate-100"
                 aria-label="Abrir menu de navegação"
+                aria-expanded={mobileMenuOpen}
+                aria-controls="mobile-nav-drawer"
               >
                 <Menu className="h-5 w-5" />
               </button>
               <div className="min-w-0">
-                <div className="flex items-center gap-2 text-[11px] font-semibold text-slate-500">
+                <div className="flex items-center gap-2 text-[11px] font-semibold text-slate-600">
                   <span className="font-bold text-[#0B3B70]">AUTOFLOW</span>
                   <span>•</span>
                   <span className="truncate">{branchName}</span>
                 </div>
                 <p className="text-sm font-extrabold text-[#172B3A] truncate">
-                  {activeNavItem?.label || "Painel Operacional"}
+                  {pageTitle}
                 </p>
               </div>
             </div>
@@ -418,8 +369,7 @@ export function AppShell({
                 className="inline-flex items-center gap-2 rounded-xl bg-[#EAF3FC] hover:bg-[#d8eafb] border border-[#1684D8]/30 px-3.5 py-2 text-xs font-bold text-[#0B3B70] transition"
               >
                 <QrCode className="h-4 w-4 text-[#1684D8]" />
-                <span className="hidden sm:inline">Identificar Veículo</span>
-                <span className="sm:hidden">QR</span>
+                <span>Escanear veículo</span>
               </Link>
 
               {/* Notificações Internas */}
@@ -510,10 +460,19 @@ export function AppShell({
 
           {/* Menu Gaveta Mobile */}
           {mobileMenuOpen && (
-            <div className="fixed inset-0 z-50 lg:hidden flex">
+            <div
+              id="mobile-nav-drawer"
+              role="dialog"
+              aria-modal="true"
+              aria-label="Menu principal"
+              className="fixed inset-0 z-50 lg:hidden flex"
+            >
               <div
                 className="fixed inset-0 bg-slate-950/60"
-                onClick={() => setMobileMenuOpen(false)}
+                onClick={() => {
+                  setMobileMenuOpen(false);
+                  menuButtonRef.current?.focus();
+                }}
               />
               <div className="relative w-72 max-w-full bg-[#0B3B70] text-white flex flex-col z-10">
                 <div className="p-4 border-b border-white/12 flex items-center justify-between">
@@ -531,25 +490,30 @@ export function AppShell({
                     </div>
                   </div>
                   <button
+                    ref={closeDrawerButtonRef}
                     type="button"
-                    onClick={() => setMobileMenuOpen(false)}
-                    className="p-1.5 text-white/75 hover:text-white"
+                    onClick={() => {
+                      setMobileMenuOpen(false);
+                      menuButtonRef.current?.focus();
+                    }}
+                    className="rounded-lg p-1.5 text-white/80 hover:bg-white/10 hover:text-white"
                     aria-label="Fechar menu"
                   >
                     <X className="h-5 w-5" />
                   </button>
                 </div>
-                <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
+                <nav
+                  aria-label="Menu principal móvel"
+                  className="flex-1 p-3 space-y-1 overflow-y-auto"
+                >
                   {navItems.map((item) => {
                     const Icon = item.Icon;
-                    const isActive = item.exact
-                      ? pathname === item.href
-                      : pathname === item.href ||
-                        pathname.startsWith(`${item.href}/`);
+                    const isActive = isNavItemActive(item);
                     return (
                       <Link
                         key={item.href}
                         href={item.href}
+                        aria-current={isActive ? "page" : undefined}
                         onClick={() => setMobileMenuOpen(false)}
                         className={`flex items-center gap-3 rounded-xl px-3.5 py-2.5 text-sm font-medium transition ${
                           isActive
@@ -562,6 +526,16 @@ export function AppShell({
                       </Link>
                     );
                   })}
+                  <div className="pt-2 mt-2 border-t border-white/10">
+                    <Link
+                      href="/app/escanear"
+                      onClick={() => setMobileMenuOpen(false)}
+                      className="flex items-center gap-3 rounded-xl px-3.5 py-2.5 text-sm font-semibold text-[#7CC4FA] hover:bg-white/10"
+                    >
+                      <QrCode className="h-4 w-4 shrink-0" />
+                      <span>Escanear veículo</span>
+                    </Link>
+                  </div>
                 </nav>
                 <div className="p-4 border-t border-white/12 bg-[#082B54]">
                   <div className="mb-3 flex items-center gap-2.5">

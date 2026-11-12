@@ -74,12 +74,21 @@ export default function RecuperarSenhaPage() {
         ) : (
           <form onSubmit={handleSubmit} className="mt-6 space-y-4">
             <p className="text-xs text-slate-600 leading-relaxed">
-              Informe o e-mail vinculado ao seu perfil. Enviaremos um link
-              temporário de redefinição.
+              Informe o e-mail da sua conta. Se houver um perfil ativo
+              correspondente, enviaremos um link temporário de uso único (válido
+              por 1 hora) para redefinir sua senha.
             </p>
+            <div className="rounded-xl bg-[#EAF3FC] border border-[#1684D8]/25 p-3 text-xs text-[#0B3B70]">
+              <strong>Primeiro acesso?</strong> Solicite ao administrador da
+              concessionária (ou ao seu vendedor, se for comprador) o link
+              individual de ativação da conta (válido por 24 horas).
+            </div>
 
             {error && (
-              <div className="rounded-lg bg-red-50 border border-red-300 p-3 text-xs text-red-900">
+              <div
+                role="alert"
+                className="rounded-lg bg-red-50 border border-red-300 p-3 text-xs text-red-900"
+              >
                 {error}
               </div>
             )}
@@ -94,6 +103,7 @@ export default function RecuperarSenhaPage() {
               <input
                 id="recover-email"
                 type="email"
+                autoComplete="email"
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}

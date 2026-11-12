@@ -1,11 +1,15 @@
 import {
+  assertDealRecordAccess,
+  assertDocumentReviewPermission,
   assertInternalStaff,
   assertOrganizationAccess,
   assertPermission,
   AuthorizationError,
+  canAccessDealRecord,
   canActOnArea,
   canApproveTaskRole,
   hasPermission,
+  validateStaffAssigneeForArea,
 } from "@/domain/permissions";
 import {
   ApprovalRecord,
@@ -27,6 +31,7 @@ import {
   TradeInVehicle,
   UserProfile,
   Vehicle,
+  VEHICLE_STOCK_STATUS_LABELS,
   WorkflowVersion,
 } from "@/domain/types";
 import {
@@ -131,6 +136,53 @@ function syncDealStatusFromSummary(
   }
 }
 
+function assertDealOpenForOperationalMutation(deal: Deal): void {
+  if (deal.status === "DELIVERED" || deal.status === "CANCELLED") {
+    throw new Error(
+      `A negociação já foi encerrada (${
+        deal.status === "DELIVERED" ? "veículo entregue" : "cancelada"
+      }). Documentos, tarefas e aprovações operacionais estão protegidos e não podem ser alterados.`,
+    );
+  }
+}
+
+function syncRecalculatedTasksToDb(
+  db: Awaited<ReturnType<typeof loadDatabaseState>>,
+  recalculated: TaskInstance[],
+): void {
+  for (const rt of recalculated) {
+    const orig = db.taskInstances.find((o) => o.id === rt.id);
+    if (orig) {
+      orig.state = rt.state;
+      orig.pendingReason = rt.pendingReason;
+      if (rt.availableAt !== undefined) {
+        orig.availableAt = rt.availableAt;
+      }
+      if (rt.dueAt !== undefined) {
+        orig.dueAt = rt.dueAt;
+      }
+    }
+  }
+}
+
+function resolveNotificationRecipientForArea(
+  db: Awaited<ReturnType<typeof loadDatabaseState>>,
+  organizationId: string,
+  area: ResponsibleArea,
+  fallbackProfileId: string,
+): string {
+  const member = db.memberships.find(
+    (m) =>
+      m.organizationId === organizationId &&
+      m.isActive &&
+      canActOnArea({ roles: m.roles }, area) &&
+      db.profiles.some(
+        (p) => p.id === m.profileId && p.isActive && !p.isCustomerOnly,
+      ),
+  );
+  return member?.profileId || fallbackProfileId;
+}
+
 // ============================================================================
 // LISTAGEM DE NEGOCIAÇÕES DA ORGANIZAÇÃO
 // ============================================================================
@@ -150,12 +202,7 @@ export async function listDealsForOrg(params: {
   const q = (search || "").trim().toLowerCase();
 
   return db.deals
-    .filter((d) => d.organizationId === ctx.organization.id)
-    .filter(
-      (d) =>
-        !ctx.roles.every((r) => r === "SELLER") ||
-        d.sellerId === ctx.profile.id,
-    )
+    .filter((d) => canAccessDealRecord(ctx, d))
     .filter((d) => {
       if (statusFilter && statusFilter !== "ALL" && d.status !== statusFilter) {
         return false;
@@ -304,17 +351,64 @@ export async function createOrSaveGuidedDeal(params: {
       );
     }
 
+    let deal = parsed.draftDealId
+      ? db.deals.find((d) => d.id === parsed.draftDealId)
+      : undefined;
+    if (parsed.draftDealId && !deal)
+      throw new Error("Rascunho não encontrado.");
+    if (deal) {
+      assertDealRecordAccess(ctx, deal);
+      if (deal.status !== "DRAFT")
+        throw new Error(
+          "Somente rascunhos podem ser alterados pela abertura guiada.",
+        );
+    }
+
+    // Validação de disponibilidade vendável do veículo no estoque
+    const isReservedByCurrentDraft =
+      Boolean(deal && deal.vehicleId === vehicle.id) &&
+      vehicle.stockStatus === "RESERVED" &&
+      !conflictingActiveDeal;
+    if (
+      vehicle.stockStatus !== "AVAILABLE" &&
+      !isReservedByCurrentDraft
+    ) {
+      throw new Error(
+        `Veículo indisponível para venda: ${vehicle.internalCode} está com situação '${VEHICLE_STOCK_STATUS_LABELS[vehicle.stockStatus]}' no estoque.`,
+      );
+    }
+
     const nowIso = new Date().toISOString();
 
-    // Resolver ou criar comprador
+    // Resolver ou criar comprador e validar consistência PF/PJ
     let customerId = parsed.customerId || "";
-    if (parsed.customerMode === "NEW" && parsed.newCustomer) {
+    if (parsed.customerMode === "EXISTING" && customerId) {
+      const existingCust = db.customers.find(
+        (c) => c.id === customerId && c.organizationId === ctx.organization.id,
+      );
+      if (!existingCust) {
+        throw new Error("Comprador inválido para esta organização.");
+      }
+      if (existingCust.personType !== parsed.buyerType) {
+        throw new Error(
+          `Combinação incompatível: o tipo do comprador selecionado (${parsed.buyerType}) diverge do cadastro do cliente (${existingCust.personType}).`,
+        );
+      }
+    } else if (parsed.customerMode === "NEW" && parsed.newCustomer) {
+      const cleanDocInput = parsed.newCustomer.documentNumber.trim();
+      const inputDigits = cleanDocInput.replace(/\D/g, "");
       const existingCust = db.customers.find(
         (c) =>
           c.organizationId === ctx.organization.id &&
-          c.documentNumber === parsed.newCustomer!.documentNumber.trim(),
+          (c.documentNumber === cleanDocInput ||
+            c.documentNumber.replace(/\D/g, "") === inputDigits),
       );
       if (existingCust) {
+        if (existingCust.personType !== parsed.buyerType) {
+          throw new Error(
+            `Combinação incompatível: o documento informado pertence a um cadastro ${existingCust.personType}, mas a negociação foi marcada como ${parsed.buyerType}.`,
+          );
+        }
         customerId = existingCust.id;
       } else {
         const newCust: Customer = {
@@ -322,9 +416,9 @@ export async function createOrSaveGuidedDeal(params: {
           organizationId: ctx.organization.id,
           profileId: null,
           personType: parsed.newCustomer.personType,
-          documentNumber: parsed.newCustomer.documentNumber.trim(),
+          documentNumber: cleanDocInput,
           fullName: parsed.newCustomer.fullName.trim(),
-          email: parsed.newCustomer.email.trim(),
+          email: parsed.newCustomer.email.trim().toLowerCase(),
           phone: parsed.newCustomer.phone.trim(),
           address: parsed.newCustomer.address?.trim() || null,
           createdAt: nowIso,
@@ -347,18 +441,7 @@ export async function createOrSaveGuidedDeal(params: {
     }
     const activeWfVersionId = wfTemplate.activeVersionId;
 
-    let deal = parsed.draftDealId
-      ? db.deals.find((d) => d.id === parsed.draftDealId)
-      : undefined;
-    if (parsed.draftDealId && !deal)
-      throw new Error("Rascunho não encontrado.");
-
     if (deal) {
-      assertOrganizationAccess(ctx, deal.organizationId);
-      if (deal.status !== "DRAFT")
-        throw new Error(
-          "Somente rascunhos podem ser alterados pela abertura guiada.",
-        );
       deal.vehicleId = vehicle.id;
       deal.branchId = parsed.branchId;
       deal.sellerId = parsed.sellerId;
@@ -610,13 +693,8 @@ export async function getDealPassportView(params: {
     throw new Error("Negociação não encontrada.");
   }
 
-  // Isolamento estrito por organização no servidor
-  assertOrganizationAccess(ctx, deal.organizationId);
-  if (
-    ctx.roles.every((r) => r === "SELLER") &&
-    deal.sellerId !== ctx.profile.id
-  )
-    throw new AuthorizationError("Esta negociação pertence a outro vendedor.");
+  // Isolamento estrito por organização e escopo da negociação no servidor
+  assertDealRecordAccess(ctx, deal);
 
   const vehicle = db.vehicles.find((v) => v.id === deal.vehicleId)!;
   const tradeInVehicle =
@@ -802,24 +880,13 @@ export async function updateTaskOperationalState(params: {
   return await withTransaction((db) => {
     const deal = db.deals.find((d) => d.id === dealId);
     if (!deal) throw new Error("Negociação não encontrada.");
-    assertOrganizationAccess(ctx, deal.organizationId);
-
-    if (deal.status === "DELIVERED") {
-      throw new Error(
-        "A negociação já foi entregue e encerrada. Tarefas operacionais não podem ser alteradas.",
-      );
-    }
+    assertDealRecordAccess(ctx, deal);
+    assertDealOpenForOperationalMutation(deal);
 
     const dealTasks = db.taskInstances.filter((t) => t.dealId === deal.id);
     const dealDocs = db.documents.filter((d) => d.dealId === deal.id);
     const recalculated = recalculateTaskStates(dealTasks, dealDocs);
-    for (const rt of recalculated) {
-      const orig = db.taskInstances.find((o) => o.id === rt.id);
-      if (orig) {
-        orig.state = rt.state;
-        orig.pendingReason = rt.pendingReason;
-      }
-    }
+    syncRecalculatedTasksToDb(db, recalculated);
 
     const task = db.taskInstances.find(
       (t) => t.dealId === deal.id && t.code === taskCode,
@@ -840,7 +907,15 @@ export async function updateTaskOperationalState(params: {
         "task:assign",
         "Sua função não possui permissão para atribuir responsáveis.",
       );
-      task.assigneeId = targetAssigneeId || ctx.profile.id;
+      const nextAssigneeId = targetAssigneeId || ctx.profile.id;
+      validateStaffAssigneeForArea({
+        profiles: db.profiles,
+        memberships: db.memberships,
+        organizationId: ctx.organization.id,
+        profileId: nextAssigneeId,
+        responsibleArea: task.responsibleArea,
+      });
+      task.assigneeId = nextAssigneeId;
       task.updatedAt = nowIso;
 
       pushNotificationIfNew(db, {
@@ -930,14 +1005,9 @@ export async function updateTaskOperationalState(params: {
       const updatedList = recalculateTaskStates(
         db.taskInstances.filter((t) => t.dealId === deal.id),
         dealDocs,
+        nowIso,
       );
-      for (const ut of updatedList) {
-        const ref = db.taskInstances.find((o) => o.id === ut.id);
-        if (ref) {
-          ref.state = ut.state;
-          ref.pendingReason = ut.pendingReason;
-        }
-      }
+      syncRecalculatedTasksToDb(db, updatedList);
 
       const hasActiveAuth = db.releaseAuthorizations.some(
         (ra) => ra.dealId === deal.id && ra.status === "ACTIVE",
@@ -1001,7 +1071,8 @@ export async function requestAdditionalDocument(params: {
   return await withTransaction((db) => {
     const deal = db.deals.find((d) => d.id === dealId);
     if (!deal) throw new Error("Negociação não encontrada.");
-    assertOrganizationAccess(ctx, deal.organizationId);
+    assertDealRecordAccess(ctx, deal);
+    assertDealOpenForOperationalMutation(deal);
 
     const nowIso = new Date().toISOString();
     const newDoc: DealDocument = {
@@ -1119,12 +1190,7 @@ export async function uploadDocumentVersion(params: {
     const deal = db.deals.find((d) => d.id === dealId);
     if (!deal) throw new Error("Negociação não encontrada.");
     assertOrganizationAccess(ctx, deal.organizationId);
-
-    if (deal.status === "DELIVERED") {
-      throw new Error(
-        "A negociação já foi concluída e entregue. Não é permitido substituir documentos operacionais.",
-      );
-    }
+    assertDealOpenForOperationalMutation(deal);
 
     const doc = db.documents.find(
       (d) => d.id === documentId && d.dealId === deal.id,
@@ -1141,6 +1207,7 @@ export async function uploadDocumentVersion(params: {
         );
       }
     } else {
+      assertDealRecordAccess(ctx, deal);
       assertPermission(ctx, "document:upload");
     }
 
@@ -1279,14 +1346,8 @@ export async function uploadDocumentVersion(params: {
     // Recalcular estados das tarefas e elegibilidade da negociação
     const dealTasks = db.taskInstances.filter((t) => t.dealId === deal.id);
     const dealDocs = db.documents.filter((d) => d.dealId === deal.id);
-    const recalculated = recalculateTaskStates(dealTasks, dealDocs);
-    for (const rt of recalculated) {
-      const orig = db.taskInstances.find((o) => o.id === rt.id);
-      if (orig) {
-        orig.state = rt.state;
-        orig.pendingReason = rt.pendingReason;
-      }
-    }
+    const recalculated = recalculateTaskStates(dealTasks, dealDocs, nowIso);
+    syncRecalculatedTasksToDb(db, recalculated);
 
     const hasActiveAuth = db.releaseAuthorizations.some(
       (ra) => ra.dealId === deal.id && ra.status === "ACTIVE",
@@ -1300,8 +1361,12 @@ export async function uploadDocumentVersion(params: {
     syncDealStatusFromSummary(deal, summary, hasActiveAuth);
 
     // Notificar analista responsável pela conferência
-    const targetReviewerId =
-      doc.responsibleArea === "FINANCE" ? "user-financeiro" : "user-documental";
+    const targetReviewerId = resolveNotificationRecipientForArea(
+      db,
+      ctx.organization.id,
+      doc.responsibleArea,
+      doc.responsibleArea === "FINANCE" ? "user-financeiro" : "user-documental",
+    );
     pushNotificationIfNew(db, {
       organizationId: ctx.organization.id,
       recipientProfileId: targetReviewerId,
@@ -1352,39 +1417,33 @@ export async function reviewDocumentVersion(params: {
   documentId: string;
   decision: "APPROVED" | "REJECTED" | "CORRECTION_REQUESTED";
   justification?: string;
+  customerRejectionGuidance?: string;
+  internalReviewNotes?: string;
 }): Promise<DealDocument> {
-  const { ctx, dealId, documentId, decision, justification } = params;
+  const {
+    ctx,
+    dealId,
+    documentId,
+    decision,
+    justification,
+    customerRejectionGuidance,
+    internalReviewNotes,
+  } = params;
   assertInternalStaff(ctx);
 
   return await withTransaction((db) => {
     const deal = db.deals.find((d) => d.id === dealId);
     if (!deal) throw new Error("Negociação não encontrada.");
-    assertOrganizationAccess(ctx, deal.organizationId);
+    assertDealRecordAccess(ctx, deal);
+    assertDealOpenForOperationalMutation(deal);
 
     const doc = db.documents.find(
       (d) => d.id === documentId && d.dealId === deal.id,
     );
     if (!doc) throw new Error("Documento não encontrado.");
 
-    // Verifica permissão de acordo com a área do documento
-    if (doc.responsibleArea === "FINANCE") {
-      if (
-        !hasPermission(ctx, "approval:finance") &&
-        !hasPermission(ctx, "document:review")
-      ) {
-        throw new AuthorizationError(
-          "Sua função não possui permissão para conferir documentos financeiros.",
-          "INSUFFICIENT_PERMISSION",
-          403,
-        );
-      }
-    } else {
-      assertPermission(
-        ctx,
-        "document:review",
-        "Sua função não possui permissão para conferir documentos.",
-      );
-    }
+    // Verifica permissão de acordo com a área do documento (document:review não concede autoridade financeira)
+    assertDocumentReviewPermission(ctx, doc);
 
     if (doc.currentVersionNumber === 0) {
       throw new Error(
@@ -1392,9 +1451,15 @@ export async function reviewDocumentVersion(params: {
       );
     }
 
+    const combinedJustification =
+      justification?.trim() ||
+      customerRejectionGuidance?.trim() ||
+      internalReviewNotes?.trim() ||
+      "";
+
     if (
       (decision === "REJECTED" || decision === "CORRECTION_REQUESTED") &&
-      (!justification || justification.trim().length < 3)
+      combinedJustification.length < 3
     ) {
       throw new Error(
         "Informe o motivo da rejeição ou os detalhes da correção solicitada.",
@@ -1406,7 +1471,14 @@ export async function reviewDocumentVersion(params: {
     doc.reviewedBy = ctx.profile.id;
     doc.reviewedAt = nowIso;
     doc.rejectionReason =
-      decision === "APPROVED" ? null : justification?.trim() || null;
+      decision === "APPROVED" ? null : combinedJustification || null;
+    doc.customerRejectionGuidance =
+      decision === "APPROVED"
+        ? null
+        : customerRejectionGuidance?.trim() || null;
+    doc.internalReviewNotes =
+      internalReviewNotes?.trim() ||
+      (decision !== "APPROVED" ? justification?.trim() || null : null);
     doc.updatedAt = nowIso;
 
     // Atualizar última versão como revisada
@@ -1534,14 +1606,8 @@ export async function reviewDocumentVersion(params: {
 
     const dealTasks = db.taskInstances.filter((t) => t.dealId === deal.id);
     const dealDocs = db.documents.filter((d) => d.dealId === deal.id);
-    const recalculated = recalculateTaskStates(dealTasks, dealDocs);
-    for (const rt of recalculated) {
-      const orig = db.taskInstances.find((o) => o.id === rt.id);
-      if (orig) {
-        orig.state = rt.state;
-        orig.pendingReason = rt.pendingReason;
-      }
-    }
+    const recalculated = recalculateTaskStates(dealTasks, dealDocs, nowIso);
+    syncRecalculatedTasksToDb(db, recalculated);
 
     const hasActiveAuth = db.releaseAuthorizations.some(
       (ra) => ra.dealId === deal.id && ra.status === "ACTIVE",
@@ -1625,7 +1691,8 @@ export async function recordTaskFormalApproval(params: {
   return await withTransaction((db) => {
     const deal = db.deals.find((d) => d.id === dealId);
     if (!deal) throw new Error("Negociação não encontrada.");
-    assertOrganizationAccess(ctx, deal.organizationId);
+    assertDealRecordAccess(ctx, deal);
+    assertDealOpenForOperationalMutation(deal);
 
     const task = db.taskInstances.find(
       (t) => t.dealId === deal.id && t.code === taskCode,
@@ -1727,14 +1794,8 @@ export async function recordTaskFormalApproval(params: {
     deal.updatedAt = nowIso;
 
     const dealTasks = db.taskInstances.filter((t) => t.dealId === deal.id);
-    const recalculated = recalculateTaskStates(dealTasks, dealDocs);
-    for (const rt of recalculated) {
-      const orig = db.taskInstances.find((o) => o.id === rt.id);
-      if (orig) {
-        orig.state = rt.state;
-        orig.pendingReason = rt.pendingReason;
-      }
-    }
+    const recalculated = recalculateTaskStates(dealTasks, dealDocs, nowIso);
+    syncRecalculatedTasksToDb(db, recalculated);
 
     const hasActiveAuth = db.releaseAuthorizations.some(
       (ra) => ra.dealId === deal.id && ra.status === "ACTIVE",
@@ -1805,23 +1866,88 @@ export async function registerDealBilling(params: {
     throw new Error("Informe o número da Nota Fiscal emitida.");
   }
 
-  return await withTransaction((db) => {
-    const deal = db.deals.find((d) => d.id === dealId);
-    if (!deal) throw new Error("Negociação não encontrada.");
-    assertOrganizationAccess(ctx, deal.organizationId);
+  const txResult = await withTransaction(
+    (
+      db,
+    ):
+      | { ok: true; deal: Deal }
+      | { ok: false; blockedError: PreconditionBlockedError } => {
+      const deal = db.deals.find((d) => d.id === dealId);
+      if (!deal) throw new Error("Negociação não encontrada.");
+      assertDealRecordAccess(ctx, deal);
+      assertDealOpenForOperationalMutation(deal);
 
-    const dealTasks = db.taskInstances.filter((t) => t.dealId === deal.id);
-    const dealDocs = db.documents.filter((d) => d.dealId === deal.id);
-    const recalculated = recalculateTaskStates(dealTasks, dealDocs);
-    const summary = computeDealEligibilityAndSummary(
-      deal,
-      recalculated,
-      dealDocs,
-      false,
-    );
+      const dealTasks = db.taskInstances.filter((t) => t.dealId === deal.id);
+      const dealDocs = db.documents.filter((d) => d.dealId === deal.id);
+      const recalculated = recalculateTaskStates(dealTasks, dealDocs);
+      const summary = computeDealEligibilityAndSummary(
+        deal,
+        recalculated,
+        dealDocs,
+        false,
+      );
 
-    // Verificação transacional no servidor: todos os requisitos para faturar devem estar cumpridos!
-    if (!summary.billingEligible) {
+      // Verificação transacional no servidor: todos os requisitos para faturar devem estar cumpridos!
+      // Quando bloqueado, persiste o evento de auditoria de recusa mantendo os dados operacionais intactos.
+      if (!summary.billingEligible) {
+        db.auditEvents.unshift({
+          id: `aud-${crypto.randomUUID().slice(0, 8)}`,
+          organizationId: ctx.organization.id,
+          dealId: deal.id,
+          vehicleId: deal.vehicleId,
+          actorId: ctx.profile.id,
+          actorName: ctx.profile.fullName,
+          actorRole: ctx.roles.join(","),
+          action: "BILLING_ATTEMPT_BLOCKED",
+          entityType: "DEAL",
+          entityId: deal.id,
+          summary: `Tentativa de registrar faturamento bloqueada no servidor devido a ${summary.billingBlockers.length} requisito(s) pendente(s).`,
+          metadata: { blockers: summary.billingBlockers },
+          isCustomerVisible: false,
+          createdAt: new Date().toISOString(),
+        });
+
+        return {
+          ok: false,
+          blockedError: new PreconditionBlockedError(
+            `Faturamento bloqueado: existem ${summary.billingBlockers.length} requisito(s) obrigatório(s) pendente(s) antes da emissão da Nota Fiscal.`,
+            summary.billingBlockers,
+          ),
+        };
+      }
+
+      const nowIso = new Date().toISOString();
+      deal.invoiceNumber = invoiceNumber.trim();
+      deal.billingRegisteredAt = nowIso;
+      deal.billingRegisteredBy = ctx.profile.id;
+      deal.concurrencyVersion += 1;
+      deal.updatedAt = nowIso;
+
+      const billingTask = db.taskInstances.find(
+        (t) => t.dealId === deal.id && t.code === "TASK_BILLING_INVOICE",
+      );
+      if (billingTask) {
+        billingTask.state = "COMPLETED";
+        billingTask.completedAt = nowIso;
+        billingTask.completedBy = ctx.profile.id;
+        billingTask.updatedAt = nowIso;
+      }
+
+      const afterTasks = recalculateTaskStates(
+        db.taskInstances.filter((t) => t.dealId === deal.id),
+        dealDocs,
+        nowIso,
+      );
+      syncRecalculatedTasksToDb(db, afterTasks);
+
+      const afterSummary = computeDealEligibilityAndSummary(
+        deal,
+        afterTasks,
+        dealDocs,
+        false,
+      );
+      syncDealStatusFromSummary(deal, afterSummary, false);
+
       db.auditEvents.unshift({
         id: `aud-${crypto.randomUUID().slice(0, 8)}`,
         organizationId: ctx.organization.id,
@@ -1830,79 +1956,25 @@ export async function registerDealBilling(params: {
         actorId: ctx.profile.id,
         actorName: ctx.profile.fullName,
         actorRole: ctx.roles.join(","),
-        action: "BILLING_ATTEMPT_BLOCKED",
+        action: "BILLING_REGISTERED",
         entityType: "DEAL",
         entityId: deal.id,
-        summary: `Tentativa de registrar faturamento bloqueada no servidor devido a ${summary.billingBlockers.length} requisito(s) pendente(s).`,
-        metadata: { blockers: summary.billingBlockers },
-        isCustomerVisible: false,
-        createdAt: new Date().toISOString(),
+        summary: `Faturamento registrado com sucesso: Nota Fiscal '${deal.invoiceNumber}'.${
+          notes ? ` Obs: ${notes}` : ""
+        }`,
+        metadata: { invoiceNumber: deal.invoiceNumber, notes },
+        isCustomerVisible: true,
+        createdAt: nowIso,
       });
 
-      throw new PreconditionBlockedError(
-        `Faturamento bloqueado: existem ${summary.billingBlockers.length} requisito(s) obrigatório(s) pendente(s) antes da emissão da Nota Fiscal.`,
-        summary.billingBlockers,
-      );
-    }
+      return { ok: true, deal };
+    },
+  );
 
-    const nowIso = new Date().toISOString();
-    deal.invoiceNumber = invoiceNumber.trim();
-    deal.billingRegisteredAt = nowIso;
-    deal.billingRegisteredBy = ctx.profile.id;
-    deal.concurrencyVersion += 1;
-    deal.updatedAt = nowIso;
-
-    const billingTask = db.taskInstances.find(
-      (t) => t.dealId === deal.id && t.code === "TASK_BILLING_INVOICE",
-    );
-    if (billingTask) {
-      billingTask.state = "COMPLETED";
-      billingTask.completedAt = nowIso;
-      billingTask.completedBy = ctx.profile.id;
-      billingTask.updatedAt = nowIso;
-    }
-
-    const afterTasks = recalculateTaskStates(
-      db.taskInstances.filter((t) => t.dealId === deal.id),
-      dealDocs,
-    );
-    for (const ut of afterTasks) {
-      const orig = db.taskInstances.find((o) => o.id === ut.id);
-      if (orig) {
-        orig.state = ut.state;
-        orig.pendingReason = ut.pendingReason;
-      }
-    }
-
-    const afterSummary = computeDealEligibilityAndSummary(
-      deal,
-      afterTasks,
-      dealDocs,
-      false,
-    );
-    syncDealStatusFromSummary(deal, afterSummary, false);
-
-    db.auditEvents.unshift({
-      id: `aud-${crypto.randomUUID().slice(0, 8)}`,
-      organizationId: ctx.organization.id,
-      dealId: deal.id,
-      vehicleId: deal.vehicleId,
-      actorId: ctx.profile.id,
-      actorName: ctx.profile.fullName,
-      actorRole: ctx.roles.join(","),
-      action: "BILLING_REGISTERED",
-      entityType: "DEAL",
-      entityId: deal.id,
-      summary: `Faturamento registrado com sucesso: Nota Fiscal '${deal.invoiceNumber}'.${
-        notes ? ` Obs: ${notes}` : ""
-      }`,
-      metadata: { invoiceNumber: deal.invoiceNumber, notes },
-      isCustomerVisible: true,
-      createdAt: nowIso,
-    });
-
-    return deal;
-  });
+  if (!txResult.ok) {
+    throw txResult.blockedError;
+  }
+  return txResult.deal;
 }
 
 export async function authorizeDealRelease(params: {
@@ -1926,51 +1998,177 @@ export async function authorizeDealRelease(params: {
     "Sua função não possui permissão para autorizar a entrega de veículos.",
   );
 
-  return await withTransaction((db) => {
-    const deal = db.deals.find((d) => d.id === dealId);
-    if (!deal) throw new Error("Negociação não encontrada.");
-    assertOrganizationAccess(ctx, deal.organizationId);
+  const txResult = await withTransaction(
+    (
+      db,
+    ):
+      | { ok: true; releaseAuth: ReleaseAuthorization }
+      | { ok: false; blockedError: PreconditionBlockedError } => {
+      const deal = db.deals.find((d) => d.id === dealId);
+      if (!deal) throw new Error("Negociação não encontrada.");
+      assertDealRecordAccess(ctx, deal);
 
-    if (deal.status === "DELIVERED") {
-      throw new ConcurrencyConflictError(
-        "O veículo desta negociação já foi entregue.",
+      if (deal.status === "DELIVERED") {
+        throw new ConcurrencyConflictError(
+          "O veículo desta negociação já foi entregue.",
+        );
+      }
+      assertDealOpenForOperationalMutation(deal);
+
+      if (
+        expectedConcurrencyVersion !== undefined &&
+        deal.concurrencyVersion !== expectedConcurrencyVersion
+      ) {
+        throw new ConcurrencyConflictError(
+          `Conflito de concorrência detectado: os dados da negociação foram alterados por outro usuário (versão atual: v${deal.concurrencyVersion}, versão esperada: v${expectedConcurrencyVersion}). Atualize a página e revise os dados.`,
+        );
+      }
+
+      const existingActiveAuth = db.releaseAuthorizations.find(
+        (ra) => ra.dealId === deal.id && ra.status === "ACTIVE",
       );
-    }
+      if (existingActiveAuth) {
+        throw new ConcurrencyConflictError(
+          "Já existe uma autorização de entrega ativa para esta negociação.",
+        );
+      }
 
-    if (
-      expectedConcurrencyVersion !== undefined &&
-      deal.concurrencyVersion !== expectedConcurrencyVersion
-    ) {
-      throw new ConcurrencyConflictError(
-        `Conflito de concorrência detectado: os dados da negociação foram alterados por outro usuário (versão atual: v${deal.concurrencyVersion}, versão esperada: v${expectedConcurrencyVersion}). Atualize a página e revise os dados.`,
+      const dealTasks = db.taskInstances.filter((t) => t.dealId === deal.id);
+      const dealDocs = db.documents.filter((d) => d.dealId === deal.id);
+      const recalculated = recalculateTaskStates(dealTasks, dealDocs);
+      const summary = computeDealEligibilityAndSummary(
+        deal,
+        recalculated,
+        dealDocs,
+        false,
       );
-    }
 
-    const existingActiveAuth = db.releaseAuthorizations.find(
-      (ra) => ra.dealId === deal.id && ra.status === "ACTIVE",
-    );
-    if (existingActiveAuth) {
-      throw new ConcurrencyConflictError(
-        "Já existe uma autorização de entrega ativa para esta negociação.",
+      const nowIso = new Date().toISOString();
+
+      // REGRA CRÍTICA: Ao tentar liberar com pendências:
+      // - Bloquear a ação no servidor
+      // - Persistir o evento de auditoria de recusa mantendo os dados operacionais intactos
+      // - Listar todos os requisitos impeditivos, responsáveis e próximos passos
+      if (!summary.deliveryEligible || summary.deliveryBlockers.length > 0) {
+        db.auditEvents.unshift({
+          id: `aud-${crypto.randomUUID().slice(0, 8)}`,
+          organizationId: ctx.organization.id,
+          dealId: deal.id,
+          vehicleId: deal.vehicleId,
+          actorId: ctx.profile.id,
+          actorName: ctx.profile.fullName,
+          actorRole: ctx.roles.join(","),
+          action: "RELEASE_AUTHORIZATION_BLOCKED",
+          entityType: "DEAL",
+          entityId: deal.id,
+          summary: `Tentativa prematura de autorização de entrega bloqueada no servidor: ${summary.deliveryBlockers.length} requisito(s) impeditivo(s) pendente(s).`,
+          metadata: {
+            blockers: summary.deliveryBlockers.map((b) => ({
+              code: b.code,
+              title: b.title,
+              responsibleArea: b.responsibleAreaLabel,
+              reason: b.reason,
+            })),
+          },
+          isCustomerVisible: false,
+          createdAt: nowIso,
+        });
+
+        return {
+          ok: false,
+          blockedError: new PreconditionBlockedError(
+            `Autorização de entrega bloqueada: existem ${summary.deliveryBlockers.length} requisito(s) obrigatório(s) impeditivo(s).`,
+            summary.deliveryBlockers,
+          ),
+        };
+      }
+
+      const roleUsed: RoleCode = ctx.roles.includes("RELEASE_OFFICER")
+        ? "RELEASE_OFFICER"
+        : ctx.roles[0];
+
+      const releaseAuth: ReleaseAuthorization = {
+        id: `rel-auth-${crypto.randomUUID().slice(0, 8)}`,
+        organizationId: ctx.organization.id,
+        dealId: deal.id,
+        authorizedBy: ctx.profile.id,
+        roleUsed,
+        status: "ACTIVE",
+        notes: notes?.trim() || "Todos os requisitos conferidos e autorizados.",
+        analyzedDealVersion: deal.concurrencyVersion,
+        requirementsSnapshot: {
+          completedTaskCodes: recalculated
+            .filter((t) => t.state === "COMPLETED")
+            .map((t) => t.code),
+          approvedDocumentIds: dealDocs.map((d) => ({
+            id: d.id,
+            version: d.currentVersionNumber,
+          })),
+          invoiceNumber: deal.invoiceNumber,
+        },
+        invalidatedAt: null,
+        invalidationReason: null,
+        createdAt: nowIso,
+      };
+
+      db.releaseAuthorizations.push(releaseAuth);
+
+      const authTask = db.taskInstances.find(
+        (t) => t.dealId === deal.id && t.code === "TASK_RELEASE_AUTH",
       );
-    }
+      if (authTask) {
+        authTask.state = "COMPLETED";
+        authTask.approvalStatus = "APPROVED";
+        authTask.completedAt = nowIso;
+        authTask.completedBy = ctx.profile.id;
+        authTask.updatedAt = nowIso;
+      }
 
-    const dealTasks = db.taskInstances.filter((t) => t.dealId === deal.id);
-    const dealDocs = db.documents.filter((d) => d.dealId === deal.id);
-    const recalculated = recalculateTaskStates(dealTasks, dealDocs);
-    const summary = computeDealEligibilityAndSummary(
-      deal,
-      recalculated,
-      dealDocs,
-      false,
-    );
+      const deliveryTask = db.taskInstances.find(
+        (t) => t.dealId === deal.id && t.code === "TASK_CONFIRM_DELIVERY",
+      );
+      if (deliveryTask) {
+        deliveryTask.state = "AVAILABLE";
+        deliveryTask.availableAt = deliveryTask.availableAt ?? nowIso;
+        if (deliveryTask.slaHours && deliveryTask.slaHours > 0) {
+          deliveryTask.dueAt = new Date(
+            new Date(nowIso).getTime() + deliveryTask.slaHours * 60 * 60 * 1000,
+          ).toISOString();
+        }
+        deliveryTask.pendingReason =
+          "Entrega autorizada! Aguardando reconfirmação do chassi/QR Code pela Operação no ato de entrega das chaves.";
+        deliveryTask.updatedAt = nowIso;
+      }
 
-    const nowIso = new Date().toISOString();
+      // Regra: A conclusão dos requisitos e a autorização NÃO registram automaticamente que o carro foi entregue!
+      deal.status = "DELIVERY_AUTHORIZED";
+      deal.currentStage = "DELIVERY";
+      if (confirmedDeliveryWindow) {
+        deal.confirmedDeliveryDate = confirmedDeliveryWindow;
+        deal.confirmedDeliveryBy = ctx.profile.id;
+      } else if (!deal.confirmedDeliveryDate) {
+        deal.confirmedDeliveryDate = nowIso;
+        deal.confirmedDeliveryBy = ctx.profile.id;
+      }
+      deal.concurrencyVersion += 1;
+      deal.updatedAt = nowIso;
 
-    // REGRA CRÍTICA: Ao tentar liberar com pendências:
-    // - Bloquear a ação no servidor
-    // - Listar todos os requisitos impeditivos, responsáveis e próximos passos
-    if (!summary.deliveryEligible || summary.deliveryBlockers.length > 0) {
+      const opsRecipientId = resolveNotificationRecipientForArea(
+        db,
+        ctx.organization.id,
+        "OPERATIONS",
+        "user-operacao",
+      );
+      pushNotificationIfNew(db, {
+        organizationId: ctx.organization.id,
+        recipientProfileId: opsRecipientId,
+        dealId: deal.id,
+        eventType: "DELIVERY_AUTHORIZED",
+        title: `Entrega autorizada em ${deal.dealNumber}`,
+        message: `A autorização formal de liberação foi emitida por ${ctx.profile.fullName}. O veículo está liberado para entrega física mediante reconfirmação do chassi.`,
+        dedupKey: `deliv-auth-${releaseAuth.id}`,
+      });
+
       db.auditEvents.unshift({
         id: `aud-${crypto.randomUUID().slice(0, 8)}`,
         organizationId: ctx.organization.id,
@@ -1978,125 +2176,27 @@ export async function authorizeDealRelease(params: {
         vehicleId: deal.vehicleId,
         actorId: ctx.profile.id,
         actorName: ctx.profile.fullName,
-        actorRole: ctx.roles.join(","),
-        action: "RELEASE_AUTHORIZATION_BLOCKED",
-        entityType: "DEAL",
-        entityId: deal.id,
-        summary: `Tentativa prematura de autorização de entrega bloqueada no servidor: ${summary.deliveryBlockers.length} requisito(s) impeditivo(s) pendente(s).`,
+        actorRole: roleUsed,
+        action: "RELEASE_AUTHORIZED",
+        entityType: "RELEASE_AUTHORIZATION",
+        entityId: releaseAuth.id,
+        summary: `Autorização Formal de Entrega emitida por ${ctx.profile.fullName} (${roleUsed}). Veículo pronto para entrega física.`,
         metadata: {
-          blockers: summary.deliveryBlockers.map((b) => ({
-            code: b.code,
-            title: b.title,
-            responsibleArea: b.responsibleAreaLabel,
-            reason: b.reason,
-          })),
+          authorizationId: releaseAuth.id,
+          analyzedDealVersion: releaseAuth.analyzedDealVersion,
         },
-        isCustomerVisible: false,
+        isCustomerVisible: true,
         createdAt: nowIso,
       });
 
-      throw new PreconditionBlockedError(
-        `Autorização de entrega bloqueada: existem ${summary.deliveryBlockers.length} requisito(s) obrigatório(s) impeditivo(s).`,
-        summary.deliveryBlockers,
-      );
-    }
+      return { ok: true, releaseAuth };
+    },
+  );
 
-    const roleUsed: RoleCode = ctx.roles.includes("RELEASE_OFFICER")
-      ? "RELEASE_OFFICER"
-      : ctx.roles[0];
-
-    const releaseAuth: ReleaseAuthorization = {
-      id: `rel-auth-${crypto.randomUUID().slice(0, 8)}`,
-      organizationId: ctx.organization.id,
-      dealId: deal.id,
-      authorizedBy: ctx.profile.id,
-      roleUsed,
-      status: "ACTIVE",
-      notes: notes?.trim() || "Todos os requisitos conferidos e autorizados.",
-      analyzedDealVersion: deal.concurrencyVersion,
-      requirementsSnapshot: {
-        completedTaskCodes: recalculated
-          .filter((t) => t.state === "COMPLETED")
-          .map((t) => t.code),
-        approvedDocumentIds: dealDocs.map((d) => ({
-          id: d.id,
-          version: d.currentVersionNumber,
-        })),
-        invoiceNumber: deal.invoiceNumber,
-      },
-      invalidatedAt: null,
-      invalidationReason: null,
-      createdAt: nowIso,
-    };
-
-    db.releaseAuthorizations.push(releaseAuth);
-
-    const authTask = db.taskInstances.find(
-      (t) => t.dealId === deal.id && t.code === "TASK_RELEASE_AUTH",
-    );
-    if (authTask) {
-      authTask.state = "COMPLETED";
-      authTask.approvalStatus = "APPROVED";
-      authTask.completedAt = nowIso;
-      authTask.completedBy = ctx.profile.id;
-      authTask.updatedAt = nowIso;
-    }
-
-    const deliveryTask = db.taskInstances.find(
-      (t) => t.dealId === deal.id && t.code === "TASK_CONFIRM_DELIVERY",
-    );
-    if (deliveryTask) {
-      deliveryTask.state = "AVAILABLE";
-      deliveryTask.pendingReason =
-        "Entrega autorizada! Aguardando reconfirmação do chassi/QR Code pela Operação no ato de entrega das chaves.";
-      deliveryTask.updatedAt = nowIso;
-    }
-
-    // Regra: A conclusão dos requisitos e a autorização NÃO registram automaticamente que o carro foi entregue!
-    deal.status = "DELIVERY_AUTHORIZED";
-    deal.currentStage = "DELIVERY";
-    if (confirmedDeliveryWindow) {
-      deal.confirmedDeliveryDate = confirmedDeliveryWindow;
-      deal.confirmedDeliveryBy = ctx.profile.id;
-    } else if (!deal.confirmedDeliveryDate) {
-      deal.confirmedDeliveryDate = nowIso;
-      deal.confirmedDeliveryBy = ctx.profile.id;
-    }
-    deal.concurrencyVersion += 1;
-    deal.updatedAt = nowIso;
-
-    pushNotificationIfNew(db, {
-      organizationId: ctx.organization.id,
-      recipientProfileId: "user-operacao",
-      dealId: deal.id,
-      eventType: "DELIVERY_AUTHORIZED",
-      title: `Entrega autorizada em ${deal.dealNumber}`,
-      message: `A autorização formal de liberação foi emitida por ${ctx.profile.fullName}. O veículo está liberado para entrega física mediante reconfirmação do chassi.`,
-      dedupKey: `deliv-auth-${releaseAuth.id}`,
-    });
-
-    db.auditEvents.unshift({
-      id: `aud-${crypto.randomUUID().slice(0, 8)}`,
-      organizationId: ctx.organization.id,
-      dealId: deal.id,
-      vehicleId: deal.vehicleId,
-      actorId: ctx.profile.id,
-      actorName: ctx.profile.fullName,
-      actorRole: roleUsed,
-      action: "RELEASE_AUTHORIZED",
-      entityType: "RELEASE_AUTHORIZATION",
-      entityId: releaseAuth.id,
-      summary: `Autorização Formal de Entrega emitida por ${ctx.profile.fullName} (${roleUsed}). Veículo pronto para entrega física.`,
-      metadata: {
-        authorizationId: releaseAuth.id,
-        analyzedDealVersion: releaseAuth.analyzedDealVersion,
-      },
-      isCustomerVisible: true,
-      createdAt: nowIso,
-    });
-
-    return releaseAuth;
-  });
+  if (!txResult.ok) {
+    throw txResult.blockedError;
+  }
+  return txResult.releaseAuth;
 }
 
 export async function confirmPhysicalDelivery(params: {
@@ -2122,135 +2222,207 @@ export async function confirmPhysicalDelivery(params: {
     "Sua função não possui permissão para registrar a entrega física do veículo.",
   );
 
-  return await withTransaction((db) => {
-    const deal = db.deals.find((d) => d.id === dealId);
-    if (!deal) throw new Error("Negociação não encontrada.");
-    assertOrganizationAccess(ctx, deal.organizationId);
+  const txResult = await withTransaction(
+    (
+      db,
+    ):
+      | { ok: true; delivery: DeliveryRecord }
+      | { ok: false; blockedError: PreconditionBlockedError } => {
+      const deal = db.deals.find((d) => d.id === dealId);
+      if (!deal) throw new Error("Negociação não encontrada.");
+      assertDealRecordAccess(ctx, deal);
 
-    if (deal.status === "DELIVERED") {
-      throw new ConcurrencyConflictError(
-        "A entrega física deste veículo já foi registrada anteriormente.",
+      if (deal.status === "DELIVERED") {
+        throw new ConcurrencyConflictError(
+          "A entrega física deste veículo já foi registrada anteriormente.",
+        );
+      }
+      assertDealOpenForOperationalMutation(deal);
+
+      // 1. Exigir autorização válida
+      const activeAuth = db.releaseAuthorizations.find(
+        (ra) => ra.dealId === deal.id && ra.status === "ACTIVE",
       );
-    }
+      if (!activeAuth || deal.status !== "DELIVERY_AUTHORIZED") {
+        const nowIso = new Date().toISOString();
+        db.auditEvents.unshift({
+          id: `aud-${crypto.randomUUID().slice(0, 8)}`,
+          organizationId: ctx.organization.id,
+          dealId: deal.id,
+          vehicleId: deal.vehicleId,
+          actorId: ctx.profile.id,
+          actorName: ctx.profile.fullName,
+          actorRole: ctx.roles.join(","),
+          action: "DELIVERY_ATTEMPT_BLOCKED",
+          entityType: "DEAL",
+          entityId: deal.id,
+          summary:
+            "Tentativa de entrega física bloqueada: não há Autorização Formal de Liberação válida e ativa para esta negociação.",
+          metadata: {
+            reason: "UNAUTHORIZED_OR_INACTIVE",
+            dealStatus: deal.status,
+          },
+          isCustomerVisible: false,
+          createdAt: nowIso,
+        });
+        return {
+          ok: false,
+          blockedError: new PreconditionBlockedError(
+            "Entrega bloqueada: não há Autorização Formal de Liberação válida e ativa para esta negociação.",
+            [
+              {
+                id: "block-auth-active",
+                scope: "DELIVERY",
+                sourceType: "AUTHORIZATION",
+                code: "NO_ACTIVE_AUTHORIZATION",
+                title: "Autorização de Liberação",
+                reason: "Não há Autorização Formal de Liberação ativa para esta negociação.",
+                responsibleArea: "RELEASE",
+                responsibleAreaLabel: "Liberação",
+                actionRequired: "Conceder a Autorização Formal de Liberação antes da entrega física.",
+              },
+            ],
+          ),
+        };
+      }
 
-    // 1. Exigir autorização válida
-    const activeAuth = db.releaseAuthorizations.find(
-      (ra) => ra.dealId === deal.id && ra.status === "ACTIVE",
-    );
-    if (!activeAuth || deal.status !== "DELIVERY_AUTHORIZED") {
-      throw new Error(
-        "Entrega bloqueada: não há Autorização Formal de Liberação válida e ativa para esta negociação.",
+      // 2. Reconfirmar a identificação do veículo (Chassi, Código Interno ou QR Token)
+      const vehicle = db.vehicles.find((v) => v.id === deal.vehicleId);
+      if (!vehicle) throw new Error("Veículo não encontrado.");
+
+      const cleanIdent = (confirmedVehicleIdentifier || "").trim().toUpperCase();
+      const matchesVin = vehicle.vin.toUpperCase() === cleanIdent;
+      const matchesCode = vehicle.internalCode.toUpperCase() === cleanIdent;
+      const matchesQr = vehicle.qrToken.toUpperCase() === cleanIdent;
+
+      if (!matchesVin && !matchesCode && !matchesQr) {
+        throw new Error(
+          `Falha na reconfirmação física do veículo: o identificador informado ('${confirmedVehicleIdentifier}') não corresponde ao chassi (${vehicle.vin}) nem ao código interno (${vehicle.internalCode}) do veículo autorizado.`,
+        );
+      }
+
+      // 3. Revalidar os requisitos no momento da entrega
+      const dealTasks = db.taskInstances.filter((t) => t.dealId === deal.id);
+      const dealDocs = db.documents.filter((d) => d.dealId === deal.id);
+      const recalculated = recalculateTaskStates(dealTasks, dealDocs);
+      const summary = computeDealEligibilityAndSummary(
+        deal,
+        recalculated,
+        dealDocs,
+        true,
       );
-    }
 
-    // 2. Reconfirmar a identificação do veículo (Chassi, Código Interno ou QR Token)
-    const vehicle = db.vehicles.find((v) => v.id === deal.vehicleId);
-    if (!vehicle) throw new Error("Veículo não encontrado.");
+      if (!summary.deliveryEligible) {
+        const nowIso = new Date().toISOString();
+        activeAuth.status = "INVALIDATED";
+        activeAuth.invalidatedAt = nowIso;
+        activeAuth.invalidationReason =
+          "Requisitos deixaram de ser atendidos na revalidação pré-entrega.";
+        deal.status = "ACTIVE";
+        db.auditEvents.unshift({
+          id: `aud-${crypto.randomUUID().slice(0, 8)}`,
+          organizationId: ctx.organization.id,
+          dealId: deal.id,
+          vehicleId: deal.vehicleId,
+          actorId: ctx.profile.id,
+          actorName: ctx.profile.fullName,
+          actorRole: ctx.roles.join(","),
+          action: "DELIVERY_ATTEMPT_BLOCKED",
+          entityType: "DEAL",
+          entityId: deal.id,
+          summary:
+            "Tentativa de entrega física bloqueada: requisitos deixaram de ser atendidos na revalidação final.",
+          metadata: { blockers: summary.deliveryBlockers },
+          isCustomerVisible: false,
+          createdAt: nowIso,
+        });
+        return {
+          ok: false,
+          blockedError: new PreconditionBlockedError(
+            "A autorização foi invalidada porque um ou mais requisitos deixaram de estar válidos na revalidação final.",
+            summary.deliveryBlockers,
+          ),
+        };
+      }
 
-    const cleanIdent = (confirmedVehicleIdentifier || "").trim().toUpperCase();
-    const matchesVin = vehicle.vin.toUpperCase() === cleanIdent;
-    const matchesCode = vehicle.internalCode.toUpperCase() === cleanIdent;
-    const matchesQr = vehicle.qrToken.toUpperCase() === cleanIdent;
+      if (!recipientName.trim() || !recipientDocument.trim()) {
+        throw new Error(
+          "Informe o nome completo e o documento de quem está recebendo as chaves.",
+        );
+      }
 
-    if (!matchesVin && !matchesCode && !matchesQr) {
-      throw new Error(
-        `Falha na reconfirmação física do veículo: o identificador informado ('${confirmedVehicleIdentifier}') não corresponde ao chassi (${vehicle.vin}) nem ao código interno (${vehicle.internalCode}) do veículo autorizado.`,
+      const nowIso = new Date().toISOString();
+      activeAuth.status = "CONSUMED_BY_DELIVERY";
+
+      const deliveryTask = db.taskInstances.find(
+        (t) => t.dealId === deal.id && t.code === "TASK_CONFIRM_DELIVERY",
       );
-    }
+      if (deliveryTask) {
+        deliveryTask.state = "COMPLETED";
+        deliveryTask.completedAt = nowIso;
+        deliveryTask.completedBy = ctx.profile.id;
+        deliveryTask.pendingReason = null;
+        deliveryTask.updatedAt = nowIso;
+      }
 
-    // 3. Revalidar os requisitos no momento da entrega
-    const dealTasks = db.taskInstances.filter((t) => t.dealId === deal.id);
-    const dealDocs = db.documents.filter((d) => d.dealId === deal.id);
-    const recalculated = recalculateTaskStates(dealTasks, dealDocs);
-    const summary = computeDealEligibilityAndSummary(
-      deal,
-      recalculated,
-      dealDocs,
-      true,
-    );
+      deal.status = "DELIVERED";
+      deal.currentStage = "DELIVERY";
+      deal.concurrencyVersion += 1;
+      deal.updatedAt = nowIso;
 
-    if (!summary.deliveryEligible) {
-      activeAuth.status = "INVALIDATED";
-      activeAuth.invalidatedAt = new Date().toISOString();
-      activeAuth.invalidationReason =
-        "Requisitos deixaram de ser atendidos na revalidação pré-entrega.";
-      deal.status = "ACTIVE";
-      throw new PreconditionBlockedError(
-        "A autorização foi invalidada porque um ou mais requisitos deixaram de estar válidos na revalidação final.",
-        summary.deliveryBlockers,
-      );
-    }
+      vehicle.stockStatus = "SOLD_DELIVERED";
+      vehicle.updatedAt = nowIso;
 
-    if (!recipientName.trim() || !recipientDocument.trim()) {
-      throw new Error(
-        "Informe o nome completo e o documento de quem está recebendo as chaves.",
-      );
-    }
-
-    const nowIso = new Date().toISOString();
-    activeAuth.status = "CONSUMED_BY_DELIVERY";
-
-    const deliveryTask = db.taskInstances.find(
-      (t) => t.dealId === deal.id && t.code === "TASK_CONFIRM_DELIVERY",
-    );
-    if (deliveryTask) {
-      deliveryTask.state = "COMPLETED";
-      deliveryTask.completedAt = nowIso;
-      deliveryTask.completedBy = ctx.profile.id;
-      deliveryTask.pendingReason = null;
-      deliveryTask.updatedAt = nowIso;
-    }
-
-    deal.status = "DELIVERED";
-    deal.currentStage = "DELIVERY";
-    deal.concurrencyVersion += 1;
-    deal.updatedAt = nowIso;
-
-    vehicle.stockStatus = "SOLD_DELIVERED";
-    vehicle.updatedAt = nowIso;
-
-    const delivery: DeliveryRecord = {
-      id: `deliv-${crypto.randomUUID().slice(0, 8)}`,
-      organizationId: ctx.organization.id,
-      dealId: deal.id,
-      vehicleId: vehicle.id,
-      releaseAuthorizationId: activeAuth.id,
-      confirmedBy: ctx.profile.id,
-      roleUsed: ctx.roles.includes("OPERATIONS") ? "OPERATIONS" : ctx.roles[0],
-      confirmedVin: vehicle.vin,
-      confirmedInternalCode: vehicle.internalCode,
-      recipientName: recipientName.trim(),
-      recipientDocument: recipientDocument.trim(),
-      deliveryNotes: deliveryNotes?.trim() || null,
-      deliveredAt: nowIso,
-      addendums: [],
-    };
-
-    db.deliveries.push(delivery);
-
-    db.auditEvents.unshift({
-      id: `aud-${crypto.randomUUID().slice(0, 8)}`,
-      organizationId: ctx.organization.id,
-      dealId: deal.id,
-      vehicleId: vehicle.id,
-      actorId: ctx.profile.id,
-      actorName: ctx.profile.fullName,
-      actorRole: delivery.roleUsed,
-      action: "DELIVERY_CONFIRMED",
-      entityType: "DELIVERY",
-      entityId: delivery.id,
-      summary: `Entrega física das chaves realizada e confirmada por ${ctx.profile.fullName}. Veículo ${vehicle.internalCode} (Chassi ${vehicle.vin}) entregue a ${delivery.recipientName} (${delivery.recipientDocument}).`,
-      metadata: {
+      const delivery: DeliveryRecord = {
+        id: `deliv-${crypto.randomUUID().slice(0, 8)}`,
+        organizationId: ctx.organization.id,
+        dealId: deal.id,
+        vehicleId: vehicle.id,
         releaseAuthorizationId: activeAuth.id,
+        confirmedBy: ctx.profile.id,
+        roleUsed: ctx.roles.includes("OPERATIONS")
+          ? "OPERATIONS"
+          : ctx.roles[0],
         confirmedVin: vehicle.vin,
-        recipientName: delivery.recipientName,
-      },
-      isCustomerVisible: true,
-      createdAt: nowIso,
-    });
+        confirmedInternalCode: vehicle.internalCode,
+        recipientName: recipientName.trim(),
+        recipientDocument: recipientDocument.trim(),
+        deliveryNotes: deliveryNotes?.trim() || null,
+        deliveredAt: nowIso,
+        addendums: [],
+      };
 
-    return delivery;
-  });
+      db.deliveries.push(delivery);
+
+      db.auditEvents.unshift({
+        id: `aud-${crypto.randomUUID().slice(0, 8)}`,
+        organizationId: ctx.organization.id,
+        dealId: deal.id,
+        vehicleId: vehicle.id,
+        actorId: ctx.profile.id,
+        actorName: ctx.profile.fullName,
+        actorRole: delivery.roleUsed,
+        action: "DELIVERY_CONFIRMED",
+        entityType: "DELIVERY",
+        entityId: delivery.id,
+        summary: `Entrega física das chaves realizada e confirmada por ${ctx.profile.fullName}. Veículo ${vehicle.internalCode} (Chassi ${vehicle.vin}) entregue a ${delivery.recipientName} (${delivery.recipientDocument}).`,
+        metadata: {
+          releaseAuthorizationId: activeAuth.id,
+          confirmedVin: vehicle.vin,
+          recipientName: delivery.recipientName,
+        },
+        isCustomerVisible: true,
+        createdAt: nowIso,
+      });
+
+      return { ok: true, delivery };
+    },
+  );
+
+  if (!txResult.ok) {
+    throw txResult.blockedError;
+  }
+  return txResult.delivery;
 }
 
 export async function registerPostDeliveryAddendum(params: {
@@ -2268,7 +2440,7 @@ export async function registerPostDeliveryAddendum(params: {
   return await withTransaction((db) => {
     const deal = db.deals.find((d) => d.id === dealId);
     if (!deal) throw new Error("Negociação não encontrada.");
-    assertOrganizationAccess(ctx, deal.organizationId);
+    assertDealRecordAccess(ctx, deal);
 
     const delivery = db.deliveries.find((d) => d.dealId === deal.id);
     if (!delivery) {

@@ -110,7 +110,7 @@ export function createOrganizationWorkflow(
       slaHours: 12,
       applicabilityConditions: [],
       dependsOnTaskCodes: ["TASK_VEHICLE_IDENTIFICATION"],
-      requiredEvidenceTypes: ["DOC_BUYER_ID"],
+      requiredEvidenceTypes: ["DOC_BUYER_ID", "DOC_BUYER_ADDRESS"],
       requiresFormalApproval: false,
       approvalRole: null,
       blocksBilling: true,
@@ -389,13 +389,30 @@ export function createOrganizationWorkflow(
       organizationId: orgId,
       workflowVersionId: versionId,
       code: "DOC_BUYER_ID",
-      title:
-        "Documento de Identificação e Comprovante de Endereço do Comprador",
+      title: "Documento de Identificação do Comprador (CNH, RG ou Contrato Social)",
       category: "IDENTIFICATION",
       description:
-        "CNH/RG (PF) ou Contrato Social + Cartão CNPJ (PJ) e comprovante de residência.",
+        "CNH ou RG válido (Pessoa Física) ou Contrato Social + Cartão CNPJ (Pessoa Jurídica).",
       whyRequired:
-        "Exigência cadastral e fiscal obrigatória para emissão da Nota Fiscal.",
+        "Exigência cadastral e fiscal obrigatória para identificação do titular na Nota Fiscal.",
+      responsibleArea: "DOCUMENTATION",
+      linkedTaskCode: "TASK_BUYER_DOCS",
+      applicabilityConditions: [],
+      blocksBilling: true,
+      blocksDelivery: true,
+      isCustomerVisible: true,
+    },
+    {
+      id: "doc-req-01b",
+      organizationId: orgId,
+      workflowVersionId: versionId,
+      code: "DOC_BUYER_ADDRESS",
+      title: "Comprovante de Endereço Atualizado do Comprador",
+      category: "IDENTIFICATION",
+      description:
+        "Comprovante de residência ou sede atualizado (emitido nos últimos 90 dias).",
+      whyRequired:
+        "Obrigatório para validação do endereço fiscal na emissão da Nota Fiscal e emplacamento.",
       responsibleArea: "DOCUMENTATION",
       linkedTaskCode: "TASK_BUYER_DOCS",
       applicabilityConditions: [],

@@ -1,4 +1,7 @@
-import { AuthorizationError } from "@/domain/permissions";
+import {
+  assertDealRecordAccess,
+  AuthorizationError,
+} from "@/domain/permissions";
 import {
   AuthenticatedContext,
   DEAL_STATUS_LABELS,
@@ -249,17 +252,22 @@ export async function getCustomerSafeDealView(params: {
         d.status === "CORRECTION_REQUESTED",
       customerSafeFeedback:
         d.status === "REJECTED" || d.status === "CORRECTION_REQUESTED"
-          ? "Por favor, envie uma nova versão legível deste documento ou contate seu vendedor."
+          ? d.customerRejectionGuidance?.trim() ||
+            "Por favor, envie uma nova versão legível deste documento ou contate seu vendedor."
           : null,
     }));
 
-  // Filtra somente atualizações explicitamente compartilháveis (isCustomerVisible === true)
+  // Filtra somente atualizações explicitamente compartilháveis (isCustomerVisible === true) e limpa códigos técnicos
   const customerUpdates = db.auditEvents
     .filter((ev) => ev.dealId === deal.id && ev.isCustomerVisible)
     .slice(0, 15)
     .map((ev) => ({
       id: ev.id,
-      summary: ev.summary,
+      summary: ev.summary
+        .replace(/\b(TASK|DOC)_[A-Z0-9_]+\b/g, "")
+        .replace(/\(\s*\)/g, "")
+        .replace(/\s{2,}/g, " ")
+        .trim(),
       createdAt: ev.createdAt,
     }));
 
@@ -316,6 +324,10 @@ export async function revokeCustomerAccessGrant(params: {
       403,
     );
   return await withTransaction((db) => {
+    const deal = db.deals.find((d) => d.id === dealId);
+    if (deal) {
+      assertDealRecordAccess(ctx, deal);
+    }
     const nowIso = new Date().toISOString();
     for (const g of db.customerAccessGrants.filter(
       (gr) =>

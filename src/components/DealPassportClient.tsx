@@ -1,8 +1,8 @@
 "use client";
-import { CustomerAccessButton } from "./CustomerAccessButton";
 
 import type { DealPassportView } from "@/application/deal-service";
 import type { AssistantResponse } from "@/domain/contextual-assistant";
+import { AREA_COMPATIBLE_ROLES } from "@/domain/permissions";
 import {
   AREA_LABELS,
   PermissionCode,
@@ -19,48 +19,149 @@ import {
   AlertTriangle,
   ArrowLeft,
   BookOpen,
-  Bot,
   CheckCircle2,
+  ChevronRight,
   ClipboardCheck,
   Clock,
   ExternalLink,
   FileCheck2,
   FileText,
+  HelpCircle,
   History,
   KeyRound,
-  Lock,
-  MessageSquare,
   Plus,
   Send,
-  ShieldAlert,
   ShieldCheck,
   Sparkles,
   Upload,
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useMemo, useState } from "react";
+import { CustomerAccessButton } from "./CustomerAccessButton";
 import {
   DealStatusBadge,
   DocumentStatusBadge,
   TaskStateBadge,
 } from "./StatusBadge";
 
+type PassportTab = "TASKS" | "DOCUMENTS" | "SALE_DATA" | "HISTORY";
+type TaskFilter = "EXECUTABLE" | "FUTURE" | "COMPLETED" | "WAIVED" | "ALL";
+
+const DOCUMENT_CATEGORY_LABELS: Record<string, string> = {
+  IDENTIFICATION: "Identificação e Endereço",
+  FINANCIAL: "Financeiro",
+  TRADE_IN: "Usado na Troca",
+  REPRESENTATION: "Procuração / Representação",
+  BILLING: "Faturamento",
+  DELIVERY: "Entrega",
+  COMPLEMENTARY: "Complementar",
+};
+
+const EVIDENCE_TYPE_LABELS: Record<string, string> = {
+  DOCUMENT: "Documento aprovado",
+  FORMAL_APPROVAL: "Aprovação formal registrada",
+  INVOICE_NUMBER: "Número da Nota Fiscal",
+  VIN_CONFIRMATION: "Reconfirmação do chassi ou código interno",
+  SYSTEM_RECORD: "Registro operacional no sistema",
+};
+
+const AUDIT_ACTION_LABELS: Record<string, string> = {
+  DEAL_CREATED_OR_UPDATED: "Abertura ou atualização da negociação",
+  TASK_STATE_CHANGED: "Atualização de atividade",
+  TASK_ASSIGNED: "Atribuição de responsável",
+  DOCUMENT_UPLOADED: "Envio de documento",
+  APPROVED_DOCUMENT_REPLACED: "Substituição de documento aprovado",
+  DOCUMENT_REVIEWED: "Conferência de documento",
+  ADDITIONAL_DOCUMENT_REQUESTED: "Solicitação de documento adicional",
+  FORMAL_APPROVAL_RECORDED: "Decisão de aprovação formal",
+  BILLING_REGISTERED: "Faturamento registrado",
+  BILLING_ATTEMPT_BLOCKED: "Tentativa de faturamento bloqueada",
+  RELEASE_AUTHORIZED: "Autorização de liberação emitida",
+  RELEASE_AUTHORIZATION_BLOCKED: "Tentativa de autorização bloqueada",
+  DELIVERY_CONFIRMED: "Entrega física confirmada",
+  DELIVERY_ATTEMPT_BLOCKED: "Tentativa de entrega bloqueada",
+  POST_DELIVERY_ADDENDUM: "Adendo pós-entrega registrado",
+  CUSTOMER_ACCESS_GENERATED: "Acesso do cliente gerado",
+  CUSTOMER_ACCESS_REVOKED: "Acesso do cliente revogado",
+  CUSTOMER_DOCUMENT_UPLOADED: "Documento enviado pelo portal do cliente",
+};
+
+function formatHumanRuleDescription(desc?: string) {
+  if (!desc) return "";
+  return desc
+    .replace(/paymentMethod\s*!==?\s*'FINANCING'/g, "Pagamento sem financiamento")
+    .replace(/hasFinancing\s*===\s*false/g, "Negociação sem financiamento bancário")
+    .replace(/hasTradeIn\s*===\s*false/g, "Negociação sem veículo usado na troca")
+    .replace(/hasPowerOfAttorney\s*===\s*false/g, "Negociação sem uso de procuração")
+    .replace(/buyerType\s*===\s*'PF'/g, "Comprador Pessoa Física")
+    .replace(/buyerType\s*===\s*'PJ'/g, "Comprador Pessoa Jurídica");
+}
+
 export function DealPassportClient({
   passport,
   userRoles,
   userPermissions,
   internalStaffList,
+  initialTab = "TASKS",
+  initialTaskCode,
+  initialDocId,
+  backHref = "/app/negociacoes",
 }: {
   passport: DealPassportView;
   userRoles: RoleCode[];
   userPermissions: PermissionCode[];
   internalStaffList: Array<{ id: string; fullName: string; roles: RoleCode[] }>;
+  initialTab?: PassportTab;
+  initialTaskCode?: string;
+  initialDocId?: string;
+  backHref?: string;
 }) {
   const router = useRouter();
-  const [activeTab, setActiveTab] = useState<
-    "TASKS" | "DOCUMENTS" | "RELEASE" | "HISTORY" | "ASSISTANT"
-  >("TASKS");
+  const {
+    deal,
+    vehicle,
+    tradeInVehicle,
+    customer,
+    seller,
+    summary,
+    userNextAction,
+  } = passport;
+
+  const taskTitleByCode = useMemo(() => {
+    const map: Record<string, string> = {};
+    for (const t of passport.tasks) {
+      map[t.code] = t.title;
+    }
+    return map;
+  }, [passport.tasks]);
+
+  // Se initialTaskCode apontar para uma tarefa que não está em EXECUTABLE, ajusta o filtro inicial
+  const initialTaskFilter = useMemo<TaskFilter>(() => {
+    if (initialTaskCode) {
+      const target = passport.tasks.find((t) => t.code === initialTaskCode);
+      if (target) {
+        if (target.state === "WAITING_PREREQUISITE") return "FUTURE";
+        if (target.state === "COMPLETED") return "COMPLETED";
+        if (target.state === "WAIVED_BY_RULE") return "WAIVED";
+      }
+    }
+    const hasExecutable = passport.tasks.some((t) =>
+      ["AVAILABLE", "IN_PROGRESS", "IN_REVIEW", "WAITING_INFO", "BLOCKED"].includes(
+        t.state,
+      ),
+    );
+    return hasExecutable ? "EXECUTABLE" : "ALL";
+  }, [initialTaskCode, passport.tasks]);
+
+  const [activeTab, setActiveTab] = useState<PassportTab>(initialTab);
+  const [taskFilter, setTaskFilter] = useState<TaskFilter>(initialTaskFilter);
+  const [highlightedTaskCode, setHighlightedTaskCode] = useState<string | null>(
+    initialTaskCode || null,
+  );
+  const [highlightedDocId, setHighlightedDocId] = useState<string | null>(
+    initialDocId || null,
+  );
 
   const [actionLoading, setActionLoading] = useState(false);
   const [feedbackBanner, setFeedbackBanner] = useState<{
@@ -76,9 +177,11 @@ export function DealPassportClient({
   const [replacementReason, setReplacementReason] = useState("");
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
 
-  // Estado para Revisão de Documento
+  // Estado para Revisão de Documento (Orientação pública vs Observação interna)
   const [reviewingDocId, setReviewingDocId] = useState<string | null>(null);
-  const [reviewJustification, setReviewJustification] = useState("");
+  const [customerRejectionGuidance, setCustomerRejectionGuidance] =
+    useState("");
+  const [internalReviewNotes, setInternalReviewNotes] = useState("");
 
   // Estado para Solicitar Novo Documento
   const [showRequestDocModal, setShowRequestDocModal] = useState(false);
@@ -112,7 +215,7 @@ export function DealPassportClient({
   const [deliveryNotes, setDeliveryNotes] = useState("");
   const [addendumNote, setAddendumNote] = useState("");
 
-  // Estado do Assistente Contextual
+  // Estado da Orientação Contextual discreta
   const [assistantQuestion, setAssistantQuestion] = useState("");
   const [assistantReply, setAssistantReply] =
     useState<AssistantResponse | null>(null);
@@ -120,6 +223,55 @@ export function DealPassportClient({
 
   const hasPerm = (perm: PermissionCode) =>
     userRoles.includes("ADMIN") || userPermissions.includes(perm);
+
+  const canReviewDoc = (docArea: ResponsibleArea) => {
+    if (userRoles.includes("ADMIN")) return true;
+    if (docArea === "FINANCE") {
+      return (
+        userRoles.includes("FINANCE") ||
+        userRoles.includes("MANAGER") ||
+        userPermissions.includes("approval:finance")
+      );
+    }
+    return userPermissions.includes("document:review");
+  };
+
+  function navigateToBlockerItem(blocker: DealBlocker) {
+    if (blocker.sourceType === "DOCUMENT") {
+      const docId = blocker.id.replace(/^blocker-doc-/, "");
+      setActiveTab("DOCUMENTS");
+      setHighlightedDocId(docId);
+      return;
+    }
+    if (blocker.sourceType === "AUTHORIZATION") {
+      setActiveTab("SALE_DATA");
+      return;
+    }
+    // Tarefa ou aprovação vinculada a tarefa
+    const code = blocker.id
+      .replace(/^blocker-task-/, "")
+      .replace(/^blocker-approval-/, "");
+    if (
+      code === "TASK_BILLING_INVOICE" ||
+      code === "TASK_RELEASE_AUTH" ||
+      code === "TASK_CONFIRM_DELIVERY"
+    ) {
+      setActiveTab("SALE_DATA");
+      return;
+    }
+    const targetTask = passport.tasks.find((t) => t.code === code);
+    if (targetTask) {
+      if (targetTask.state === "WAITING_PREREQUISITE") {
+        setTaskFilter("FUTURE");
+      } else if (targetTask.state === "COMPLETED") {
+        setTaskFilter("COMPLETED");
+      } else {
+        setTaskFilter("EXECUTABLE");
+      }
+      setHighlightedTaskCode(code);
+      setActiveTab("TASKS");
+    }
+  }
 
   async function callDealApi(
     payload: Record<string, unknown>,
@@ -137,8 +289,8 @@ export function DealPassportClient({
       if (!res.ok || !data.ok) {
         setFeedbackBanner({
           type: "ERROR",
-          title: "Operação bloqueada ou não concluída",
-          message: data.error || "Não foi possível realizar a ação.",
+          title: "Não foi possível concluir a ação",
+          message: data.error || "Verifique os dados informados e tente novamente.",
           blockers: data.blockers,
         });
         router.refresh();
@@ -146,7 +298,7 @@ export function DealPassportClient({
       }
       setFeedbackBanner({
         type: "SUCCESS",
-        title: "Operação registrada com sucesso",
+        title: "Ação registrada",
         message: successMsg,
       });
       router.refresh();
@@ -161,8 +313,6 @@ export function DealPassportClient({
     setFeedbackBanner(null);
     setActionLoading(true);
     try {
-      if (selectedFile.size > 4 * 1024 * 1024)
-        throw new Error("O arquivo deve ter até 4 MB.");
       const formData = new FormData();
       formData.append("dealId", passport.deal.id);
       formData.append("documentId", docId);
@@ -178,8 +328,10 @@ export function DealPassportClient({
       if (!res.ok || !data.ok) {
         setFeedbackBanner({
           type: "ERROR",
-          title: "Falha no envio do arquivo",
-          message: data.error || "Erro ao validar o arquivo no servidor.",
+          title: "Arquivo recusado na validação",
+          message:
+            data.error ||
+            "Não foi possível validar o arquivo enviado. Confira o formato e o tamanho.",
         });
         return;
       }
@@ -189,11 +341,11 @@ export function DealPassportClient({
       setReplacementReason("");
       setFeedbackBanner({
         type: "SUCCESS",
-        title: "Arquivo armazenado em área privada",
+        title: "Documento enviado",
         message:
           data.invalidatedApprovalsCount > 0
-            ? `Nova versão v${data.version.versionNumber} registrada! Como o documento estava aprovado, ${data.invalidatedApprovalsCount} aprovação(ões) dependente(s) foram marcadas como desatualizadas e ${data.reopenedTasksCount} verificação(ões) reaberta(s).`
-            : `Versão v${data.version.versionNumber} enviada com sucesso e encaminhada para conferência.`,
+            ? `Versão v${data.version.versionNumber} registrada. Como o documento anterior já estava aprovado, ${data.invalidatedApprovalsCount} aprovação(ões) dependente(s) foram reabertas para nova conferência.`
+            : `Versão v${data.version.versionNumber} enviada e disponibilizada para conferência.`,
       });
       router.refresh();
     } catch (error) {
@@ -203,7 +355,7 @@ export function DealPassportClient({
         message:
           error instanceof Error
             ? error.message
-            : "Falha de conexão. Tente novamente.",
+            : "Falha de conexão ao enviar o arquivo.",
       });
     } finally {
       setActionLoading(false);
@@ -213,7 +365,6 @@ export function DealPassportClient({
   async function askAssistant(q: string) {
     if (!q.trim()) return;
     setAssistantLoading(true);
-    setActiveTab("ASSISTANT");
     try {
       const res = await fetch("/api/deals", {
         method: "POST",
@@ -233,84 +384,193 @@ export function DealPassportClient({
     }
   }
 
-  const {
-    deal,
-    vehicle,
-    tradeInVehicle,
-    customer,
-    seller,
-    summary,
-    userNextAction,
-  } = passport;
+  // Separa os impedimentos atuais (executáveis agora) das etapas futuras (aguardando etapa anterior)
+  const { currentBlockers, futureStageBlockers } = useMemo(() => {
+    const current: DealBlocker[] = [];
+    const future: DealBlocker[] = [];
+
+    for (const b of summary.deliveryBlockers) {
+      if (b.sourceType === "TASK") {
+        const code = b.id.replace(/^blocker-task-/, "");
+        const task = passport.tasks.find((t) => t.code === code);
+        if (task && task.state === "WAITING_PREREQUISITE") {
+          future.push(b);
+          continue;
+        }
+      }
+      if (b.sourceType === "AUTHORIZATION" && !summary.deliveryEligible) {
+        future.push(b);
+        continue;
+      }
+      current.push(b);
+    }
+    return { currentBlockers: current, futureStageBlockers: future };
+  }, [summary.deliveryBlockers, summary.deliveryEligible, passport.tasks]);
+
+  // Tarefas por filtro
+  const taskCounts = useMemo(() => {
+    const executable = passport.tasks.filter((t) =>
+      ["AVAILABLE", "IN_PROGRESS", "IN_REVIEW", "WAITING_INFO"].includes(
+        t.state,
+      ),
+    ).length;
+    const future = passport.tasks.filter(
+      (t) => t.state === "WAITING_PREREQUISITE",
+    ).length;
+    const completed = passport.tasks.filter(
+      (t) => t.state === "COMPLETED",
+    ).length;
+    const waived = passport.tasks.filter(
+      (t) => t.state === "WAIVED_BY_RULE",
+    ).length;
+    return {
+      executable,
+      future,
+      completed,
+      waived,
+      all: passport.tasks.length,
+    };
+  }, [passport.tasks]);
+
+  const filteredTasks = useMemo(() => {
+    return passport.tasks.filter((t) => {
+      if (taskFilter === "EXECUTABLE") {
+        return [
+          "AVAILABLE",
+          "IN_PROGRESS",
+          "IN_REVIEW",
+          "WAITING_INFO",
+          "BLOCKED",
+        ].includes(t.state);
+      }
+      if (taskFilter === "FUTURE") return t.state === "WAITING_PREREQUISITE";
+      if (taskFilter === "COMPLETED") return t.state === "COMPLETED";
+      if (taskFilter === "WAIVED") return t.state === "WAIVED_BY_RULE";
+      return true;
+    });
+  }, [passport.tasks, taskFilter]);
 
   return (
-    <div className="space-y-6">
-      {/* Cabeçalho da Página do Passaporte Digital */}
-      <div className="bg-white rounded-2xl border border-slate-200 p-5 sm:p-6 shadow-xs flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-        <div className="space-y-1">
+    <div className="space-y-5">
+      {/* A. RESUMO COMPACTO */}
+      <section className="bg-white rounded-2xl border border-slate-200 p-4 sm:p-5 shadow-xs space-y-4">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-3">
           <div className="flex flex-wrap items-center gap-2.5">
             <Link
-              href="/app/negociacoes"
-              className="inline-flex items-center gap-1.5 rounded-lg bg-[#F4F7FA] hover:bg-[#EAF3FC] px-2.5 py-1 text-xs font-bold text-[#0B3B70] transition"
+              href={backHref}
+              className="inline-flex items-center gap-1.5 rounded-lg bg-[#F4F7FA] hover:bg-[#EAF3FC] px-2.5 py-1.5 text-xs font-bold text-[#0B3B70] transition"
             >
               <ArrowLeft className="h-3.5 w-3.5" />
-              <span>Negociações</span>
+              <span>Voltar</span>
             </Link>
             <span className="rounded-lg bg-[#0B3B70] px-2.5 py-1 font-mono text-xs font-extrabold text-white">
               {deal.dealNumber}
             </span>
             <DealStatusBadge status={deal.status} />
-            <span className="rounded-lg bg-slate-100 border border-slate-200 px-2.5 py-1 text-[11px] font-semibold text-slate-600">
-              Fluxo v{passport.workflowVersion.versionNumber}
+            <span className="text-xs text-slate-500 hidden sm:inline">
+              Atualizado em {formatDateTimeBr(deal.updatedAt)}
             </span>
           </div>
-          <h1 className="text-xl sm:text-2xl font-extrabold text-[#172B3A] pt-1">
-            Passaporte Digital da Negociação
-          </h1>
-          <p className="text-xs text-slate-500">
-            Última atualização registrada em{" "}
-            <strong className="text-[#172B3A]">
-              {formatDateTimeBr(deal.updatedAt)}
-            </strong>
-          </p>
-        </div>
 
-        <div className="flex flex-wrap items-center gap-2">
-          {(userRoles.includes("ADMIN") ||
-            userRoles.includes("MANAGER") ||
-            userRoles.includes("SELLER")) &&
-            deal.status !== "DRAFT" && (
-              <CustomerAccessButton dealId={deal.id} compact />
+          <div className="flex flex-wrap items-center gap-2">
+            {(userRoles.includes("ADMIN") ||
+              userRoles.includes("MANAGER") ||
+              userRoles.includes("SELLER")) &&
+              deal.status !== "DRAFT" && (
+                <CustomerAccessButton
+                  dealId={deal.id}
+                  compact
+                  isAccountActive={Boolean(customer.profileId)}
+                />
+              )}
+            {passport.customerAccessToken && (
+              <Link
+                href={`/cliente?token=${encodeURIComponent(
+                  passport.customerAccessToken,
+                )}`}
+                className="inline-flex items-center gap-1.5 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 px-3 py-1.5 text-xs font-bold text-[#172B3A] transition"
+              >
+                <ExternalLink className="h-3.5 w-3.5 text-[#1684D8]" />
+                <span>Portal do Cliente</span>
+              </Link>
             )}
-          {passport.customerAccessToken && (
-            <Link
-              href={`/cliente?token=${encodeURIComponent(
-                passport.customerAccessToken,
-              )}`}
-              className="inline-flex items-center gap-1.5 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 px-3.5 py-2 text-xs font-bold text-[#172B3A] transition"
-            >
-              <ExternalLink className="h-3.5 w-3.5 text-[#1684D8]" />
-              <span>Visão do Cliente</span>
-            </Link>
-          )}
-          <button
-            type="button"
-            onClick={() =>
-              askAssistant("O que falta para entregar este carro?")
-            }
-            className="inline-flex items-center gap-1.5 rounded-xl bg-[#0B3B70] hover:bg-[#1684D8] px-3.5 py-2 text-xs font-bold text-white transition"
-          >
-            <Bot className="h-3.5 w-3.5 text-[#EAF3FC]" />
-            <span>Assistente Contextual</span>
-          </button>
+          </div>
         </div>
-      </div>
 
-      {/* Banner de Feedback ou de Bloqueio de Liberação */}
+        <div className="grid sm:grid-cols-2 lg:grid-cols-12 gap-4 items-center">
+          {/* Veículo */}
+          <div className="lg:col-span-6 flex items-center gap-3.5">
+            <img
+              src={vehicle.photos[0] || "/vehicle-placeholder.svg"}
+              alt={`${vehicle.brand} ${vehicle.model}`}
+              className="w-20 h-16 sm:w-28 sm:h-20 rounded-xl border border-slate-200 object-cover bg-slate-900 shrink-0"
+            />
+            <div className="min-w-0 flex-1 space-y-1">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="font-mono text-[11px] font-bold bg-[#EAF3FC] text-[#0B3B70] px-2 py-0.5 rounded">
+                  {vehicle.internalCode}
+                </span>
+                <span className="text-xs text-slate-500 font-mono">
+                  Chassi: {vehicle.vin}
+                </span>
+                <Link
+                  href={`/app/veiculos/${vehicle.id}`}
+                  className="text-xs text-[#1684D8] font-bold hover:underline"
+                >
+                  Ver veículo →
+                </Link>
+              </div>
+              <h1 className="text-base sm:text-lg font-extrabold text-[#172B3A] truncate">
+                {vehicle.brand} {vehicle.model} — {vehicle.trim}
+              </h1>
+              <p className="text-xs text-slate-600">
+                {vehicle.manufacturingYear}/{vehicle.modelYear} •{" "}
+                <strong className="text-[#172B3A]">{vehicle.color}</strong>
+              </p>
+            </div>
+          </div>
+
+          {/* Comprador */}
+          <div className="lg:col-span-3 rounded-xl bg-[#F4F7FA] border border-slate-200 p-3 text-xs space-y-0.5">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block">
+              Comprador ({deal.buyerType})
+            </span>
+            <div className="font-extrabold text-sm text-[#172B3A] truncate">
+              {customer.fullName}
+            </div>
+            <div className="text-slate-600 font-mono text-[11px]">
+              {customer.documentNumber}
+              {customer.phone ? ` • ${customer.phone}` : ""}
+            </div>
+          </div>
+
+          {/* Vendedor e Condição */}
+          <div className="lg:col-span-3 rounded-xl bg-[#F4F7FA] border border-slate-200 p-3 text-xs space-y-0.5">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block">
+              Responsável Comercial
+            </span>
+            <div className="font-extrabold text-sm text-[#172B3A] truncate">
+              {seller.fullName}
+            </div>
+            <div className="text-slate-600 text-[11px] truncate">
+              {deal.paymentMethod === "FINANCING"
+                ? `Financiamento (${deal.financingInstitution || "Banco"})`
+                : deal.paymentMethod === "CASH"
+                  ? "À Vista (PIX/TED)"
+                  : deal.paymentMethod === "CONSORTIUM"
+                    ? "Consórcio"
+                    : "Pagamento Misto"}
+              {deal.hasTradeIn ? " • Com troca" : ""}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Banner de Feedback */}
       {feedbackBanner && (
         <div
           role="alert"
-          className={`rounded-2xl border-2 p-5 shadow-md space-y-3 ${
+          className={`rounded-2xl border-2 p-4 shadow-xs space-y-2.5 ${
             feedbackBanner.type === "ERROR"
               ? "bg-red-50 border-red-400 text-red-950"
               : "bg-emerald-50 border-emerald-400 text-emerald-950"
@@ -336,23 +596,30 @@ export function DealPassportClient({
           <p className="text-xs leading-relaxed">{feedbackBanner.message}</p>
 
           {feedbackBanner.blockers && feedbackBanner.blockers.length > 0 && (
-            <div className="pt-2 border-t border-red-200 space-y-2">
+            <div className="pt-2 border-t border-red-200 space-y-1.5">
               <div className="text-xs font-bold text-red-900">
-                Requisitos impeditivos verificados no servidor:
+                Pendências que impedem esta ação:
               </div>
-              <ul className="space-y-1.5 text-xs">
+              <ul className="space-y-1 text-xs">
                 {feedbackBanner.blockers.map((b) => (
                   <li
                     key={b.id}
-                    className="rounded-lg bg-white border border-red-200 p-2.5"
+                    className="rounded-lg bg-white border border-red-200 p-2 flex flex-wrap items-center justify-between gap-2"
                   >
-                    <div className="font-bold text-red-950">
-                      {b.title} — Área Responsável: {b.responsibleAreaLabel}
+                    <div>
+                      <span className="font-bold text-red-950">{b.title}</span>{" "}
+                      <span className="text-slate-600">({b.reason})</span>
                     </div>
-                    <div className="text-slate-700 mt-0.5">{b.reason}</div>
-                    <div className="text-[#0B3B70] font-semibold mt-0.5">
-                      Próximo passo: {b.actionRequired}
-                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setFeedbackBanner(null);
+                        navigateToBlockerItem(b);
+                      }}
+                      className="text-xs font-bold text-[#1684D8] hover:underline"
+                    >
+                      Abrir item →
+                    </button>
                   </li>
                 ))}
               </ul>
@@ -361,203 +628,70 @@ export function DealPassportClient({
         </div>
       )}
 
-      {/* RESUMO DO VEÍCULO, COMPRADOR E PROGRESSO DAS ETAPAS (Prancha Tela 3) */}
-      <section className="bg-white rounded-2xl border border-slate-200 p-6 shadow-xs space-y-6">
-        <div className="grid lg:grid-cols-12 gap-6 items-center">
-          {/* Veículo Vinculado */}
-          <div className="lg:col-span-7 flex flex-col sm:flex-row items-start sm:items-center gap-4">
-            <img
-              src={vehicle.photos[0] || "/vehicle-placeholder.svg"}
-              alt={`${vehicle.brand} ${vehicle.model}`}
-              className="w-full sm:w-44 h-28 rounded-xl border border-slate-200 object-cover bg-slate-900 shrink-0"
-            />
-            <div className="space-y-1.5 min-w-0 flex-1">
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="font-mono text-xs font-bold bg-[#EAF3FC] text-[#0B3B70] px-2.5 py-0.5 rounded">
-                  {vehicle.internalCode}
-                </span>
-                <Link
-                  href={`/app/veiculos/${vehicle.id}`}
-                  className="text-xs text-[#1684D8] font-bold hover:underline"
-                >
-                  Ficha permanente & QR →
-                </Link>
-              </div>
-              <h2 className="text-xl font-extrabold text-[#172B3A]">
-                {vehicle.brand} {vehicle.model} — {vehicle.trim}
-              </h2>
-              <p className="text-xs text-slate-600">
-                {vehicle.manufacturingYear}/{vehicle.modelYear} •{" "}
-                <strong className="text-[#172B3A]">{vehicle.color}</strong> •
-                Chassi:{" "}
-                <code className="font-mono font-bold text-[#172B3A]">
-                  {vehicle.vin}
-                </code>
-              </p>
-            </div>
-          </div>
-
-          {/* Comprador e Vendedor */}
-          <div className="lg:col-span-5 rounded-xl bg-[#F4F7FA] border border-slate-200 p-4 space-y-2 text-xs">
-            <div className="flex items-center justify-between">
-              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
-                Cliente / Comprador ({deal.buyerType})
-              </span>
-              <span className="text-[11px] font-semibold text-[#0B3B70]">
-                Vendedor: {seller.fullName}
-              </span>
-            </div>
-            <div className="text-base font-extrabold text-[#172B3A]">
-              {customer.fullName}
-            </div>
-            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-slate-600">
-              <span>
-                CPF/CNPJ: <strong className="font-mono">{customer.documentNumber}</strong>
-              </span>
-              {customer.phone && <span>Tel: {customer.phone}</span>}
-            </div>
-          </div>
-        </div>
-
-        {/* Barra Horizontal de Progresso das Etapas */}
-        <div className="pt-5 border-t border-slate-200 space-y-3">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <div>
-              <h3 className="text-xs font-bold uppercase tracking-wider text-[#0B3B70]">
-                Progresso das Etapas ({summary.completedApplicableTasksCount} de{" "}
-                {summary.applicableTasksCount} tarefas aplicáveis concluídas •{" "}
-                {summary.waivedTasksCount} dispensada(s) por regra)
-              </h3>
-              <p className="text-[11px] text-slate-500">
-                A conclusão percentual reflete tarefas aplicáveis; a liberação
-                permanece condicionada às aprovações obrigatórias.
-              </p>
-            </div>
-            <span className="text-xs font-bold text-[#0B3B70] bg-[#EAF3FC] border border-[#1684D8]/30 px-3 py-1 rounded-full">
-              Avanço: {summary.progressPercentage}%
-            </span>
-          </div>
-
-          <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2">
-            {WORKFLOW_STAGES.map((st) => {
-              const stageTasks = passport.tasks.filter(
-                (t) =>
-                  t.stageCode === st.code &&
-                  t.state !== "WAIVED_BY_RULE" &&
-                  t.state !== "CANCELLED",
-              );
-              const allDone =
-                stageTasks.length > 0 &&
-                stageTasks.every(
-                  (t) =>
-                    t.state === "COMPLETED" &&
-                    (!t.requiresFormalApproval ||
-                      t.approvalStatus === "APPROVED"),
-                );
-              const isCurrent =
-                summary.currentStage === st.code && deal.status !== "DELIVERED";
-
-              return (
-                <div
-                  key={st.code}
-                  className={`rounded-xl border p-2.5 text-xs transition ${
-                    allDone || deal.status === "DELIVERED"
-                      ? "bg-emerald-50/90 border-emerald-300 text-emerald-950"
-                      : isCurrent
-                        ? "bg-[#EAF3FC] border-[#1684D8] text-[#0B3B70] ring-2 ring-[#1684D8]/20"
-                        : "bg-slate-50 border-slate-200 text-slate-500"
-                  }`}
-                >
-                  <div className="flex items-center justify-between font-bold">
-                    <span
-                      className={`inline-flex h-5 w-5 items-center justify-center rounded-full text-[10px] ${
-                        allDone || deal.status === "DELIVERED"
-                          ? "bg-emerald-600 text-white"
-                          : isCurrent
-                            ? "bg-[#1684D8] text-white"
-                            : "bg-slate-200 text-slate-600"
-                      }`}
-                    >
-                      {allDone || deal.status === "DELIVERED" ? "✓" : st.order}
-                    </span>
-                    {allDone || deal.status === "DELIVERED" ? (
-                      <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
-                    ) : isCurrent ? (
-                      <Clock className="h-3.5 w-3.5 text-[#1684D8]" />
-                    ) : null}
-                  </div>
-                  <div className="font-bold mt-1.5 leading-tight">{st.name}</div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      </section>
-
-      {/* PRÓXIMA AÇÃO + INFORMAÇÕES DA NEGOCIAÇÃO E PILARES */}
-      <div className="grid lg:grid-cols-12 gap-6">
-        {/* Card Próxima Ação */}
-        <div
-          className={`lg:col-span-6 rounded-2xl border-2 p-5 shadow-xs flex flex-col justify-between gap-4 ${
-            userNextAction.hasDirectAction
-              ? "bg-[#0B3B70] text-white border-[#1684D8]"
-              : "bg-white text-[#172B3A] border-slate-200"
-          }`}
-        >
-          <div className="space-y-2.5">
-            <div className="flex items-center justify-between gap-2">
-              <span
-                className={`inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider px-2.5 py-1 rounded-md ${
-                  userNextAction.hasDirectAction
-                    ? "bg-[#1684D8] text-white"
-                    : "bg-[#EAF3FC] text-[#0B3B70]"
-                }`}
-              >
-                <Sparkles className="h-3.5 w-3.5" />
-                <span>Próxima Ação</span>
-              </span>
-              <span
-                className={`text-xs font-semibold ${
-                  userNextAction.hasDirectAction
-                    ? "text-[#EAF3FC]"
-                    : "text-slate-500"
-                }`}
-              >
-                Área responsável: {userNextAction.responsibleAreaLabel}
-              </span>
-            </div>
-
-            <h2 className="text-lg font-extrabold">
-              {userNextAction.headline}
-            </h2>
-            <p
-              className={`text-xs sm:text-sm leading-relaxed ${
+      {/* B. PRÓXIMA AÇÃO */}
+      <section
+        className={`rounded-2xl border-2 p-4 sm:p-5 shadow-xs flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 ${
+          userNextAction.hasDirectAction
+            ? "bg-[#0B3B70] text-white border-[#1684D8]"
+            : "bg-white text-[#172B3A] border-slate-200"
+        }`}
+      >
+        <div className="space-y-1.5">
+          <div className="flex flex-wrap items-center gap-2">
+            <span
+              className={`inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-md ${
                 userNextAction.hasDirectAction
-                  ? "text-[#EAF3FC]/90"
+                  ? "bg-[#1684D8] text-white"
+                  : "bg-[#EAF3FC] text-[#0B3B70]"
+              }`}
+            >
+              <Sparkles className="h-3.5 w-3.5" />
+              <span>Próxima ação</span>
+            </span>
+            <span
+              className={`text-xs font-semibold ${
+                userNextAction.hasDirectAction
+                  ? "text-[#EAF3FC]"
                   : "text-slate-600"
               }`}
             >
-              {userNextAction.description}
-            </p>
+              Quem faz: <strong>{userNextAction.responsibleAreaLabel}</strong>
+            </span>
           </div>
+          <h2 className="text-base sm:text-lg font-extrabold">
+            {userNextAction.headline}
+          </h2>
+          <p
+            className={`text-xs sm:text-sm ${
+              userNextAction.hasDirectAction
+                ? "text-[#EAF3FC]/90"
+                : "text-slate-600"
+            }`}
+          >
+            {userNextAction.description}
+          </p>
+        </div>
 
-          <div className="flex flex-wrap items-center gap-3 pt-2">
-            {userNextAction.actionType === "UPLOAD_DOCUMENT" &&
-              userNextAction.targetDocumentId && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setActiveTab("DOCUMENTS");
-                    setUploadingDocId(userNextAction.targetDocumentId!);
-                  }}
-                  className="rounded-xl bg-[#1684D8] hover:bg-[#126FB8] px-4 py-2.5 text-xs font-bold text-white shadow-xs transition"
-                >
-                  Enviar documento solicitado
-                </button>
-              )}
+        <div className="flex flex-wrap items-center gap-2.5 shrink-0">
+          {userNextAction.actionType === "UPLOAD_DOCUMENT" &&
+            userNextAction.targetDocumentId && (
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveTab("DOCUMENTS");
+                  setHighlightedDocId(userNextAction.targetDocumentId!);
+                  setUploadingDocId(userNextAction.targetDocumentId!);
+                }}
+                className="inline-flex items-center gap-2 rounded-xl bg-[#1684D8] hover:bg-[#126FB8] px-4 py-2.5 text-xs font-bold text-white shadow-xs transition"
+              >
+                <Upload className="h-4 w-4" />
+                <span>Enviar documento agora</span>
+              </button>
+            )}
 
-            {userNextAction.actionType === "REVIEW_DOCUMENT" &&
-              userNextAction.targetDocumentId && (
+          {userNextAction.actionType === "REVIEW_DOCUMENT" &&
+            userNextAction.targetDocumentId && (
+              <>
                 <button
                   type="button"
                   disabled={actionLoading}
@@ -568,8 +702,7 @@ export function DealPassportClient({
                         dealId: deal.id,
                         documentId: userNextAction.targetDocumentId,
                         decision: "APPROVED",
-                        justification:
-                          "Documento conferido e aprovado conforme procedimento publicado.",
+                        justification: "Documento conferido e aprovado.",
                       },
                       "Documento conferido e aprovado com sucesso!",
                     )
@@ -577,261 +710,323 @@ export function DealPassportClient({
                   className="inline-flex items-center gap-2 rounded-xl bg-[#1684D8] hover:bg-[#126FB8] px-4 py-2.5 text-xs font-bold text-white shadow-xs transition"
                 >
                   <FileCheck2 className="h-4 w-4" />
-                  <span>Conferir e Aprovar Documento</span>
+                  <span>Aprovar documento</span>
                 </button>
-              )}
-
-            {userNextAction.actionType === "APPROVE_TASK" &&
-              userNextAction.targetTaskCode && (
                 <button
                   type="button"
-                  disabled={actionLoading}
-                  onClick={() =>
-                    callDealApi(
-                      {
-                        action: "FORMAL_APPROVAL",
-                        dealId: deal.id,
-                        taskCode: userNextAction.targetTaskCode,
-                        decision: "APPROVED",
-                        justification:
-                          "Conferência formal realizada com evidência validada.",
-                      },
-                      "Aprovação formal registrada com sucesso!",
-                    )
-                  }
-                  className="inline-flex items-center gap-2 rounded-xl bg-[#1684D8] hover:bg-[#126FB8] px-4 py-2.5 text-xs font-bold text-white shadow-xs transition"
+                  onClick={() => {
+                    setActiveTab("DOCUMENTS");
+                    setHighlightedDocId(userNextAction.targetDocumentId!);
+                  }}
+                  className="inline-flex items-center gap-1.5 rounded-xl border border-white/30 bg-white/10 hover:bg-white/20 px-3.5 py-2.5 text-xs font-bold text-white transition"
                 >
-                  <ClipboardCheck className="h-4 w-4" />
-                  <span>Registrar Aprovação Formal</span>
+                  <span>Abrir para conferir</span>
                 </button>
-              )}
+              </>
+            )}
 
-            {userNextAction.actionType === "REGISTER_BILLING" && (
+          {userNextAction.actionType === "APPROVE_TASK" &&
+            userNextAction.targetTaskCode && (
               <button
                 type="button"
-                onClick={() => setActiveTab("RELEASE")}
-                className="inline-flex items-center gap-2 rounded-xl bg-[#1684D8] hover:bg-[#126FB8] px-4 py-2.5 text-xs font-bold text-white"
+                onClick={() => {
+                  setActiveTab("TASKS");
+                  setTaskFilter("EXECUTABLE");
+                  setHighlightedTaskCode(userNextAction.targetTaskCode!);
+                  setApprovingTaskCode(userNextAction.targetTaskCode!);
+                }}
+                className="inline-flex items-center gap-2 rounded-xl bg-[#1684D8] hover:bg-[#126FB8] px-4 py-2.5 text-xs font-bold text-white shadow-xs transition"
               >
-                <span>Registrar Nota Fiscal →</span>
+                <ClipboardCheck className="h-4 w-4" />
+                <span>Analisar e registrar aprovação</span>
               </button>
             )}
 
-            {userNextAction.actionType === "AUTHORIZE_RELEASE" && (
+          {userNextAction.actionType === "EXECUTE_TASK" &&
+            userNextAction.targetTaskCode && (
               <button
                 type="button"
-                onClick={() => setActiveTab("RELEASE")}
-                className="inline-flex items-center gap-2 rounded-xl bg-[#1684D8] hover:bg-[#126FB8] px-4 py-2.5 text-xs font-bold text-white"
+                onClick={() => {
+                  setActiveTab("TASKS");
+                  setTaskFilter("EXECUTABLE");
+                  setHighlightedTaskCode(userNextAction.targetTaskCode!);
+                }}
+                className="inline-flex items-center gap-2 rounded-xl bg-[#1684D8] hover:bg-[#126FB8] px-4 py-2.5 text-xs font-bold text-white shadow-xs transition"
               >
-                <ShieldCheck className="h-4 w-4" />
-                <span>Emitir Autorização de Liberação →</span>
+                <ClipboardCheck className="h-4 w-4" />
+                <span>Abrir atividade para concluir</span>
               </button>
             )}
 
-            {userNextAction.actionType === "CONFIRM_DELIVERY" && (
-              <button
-                type="button"
-                onClick={() => setActiveTab("RELEASE")}
-                className="inline-flex items-center gap-2 rounded-xl bg-[#1684D8] hover:bg-[#126FB8] px-4 py-2.5 text-xs font-bold text-white"
-              >
-                <KeyRound className="h-4 w-4" />
-                <span>Reconfirmar Chassi e Registrar Entrega →</span>
-              </button>
-            )}
-          </div>
-        </div>
-
-        {/* Card Informações da Negociação, Pilares e Paralelismo */}
-        <div className="lg:col-span-6 bg-white rounded-2xl border border-slate-200 p-5 shadow-xs space-y-4">
-          <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
-            <h3 className="text-sm font-extrabold text-[#172B3A]">
-              Informações da negociação e pilares
-            </h3>
-            <span className="text-[11px] font-semibold text-slate-500">
-              {summary.parallelTasks.length} tarefa(s) disponíveis em paralelo
-            </span>
-          </div>
-
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 text-xs">
-            <div className="rounded-xl bg-[#F4F7FA] border border-slate-200 p-2.5">
-              <span className="text-slate-500 block text-[11px]">
-                Modalidade:
-              </span>
-              <strong className="text-[#172B3A]">
-                {deal.paymentMethod === "FINANCING"
-                  ? `Financiamento (${deal.financingInstitution || "Banco"})`
-                  : deal.paymentMethod === "CASH"
-                    ? "À Vista (PIX/TED)"
-                    : deal.paymentMethod}
-              </strong>
-            </div>
-            <div className="rounded-xl bg-[#F4F7FA] border border-slate-200 p-2.5">
-              <span className="text-slate-500 block text-[11px]">
-                Procuração:
-              </span>
-              <strong className="text-[#172B3A]">
-                {deal.hasPowerOfAttorney
-                  ? `Sim (${deal.attorneyName})`
-                  : "Não exigida"}
-              </strong>
-            </div>
-            <div className="rounded-xl bg-[#F4F7FA] border border-slate-200 p-2.5">
-              <span className="text-slate-500 block text-[11px]">
-                Nota Fiscal:
-              </span>
-              <strong className="text-[#172B3A]">
-                {deal.invoiceNumber || "Aguardando NF"}
-              </strong>
-            </div>
-            <div className="rounded-xl bg-[#F4F7FA] border border-slate-200 p-2.5">
-              <span className="text-slate-500 block text-[11px]">
-                Previsão Entrega:
-              </span>
-              <strong className="text-[#172B3A]">
-                {deal.confirmedDeliveryDate
-                  ? `Confirmada: ${formatDateBr(deal.confirmedDeliveryDate)}`
-                  : deal.expectedDeliveryDate
-                    ? `${formatDateBr(deal.expectedDeliveryDate)} (Não confirmada)`
-                    : "A definir"}
-              </strong>
-            </div>
-          </div>
-
-          {tradeInVehicle && (
-            <div className="rounded-xl bg-amber-50/80 border border-amber-200 p-3 text-xs">
-              <span className="font-bold text-amber-950 block">
-                Veículo Usado na Troca (Cadastro separado do veículo vendido):
-              </span>
-              <span className="text-amber-900 mt-0.5 block">
-                <strong>
-                  {tradeInVehicle.brand} {tradeInVehicle.model}{" "}
-                  {tradeInVehicle.modelYear} ({tradeInVehicle.color})
-                </strong>{" "}
-                • Placa: <code>{tradeInVehicle.plate}</code> • Chassi:{" "}
-                <code>{tradeInVehicle.vin}</code> • Avaliação:{" "}
-                <strong>
-                  {formatCurrencyBr(tradeInVehicle.appraisedValue)}
-                </strong>
-              </span>
-            </div>
+          {userNextAction.actionType === "REGISTER_BILLING" && (
+            <button
+              type="button"
+              onClick={() => setActiveTab("SALE_DATA")}
+              className="inline-flex items-center gap-2 rounded-xl bg-[#1684D8] hover:bg-[#126FB8] px-4 py-2.5 text-xs font-bold text-white transition"
+            >
+              <span>Registrar Nota Fiscal →</span>
+            </button>
           )}
 
-          {/* 3 Pilares: Financeiro, Documental e Operacional */}
-          <div className="grid sm:grid-cols-3 gap-2.5">
-            {[
-              summary.pillars.financial,
-              summary.pillars.documentation,
-              summary.pillars.operational,
-            ].map((p) => (
+          {userNextAction.actionType === "AUTHORIZE_RELEASE" && (
+            <button
+              type="button"
+              onClick={() => setActiveTab("SALE_DATA")}
+              className="inline-flex items-center gap-2 rounded-xl bg-[#1684D8] hover:bg-[#126FB8] px-4 py-2.5 text-xs font-bold text-white transition"
+            >
+              <ShieldCheck className="h-4 w-4" />
+              <span>Autorizar liberação para entrega →</span>
+            </button>
+          )}
+
+          {userNextAction.actionType === "CONFIRM_DELIVERY" && (
+            <button
+              type="button"
+              onClick={() => setActiveTab("SALE_DATA")}
+              className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 px-4 py-2.5 text-xs font-bold text-white transition"
+            >
+              <KeyRound className="h-4 w-4" />
+              <span>Reconfirmar chassi e entregar →</span>
+            </button>
+          )}
+
+          {!userNextAction.hasDirectAction && deal.status !== "DELIVERED" && (
+            <button
+              type="button"
+              onClick={() => {
+                setActiveTab("TASKS");
+                setTaskFilter("EXECUTABLE");
+              }}
+              className="inline-flex items-center gap-1.5 rounded-xl border border-slate-300 bg-[#F4F7FA] hover:bg-[#EAF3FC] px-3.5 py-2 text-xs font-bold text-[#0B3B70] transition"
+            >
+              <span>Ver atividades em andamento</span>
+            </button>
+          )}
+        </div>
+      </section>
+
+      {/* C. TRILHA DAS ETAPAS + RESUMO RECOLHIDO DE IMPEDIMENTOS */}
+      <section className="bg-white rounded-2xl border border-slate-200 p-4 sm:p-5 shadow-xs space-y-4">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <h2 className="text-xs font-bold uppercase tracking-wider text-[#0B3B70]">
+              Trilha das etapas ({summary.completedApplicableTasksCount} de{" "}
+              {summary.applicableTasksCount} atividades aplicáveis concluídas)
+            </h2>
+          </div>
+          <span className="text-xs font-bold text-[#0B3B70] bg-[#EAF3FC] border border-[#1684D8]/30 px-2.5 py-0.5 rounded-full">
+            {summary.progressPercentage}% concluído
+          </span>
+        </div>
+
+        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2">
+          {WORKFLOW_STAGES.map((st) => {
+            const stageTasks = passport.tasks.filter(
+              (t) =>
+                t.stageCode === st.code &&
+                t.state !== "WAIVED_BY_RULE" &&
+                t.state !== "CANCELLED",
+            );
+            const allDone =
+              stageTasks.length > 0 &&
+              stageTasks.every(
+                (t) =>
+                  t.state === "COMPLETED" &&
+                  (!t.requiresFormalApproval ||
+                    t.approvalStatus === "APPROVED"),
+              );
+            const hasStageImpediment = stageTasks.some(
+              (t) =>
+                t.state === "WAITING_PREREQUISITE" ||
+                t.state === "WAITING_INFO" ||
+                t.approvalStatus === "REJECTED" ||
+                t.approvalStatus === "OUTDATED" ||
+                passport.documents.some(
+                  (d) =>
+                    d.taskCode === t.code &&
+                    (d.status === "REJECTED" ||
+                      d.status === "CORRECTION_REQUESTED"),
+                ),
+            );
+            const isCurrent =
+              summary.currentStage === st.code && deal.status !== "DELIVERED";
+
+            const stageStateLabel =
+              allDone || deal.status === "DELIVERED"
+                ? "Concluída"
+                : hasStageImpediment
+                  ? "Com impedimento"
+                  : isCurrent
+                    ? "Atual"
+                    : "Futura";
+
+            return (
               <div
-                key={p.area}
-                className={`rounded-xl border p-2.5 text-xs ${
-                  p.status === "OK"
-                    ? "bg-emerald-50/70 border-emerald-300 text-emerald-950"
-                    : p.status === "BLOCKED"
-                      ? "bg-red-50/70 border-red-300 text-red-950"
-                      : "bg-amber-50/60 border-amber-300 text-amber-950"
+                key={st.code}
+                className={`rounded-xl border p-2.5 text-xs transition ${
+                  allDone || deal.status === "DELIVERED"
+                    ? "bg-emerald-50/90 border-emerald-300 text-emerald-950"
+                    : hasStageImpediment
+                      ? "bg-red-50 border-red-300 text-red-950"
+                      : isCurrent
+                        ? "bg-[#EAF3FC] border-[#1684D8] text-[#0B3B70] ring-2 ring-[#1684D8]/20"
+                        : "bg-slate-50 border-slate-200 text-slate-600"
                 }`}
               >
-                <div className="font-bold flex items-center justify-between">
-                  <span>{p.label}</span>
-                  {p.status === "OK" ? (
-                    <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
-                  ) : (
-                    <Clock className="h-3.5 w-3.5 text-amber-600" />
-                  )}
+                <div className="flex items-center justify-between font-bold">
+                  <span
+                    className={`inline-flex h-5 w-5 items-center justify-center rounded-full text-[10px] ${
+                      allDone || deal.status === "DELIVERED"
+                        ? "bg-emerald-600 text-white"
+                        : hasStageImpediment
+                          ? "bg-red-600 text-white"
+                          : isCurrent
+                            ? "bg-[#1684D8] text-white"
+                            : "bg-slate-200 text-slate-700"
+                    }`}
+                  >
+                    {allDone || deal.status === "DELIVERED" ? "✓" : st.order}
+                  </span>
+                  <span className="text-[10px] font-semibold">
+                    {stageStateLabel}
+                  </span>
                 </div>
-                <p className="mt-1 text-[11px] font-medium leading-snug">
-                  {p.summary}
-                </p>
+                <div className="font-bold mt-1.5 leading-tight">{st.name}</div>
               </div>
-            ))}
-          </div>
+            );
+          })}
         </div>
-      </div>
 
-      {/* LISTA DE BLOQUEIOS (O QUE IMPEDE O FATURAMENTO OU A ENTREGA) */}
-      {deal.status !== "DELIVERED" && (
-        <section className="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs space-y-4">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <h2 className="text-base font-bold text-[#172B3A] flex items-center gap-2">
-                {summary.deliveryBlockers.length > 0 ? (
-                  <>
-                    <AlertTriangle className="h-5 w-5 text-red-600" />
-                    <span>
-                      Requisitos Obrigatórios Pendentes (
-                      {summary.deliveryBlockers.length} para entrega •{" "}
-                      {summary.billingBlockers.length} para faturamento)
-                    </span>
-                  </>
-                ) : (
-                  <>
-                    <CheckCircle2 className="h-5 w-5 text-emerald-600" />
-                    <span>
-                      Nenhum requisito técnico bloqueando a autorização de
-                      entrega
-                    </span>
-                  </>
-                )}
-              </h2>
-              <p className="text-xs text-slate-500 mt-0.5">
-                A liberação do veículo permanece condicionada ao cumprimento de
-                100% dos requisitos obrigatórios e aprovações autorizadas.
-              </p>
-            </div>
-
-            {summary.deliveryBlockers.length > 0 &&
-              hasPerm("release:authorize") && (
+        {/* Lista de Impedimentos Recolhida */}
+        {deal.status !== "DELIVERED" && (
+          <div className="pt-2 border-t border-slate-100">
+            {summary.deliveryBlockers.length === 0 ? (
+              <div className="flex items-center justify-between gap-2 text-xs text-emerald-800 bg-emerald-50 border border-emerald-200 rounded-xl px-3.5 py-2.5 font-semibold">
+                <div className="flex items-center gap-2">
+                  <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
+                  <span>
+                    Todos os requisitos obrigatórios foram cumpridos. Nenhum
+                    impedimento ativo.
+                  </span>
+                </div>
                 <button
                   type="button"
-                  disabled={actionLoading}
-                  onClick={() =>
-                    callDealApi(
-                      {
-                        action: "AUTHORIZE_RELEASE",
-                        dealId: deal.id,
-                      },
-                      "",
-                    )
-                  }
-                  className="inline-flex items-center gap-1.5 rounded-xl border border-red-300 bg-red-50 hover:bg-red-100 px-3.5 py-2 text-xs font-bold text-red-900 transition"
+                  onClick={() => setActiveTab("SALE_DATA")}
+                  className="text-[#0B3B70] font-bold hover:underline"
                 >
-                  <ShieldAlert className="h-4 w-4 text-red-600" />
-                  <span>Testar Bloqueio de Liberação Prematura</span>
+                  Ir para liberação / entrega →
                 </button>
-              )}
-          </div>
-
-          {summary.deliveryBlockers.length > 0 && (
-            <div className="grid md:grid-cols-2 gap-3">
-              {summary.deliveryBlockers.map((b) => (
-                <div
-                  key={b.id}
-                  className="rounded-xl bg-red-50/50 border border-red-200 p-3.5 text-xs space-y-1"
-                >
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="font-bold text-red-950">{b.title}</span>
-                    <span className="rounded bg-white border border-red-200 px-2 py-0.5 text-[10px] font-bold text-red-800">
-                      {b.responsibleAreaLabel}
+              </div>
+            ) : (
+              <details className="group rounded-xl border border-slate-200 bg-[#F4F7FA]">
+                <summary className="cursor-pointer px-4 py-2.5 text-xs font-bold text-[#172B3A] flex flex-wrap items-center justify-between gap-2">
+                  <span className="flex items-center gap-2">
+                    <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0" />
+                    <span>
+                      O que falta para concluir:{" "}
+                      <strong>
+                        {currentBlockers.length} pendência(s) atual(is)
+                      </strong>
+                      {futureStageBlockers.length > 0
+                        ? ` e ${futureStageBlockers.length} etapa(s) futura(s)`
+                        : ""}
                     </span>
-                  </div>
-                  <p className="text-slate-700">{b.reason}</p>
-                  <p className="text-[#0B3B70] font-semibold">
-                    Ação necessária: {b.actionRequired}
-                  </p>
-                </div>
-              ))}
-            </div>
-          )}
-        </section>
-      )}
+                  </span>
+                  <span className="text-[#1684D8] group-open:underline">
+                    Ver detalhes e abrir itens
+                  </span>
+                </summary>
+                <div className="px-4 pb-4 pt-2 border-t border-slate-200 space-y-3 text-xs">
+                  {currentBlockers.length > 0 && (
+                    <div className="space-y-1.5">
+                      <div className="font-bold text-[#0B3B70]">
+                        Pendências atuais (podem ser resolvidas agora):
+                      </div>
+                      <div className="grid sm:grid-cols-2 gap-2">
+                        {currentBlockers.map((b) => (
+                          <div
+                            key={b.id}
+                            className="rounded-xl bg-white border border-amber-200 p-3 flex flex-col justify-between gap-2"
+                          >
+                            <div>
+                              <div className="flex items-center justify-between gap-2">
+                                <span className="font-bold text-[#172B3A]">
+                                  {b.title}
+                                </span>
+                                <span className="rounded bg-[#EAF3FC] px-2 py-0.5 text-[10px] font-bold text-[#0B3B70]">
+                                  {b.responsibleAreaLabel}
+                                </span>
+                              </div>
+                              <p className="text-slate-600 mt-1">{b.reason}</p>
+                            </div>
+                            <div className="flex items-center justify-between pt-1 border-t border-slate-100">
+                              <span className="text-[11px] text-slate-500">
+                                {b.actionRequired}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => navigateToBlockerItem(b)}
+                                className="inline-flex items-center gap-1 font-bold text-[#1684D8] hover:underline shrink-0"
+                              >
+                                <span>Abrir</span>
+                                <ChevronRight className="h-3.5 w-3.5" />
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
 
-      {/* NAVEGAÇÃO POR ABAS DO PASSAPORTE */}
-      <div className="border-b border-slate-200 flex flex-wrap gap-2">
+                  {futureStageBlockers.length > 0 && (
+                    <div className="space-y-1.5">
+                      <div className="font-bold text-slate-600">
+                        Etapas futuras (aguardam conclusão das pendências
+                        atuais):
+                      </div>
+                      <div className="grid sm:grid-cols-2 gap-2">
+                        {futureStageBlockers.map((b) => (
+                          <div
+                            key={b.id}
+                            className="rounded-xl bg-white/70 border border-slate-200 p-2.5 flex items-center justify-between gap-2 text-slate-600"
+                          >
+                            <div>
+                              <span className="font-semibold text-[#172B3A]">
+                                {b.title}
+                              </span>{" "}
+                              <span className="text-[11px]">
+                                ({b.responsibleAreaLabel})
+                              </span>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => navigateToBlockerItem(b)}
+                              className="text-[11px] font-bold text-[#0B3B70] hover:underline shrink-0"
+                            >
+                              Ver etapa
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </details>
+            )}
+          </div>
+        )}
+      </section>
+
+      {/* D. ABAS DO PASSAPORTE DIGITAL */}
+      <div
+        role="tablist"
+        aria-label="Seções do Passaporte Digital"
+        className="border-b border-slate-200 flex flex-wrap gap-1.5"
+      >
         {[
           {
             id: "TASKS" as const,
-            label: `Tarefas e Regras (${passport.tasks.length})`,
+            label: `Atividades (${taskCounts.executable} ativas)`,
             Icon: ClipboardCheck,
           },
           {
@@ -840,19 +1035,14 @@ export function DealPassportClient({
             Icon: FileText,
           },
           {
-            id: "RELEASE" as const,
-            label: "Faturamento, Autorização e Entrega",
+            id: "SALE_DATA" as const,
+            label: "Dados da venda e liberação",
             Icon: KeyRound,
           },
           {
             id: "HISTORY" as const,
-            label: `Histórico e Auditoria (${passport.auditEvents.length})`,
+            label: `Histórico (${passport.auditEvents.length})`,
             Icon: History,
-          },
-          {
-            id: "ASSISTANT" as const,
-            label: "Assistente Contextual",
-            Icon: Bot,
           },
         ].map((tab) => {
           const Icon = tab.Icon;
@@ -861,6 +1051,8 @@ export function DealPassportClient({
             <button
               key={tab.id}
               type="button"
+              role="tab"
+              aria-selected={isAct}
               onClick={() => setActiveTab(tab.id)}
               className={`inline-flex items-center gap-2 border-b-2 px-4 py-3 text-xs sm:text-sm font-bold transition ${
                 isAct
@@ -875,335 +1067,532 @@ export function DealPassportClient({
         })}
       </div>
 
-      {/* ABA 1: TAREFAS */}
+      {/* ABA 1: ATIVIDADES */}
       {activeTab === "TASKS" && (
         <div className="space-y-4">
-          {passport.tasks.map((t) => (
-            <div
-              key={t.id}
-              className={`rounded-2xl border p-5 shadow-xs space-y-3 ${
-                t.state === "WAIVED_BY_RULE"
-                  ? "bg-slate-50 border-slate-200 opacity-85"
-                  : "bg-white border-slate-200"
-              }`}
-            >
-              <div className="flex flex-wrap items-start justify-between gap-2">
-                <div>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="rounded bg-slate-100 px-2 py-0.5 font-mono text-[11px] font-bold text-slate-700">
-                      {t.code}
-                    </span>
-                    <span className="rounded bg-[#EAF3FC] border border-[#1684D8]/30 px-2 py-0.5 text-[11px] font-bold text-[#0B3B70]">
-                      Área: {AREA_LABELS[t.responsibleArea]}
-                    </span>
-                    {t.blocksBilling && (
-                      <span className="rounded bg-amber-50 border border-amber-200 px-2 py-0.5 text-[11px] font-semibold text-amber-900">
-                        Requisito p/ Faturar
-                      </span>
-                    )}
-                    {t.blocksDelivery && (
-                      <span className="rounded bg-red-50 border border-red-200 px-2 py-0.5 text-[11px] font-semibold text-red-900">
-                        Requisito p/ Entregar
-                      </span>
-                    )}
-                  </div>
-                  <h3 className="text-base font-extrabold text-[#172B3A] mt-1.5">
-                    {t.title}
-                  </h3>
-                </div>
+          {/* Filtros de Atividades */}
+          <div className="flex flex-wrap items-center justify-between gap-3 bg-white rounded-xl border border-slate-200 p-3">
+            <div className="flex flex-wrap items-center gap-1.5">
+              {[
+                {
+                  id: "EXECUTABLE" as const,
+                  label: `Executáveis agora (${taskCounts.executable})`,
+                },
+                {
+                  id: "FUTURE" as const,
+                  label: `Futuras (${taskCounts.future})`,
+                },
+                {
+                  id: "COMPLETED" as const,
+                  label: `Concluídas (${taskCounts.completed})`,
+                },
+                {
+                  id: "WAIVED" as const,
+                  label: `Dispensadas (${taskCounts.waived})`,
+                },
+                {
+                  id: "ALL" as const,
+                  label: `Todas (${taskCounts.all})`,
+                },
+              ].map((f) => (
+                <button
+                  key={f.id}
+                  type="button"
+                  onClick={() => setTaskFilter(f.id)}
+                  className={`rounded-lg px-3 py-1.5 text-xs font-bold transition ${
+                    taskFilter === f.id
+                      ? "bg-[#0B3B70] text-white"
+                      : "bg-[#F4F7FA] text-slate-700 hover:bg-[#EAF3FC] hover:text-[#0B3B70]"
+                  }`}
+                >
+                  {f.label}
+                </button>
+              ))}
+            </div>
 
-                <div className="flex flex-wrap items-center gap-2">
-                  <TaskStateBadge state={t.state} />
-                  {t.requiresFormalApproval && (
-                    <span
-                      className={`rounded-full border px-2.5 py-1 text-xs font-semibold ${
-                        t.approvalStatus === "APPROVED"
-                          ? "bg-emerald-50 text-emerald-900 border-emerald-300"
-                          : t.approvalStatus === "OUTDATED" ||
-                              t.approvalStatus === "REJECTED"
-                            ? "bg-red-50 text-red-900 border-red-300"
-                            : "bg-amber-50 text-amber-900 border-amber-300"
-                      }`}
+            {/* Ajuda contextual discreta */}
+            <details className="relative">
+              <summary className="cursor-pointer inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-[#F4F7FA] hover:bg-[#EAF3FC] px-3 py-1.5 text-xs font-bold text-[#0B3B70]">
+                <HelpCircle className="h-3.5 w-3.5 text-[#1684D8]" />
+                <span>Tirar dúvida sobre procedimentos</span>
+              </summary>
+              <div className="mt-2 rounded-2xl border border-slate-200 bg-white p-4 shadow-lg space-y-3 text-xs sm:w-96 lg:w-[28rem] z-20">
+                <div className="font-bold text-[#172B3A]">
+                  Consulta rápida aos procedimentos da concessionária
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  {[
+                    "O que falta para entregar este carro?",
+                    "Quem precisa agir agora?",
+                    "O que posso adiantar?",
+                  ].map((q) => (
+                    <button
+                      key={q}
+                      type="button"
+                      onClick={() => {
+                        setAssistantQuestion(q);
+                        askAssistant(q);
+                      }}
+                      className="rounded-lg border border-slate-200 bg-[#F4F7FA] hover:bg-[#EAF3FC] px-2.5 py-1 text-[11px] font-semibold text-[#0B3B70]"
                     >
-                      {TASK_APPROVAL_STATUS_LABELS[t.approvalStatus]}
-                    </span>
-                  )}
+                      {q}
+                    </button>
+                  ))}
                 </div>
-              </div>
-
-              {/* Detalhes obrigatórios da tarefa: O que fazer, Por que é necessário, Responsável, Prazo, Dependências e Procedimento */}
-              <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3 text-xs bg-[#F4F7FA] rounded-xl p-3.5 border border-slate-200">
-                <div>
-                  <span className="font-bold text-[#172B3A] block">
-                    O que fazer:
-                  </span>
-                  <p className="text-slate-600 mt-0.5">{t.description}</p>
-                </div>
-                <div>
-                  <span className="font-bold text-[#172B3A] block">
-                    Por que é necessário:
-                  </span>
-                  <p className="text-slate-600 mt-0.5">{t.whyRequired}</p>
-                </div>
-                <div>
-                  <span className="font-bold text-[#172B3A] block">
-                    Orientação operacional:
-                  </span>
-                  <p className="text-slate-600 mt-0.5">{t.guidance}</p>
-                </div>
-                <div>
-                  <span className="font-bold text-[#172B3A] block">
-                    Responsável e Prazo:
-                  </span>
-                  <p className="text-slate-600 mt-0.5">
-                    {t.assigneeName || AREA_LABELS[t.responsibleArea]} • Prazo:{" "}
-                    {t.dueAt ? formatDateTimeBr(t.dueAt) : "Não aplicável"}
-                  </p>
-                </div>
-                <div>
-                  <span className="font-bold text-[#172B3A] block">
-                    Dependências e Evidências:
-                  </span>
-                  <p className="text-slate-600 mt-0.5">
-                    Depende de:{" "}
-                    {t.dependsOnTaskCodes.length > 0
-                      ? t.dependsOnTaskCodes.join(", ")
-                      : "Nenhuma (Inicial)"}{" "}
-                    • Evidência:{" "}
-                    {t.requiredEvidenceTypes.length > 0
-                      ? t.requiredEvidenceTypes.join(", ")
-                      : "Execução no sistema"}
-                  </p>
-                </div>
-                <div>
-                  <span className="font-bold text-[#172B3A] block">
-                    Procedimento Publicado de Referência:
-                  </span>
-                  {t.publishedProcedure ? (
-                    <p className="text-[#0B3B70] font-semibold mt-0.5 flex items-center gap-1">
-                      <BookOpen className="h-3.5 w-3.5 text-[#1684D8] shrink-0" />
-                      <span>
-                        {t.publishedProcedure.title} (v
-                        {t.publishedProcedure.versionNumber})
-                      </span>
-                    </p>
-                  ) : (
-                    <p className="text-slate-500 mt-0.5">Padrão interno</p>
-                  )}
-                </div>
-              </div>
-
-              {/* Explicação explícita do motivo da pendência ou da dispensa por regra */}
-              {t.state === "WAIVED_BY_RULE" && t.waivedRuleDescription && (
-                <div className="rounded-lg bg-slate-100 border border-slate-300 px-3 py-2 text-xs text-slate-700">
-                  <strong>Condição que dispensou esta tarefa por regra:</strong>{" "}
-                  {t.waivedRuleDescription}
-                </div>
-              )}
-
-              {t.state !== "COMPLETED" &&
-                t.state !== "WAIVED_BY_RULE" &&
-                t.pendingReason && (
-                  <div className="rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 text-xs text-amber-950">
-                    <strong>Motivo da situação atual e ação necessária:</strong>{" "}
-                    {t.pendingReason}
-                  </div>
-                )}
-
-              {/* Ações disponíveis para o usuário atual */}
-              {t.state !== "WAIVED_BY_RULE" &&
-                t.state !== "COMPLETED" &&
-                deal.status !== "DELIVERED" && (
-                  <div className="pt-2 border-t border-slate-100 flex flex-wrap items-center justify-between gap-3">
-                    <div className="flex flex-wrap items-center gap-2">
-                      {!t.requiresFormalApproval &&
-                        t.code !== "TASK_BILLING_INVOICE" &&
-                        t.code !== "TASK_CONFIRM_DELIVERY" && (
-                          <button
-                            type="button"
-                            disabled={
-                              actionLoading ||
-                              t.state === "WAITING_PREREQUISITE"
-                            }
-                            onClick={() =>
-                              callDealApi(
-                                {
-                                  action: "TASK_ACTION",
-                                  dealId: deal.id,
-                                  taskCode: t.code,
-                                  taskAction: "COMPLETE_OPERATIONAL",
-                                },
-                                `Tarefa '${t.title}' marcada como concluída.`,
-                              )
-                            }
-                            className="rounded-xl bg-[#1684D8] hover:bg-[#126FB8] px-3.5 py-2 text-xs font-bold text-white disabled:opacity-40 transition"
-                          >
-                            Concluir Tarefa Operacional
-                          </button>
-                        )}
-
-                      {t.requiresFormalApproval &&
-                        t.code !== "TASK_RELEASE_AUTH" && (
-                          <button
-                            type="button"
-                            disabled={
-                              actionLoading ||
-                              t.state === "WAITING_PREREQUISITE"
-                            }
-                            onClick={() =>
-                              setApprovingTaskCode(
-                                approvingTaskCode === t.code ? null : t.code,
-                              )
-                            }
-                            className="rounded-xl bg-[#0B3B70] hover:bg-[#1684D8] px-3.5 py-2 text-xs font-bold text-white disabled:opacity-40 transition"
-                          >
-                            Registrar Aprovação (
-                            {t.approvalRole
-                              ? ROLE_LABELS[t.approvalRole]
-                              : AREA_LABELS[t.responsibleArea]}
-                            )
-                          </button>
-                        )}
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    askAssistant(assistantQuestion);
+                  }}
+                  className="flex gap-1.5"
+                >
+                  <input
+                    type="text"
+                    value={assistantQuestion}
+                    onChange={(e) => setAssistantQuestion(e.target.value)}
+                    placeholder="Digite sua dúvida sobre esta negociação..."
+                    className="flex-1 rounded-lg border border-slate-300 px-2.5 py-1.5 text-xs text-[#172B3A]"
+                  />
+                  <button
+                    type="submit"
+                    disabled={assistantLoading || !assistantQuestion.trim()}
+                    className="inline-flex items-center gap-1 rounded-lg bg-[#1684D8] px-3 py-1.5 text-xs font-bold text-white"
+                  >
+                    <Send className="h-3 w-3" />
+                    <span>{assistantLoading ? "..." : "Consultar"}</span>
+                  </button>
+                </form>
+                {assistantReply && (
+                  <div className="rounded-xl bg-[#F4F7FA] border border-slate-200 p-3 space-y-2">
+                    <div className="whitespace-pre-line text-[#172B3A] leading-relaxed">
+                      {assistantReply.answerMarkdown}
                     </div>
-
-                    {hasPerm("task:assign") && (
-                      <div className="flex items-center gap-2 text-xs">
-                        <label className="text-slate-500 font-medium">
-                          Atribuir:
-                        </label>
-                        <select
-                          value={t.assigneeId || ""}
-                          onChange={(e) =>
-                            callDealApi(
-                              {
-                                action: "TASK_ACTION",
-                                dealId: deal.id,
-                                taskCode: t.code,
-                                taskAction: "ASSIGN",
-                                targetAssigneeId: e.target.value,
-                              },
-                              "Responsável atualizado.",
-                            )
-                          }
-                          className="rounded-lg border border-slate-300 px-2.5 py-1.5 text-xs text-[#172B3A]"
-                        >
-                          <option value="">Selecionar colaborador...</option>
-                          {internalStaffList.map((st) => (
-                            <option key={st.id} value={st.id}>
-                              {st.fullName}
-                            </option>
-                          ))}
-                        </select>
+                    {assistantReply.citations.length > 0 && (
+                      <div className="pt-2 border-t border-slate-200 flex flex-wrap gap-1.5">
+                        {assistantReply.citations.map((cit, idx) => (
+                          <span
+                            key={idx}
+                            className="inline-flex items-center gap-1 rounded bg-[#EAF3FC] px-2 py-0.5 text-[10px] font-semibold text-[#0B3B70]"
+                          >
+                            <BookOpen className="h-3 w-3 text-[#1684D8]" />
+                            <span>
+                              {cit.procedureTitle} (Seção {cit.sectionNumber})
+                            </span>
+                          </span>
+                        ))}
                       </div>
                     )}
                   </div>
                 )}
+              </div>
+            </details>
+          </div>
 
-              {/* Formulário Inline de Aprovação Formal */}
-              {approvingTaskCode === t.code && (
-                <div className="rounded-xl bg-[#0B3B70] text-white p-4 space-y-3">
-                  <div className="text-xs font-bold text-[#EAF3FC]">
-                    Registrar Decisão Formal de Aprovação ou Rejeição —{" "}
-                    {t.title}
-                  </div>
-                  <textarea
-                    rows={2}
-                    value={approvalJustification}
-                    onChange={(e) => setApprovalJustification(e.target.value)}
-                    placeholder="Informe o parecer / justificativa e referência da evidência conferida..."
-                    className="w-full rounded-lg bg-[#082B54] border border-white/20 p-2.5 text-xs text-white placeholder:text-white/50"
-                  />
-                  <div className="flex flex-wrap items-center gap-2">
-                    <button
-                      type="button"
-                      disabled={actionLoading}
-                      onClick={async () => {
-                        const ok = await callDealApi(
-                          {
-                            action: "FORMAL_APPROVAL",
-                            dealId: deal.id,
-                            taskCode: t.code,
-                            decision: "APPROVED",
-                            justification:
-                              approvalJustification.trim() ||
-                              "Conferido e aprovado com evidência validada.",
-                          },
-                          `Etapa '${t.title}' aprovada formalmente!`,
-                        );
-                        if (ok) {
-                          setApprovingTaskCode(null);
-                          setApprovalJustification("");
-                        }
-                      }}
-                      className="rounded-lg bg-[#1684D8] hover:bg-[#126FB8] px-4 py-2 text-xs font-bold text-white"
-                    >
-                      Aprovar Etapa
-                    </button>
-                    <button
-                      type="button"
-                      disabled={actionLoading}
-                      onClick={async () => {
-                        const ok = await callDealApi(
-                          {
-                            action: "FORMAL_APPROVAL",
-                            dealId: deal.id,
-                            taskCode: t.code,
-                            decision: "CORRECTION_REQUESTED",
-                            justification: approvalJustification,
-                          },
-                          `Solicitação de correção registrada para '${t.title}'.`,
-                        );
-                        if (ok) {
-                          setApprovingTaskCode(null);
-                          setApprovalJustification("");
-                        }
-                      }}
-                      className="rounded-lg bg-red-600 hover:bg-red-500 px-4 py-2 text-xs font-bold text-white"
-                    >
-                      Rejeitar / Solicitar Correção
-                    </button>
-                  </div>
-                </div>
-              )}
+          {filteredTasks.length === 0 ? (
+            <div className="bg-white rounded-2xl border border-slate-200 p-6 text-center space-y-2">
+              <p className="text-sm font-bold text-[#172B3A]">
+                Nenhuma atividade neste filtro.
+              </p>
+              <button
+                type="button"
+                onClick={() => setTaskFilter("ALL")}
+                className="text-xs font-bold text-[#1684D8] hover:underline"
+              >
+                Mostrar todas as atividades ({taskCounts.all})
+              </button>
             </div>
-          ))}
+          ) : (
+            filteredTasks.map((t) => {
+              const linkedDocs = passport.documents.filter(
+                (d) => d.taskCode === t.code,
+              );
+              const compatibleStaff = internalStaffList.filter((st) =>
+                st.roles.some((r) =>
+                  AREA_COMPATIBLE_ROLES[t.responsibleArea].includes(r),
+                ),
+              );
+              const isHighlighted = highlightedTaskCode === t.code;
+
+              return (
+                <div
+                  key={t.id}
+                  className={`rounded-2xl border p-4 sm:p-5 shadow-xs space-y-3 transition ${
+                    isHighlighted
+                      ? "bg-white border-2 border-[#1684D8] ring-2 ring-[#1684D8]/20"
+                      : t.state === "WAIVED_BY_RULE"
+                        ? "bg-slate-50 border-slate-200"
+                        : "bg-white border-slate-200"
+                  }`}
+                >
+                  {/* Linha Principal: Título, Responsável, Prazo e Estado */}
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div className="space-y-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="rounded bg-[#EAF3FC] border border-[#1684D8]/30 px-2 py-0.5 text-[11px] font-bold text-[#0B3B70]">
+                          {AREA_LABELS[t.responsibleArea]}
+                        </span>
+                        <span className="text-xs text-slate-600">
+                          Responsável:{" "}
+                          <strong className="text-[#172B3A]">
+                            {t.assigneeName || AREA_LABELS[t.responsibleArea]}
+                          </strong>
+                        </span>
+                        <span className="text-xs text-slate-500">
+                          • Prazo:{" "}
+                          <strong className="text-[#172B3A]">
+                            {t.state === "WAITING_PREREQUISITE"
+                              ? "Inicia após etapa anterior"
+                              : t.dueAt
+                                ? formatDateTimeBr(t.dueAt)
+                                : "Não aplicável"}
+                          </strong>
+                        </span>
+                      </div>
+                      <h3 className="text-base font-extrabold text-[#172B3A]">
+                        {t.title}
+                      </h3>
+                      <p className="text-xs text-slate-600">{t.description}</p>
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-2">
+                      <TaskStateBadge state={t.state} />
+                      {t.requiresFormalApproval && (
+                        <span
+                          className={`rounded-full border px-2.5 py-1 text-xs font-semibold ${
+                            t.approvalStatus === "APPROVED"
+                              ? "bg-emerald-50 text-emerald-900 border-emerald-300"
+                              : t.approvalStatus === "OUTDATED" ||
+                                  t.approvalStatus === "REJECTED"
+                                ? "bg-red-50 text-red-900 border-red-300"
+                                : "bg-amber-50 text-amber-900 border-amber-300"
+                          }`}
+                        >
+                          {TASK_APPROVAL_STATUS_LABELS[t.approvalStatus]}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Documentos vinculados a esta atividade */}
+                  {linkedDocs.length > 0 && (
+                    <div className="rounded-xl bg-[#F4F7FA] border border-slate-200 p-3 text-xs space-y-2">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <span className="font-bold text-[#0B3B70]">
+                          Documentos vinculados a esta atividade (aprovar todos
+                          conclui a atividade automaticamente):
+                        </span>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        {linkedDocs.map((ld) => (
+                          <button
+                            key={ld.id}
+                            type="button"
+                            onClick={() => {
+                              setActiveTab("DOCUMENTS");
+                              setHighlightedDocId(ld.id);
+                            }}
+                            className="inline-flex items-center gap-2 rounded-lg bg-white border border-slate-300 hover:border-[#1684D8] px-3 py-1.5 text-xs font-semibold text-[#172B3A] transition"
+                          >
+                            <span>{ld.title}</span>
+                            <DocumentStatusBadge status={ld.status} />
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Motivo de dispensa ou pendência */}
+                  {t.state === "WAIVED_BY_RULE" && t.waivedRuleDescription && (
+                    <div className="rounded-lg bg-slate-100 border border-slate-300 px-3 py-2 text-xs text-slate-700">
+                      <strong>Motivo da dispensa:</strong>{" "}
+                      {formatHumanRuleDescription(t.waivedRuleDescription)}
+                    </div>
+                  )}
+
+                  {t.state !== "COMPLETED" &&
+                    t.state !== "WAIVED_BY_RULE" &&
+                    t.pendingReason && (
+                      <div className="rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 text-xs text-amber-950">
+                        <strong>Situação atual:</strong> {t.pendingReason}
+                      </div>
+                    )}
+
+                  {/* Como fazer (Recolhido: finalidade, orientação, evidências, dependências e procedimento) */}
+                  <details className="group rounded-xl border border-slate-200 bg-[#F4F7FA] text-xs">
+                    <summary className="cursor-pointer px-3.5 py-2 font-bold text-[#0B3B70] flex items-center justify-between">
+                      <span className="inline-flex items-center gap-1.5">
+                        <BookOpen className="h-3.5 w-3.5 text-[#1684D8]" />
+                        <span>Como fazer e requisitos desta atividade</span>
+                      </span>
+                      <span className="text-[11px] text-[#1684D8] group-open:underline">
+                        Expandir orientações
+                      </span>
+                    </summary>
+                    <div className="px-3.5 pb-3.5 pt-2 border-t border-slate-200 grid sm:grid-cols-2 gap-3 text-slate-700">
+                      <div>
+                        <strong className="text-[#172B3A] block">
+                          Finalidade:
+                        </strong>
+                        <p className="mt-0.5">{t.whyRequired}</p>
+                      </div>
+                      <div>
+                        <strong className="text-[#172B3A] block">
+                          Passo a passo:
+                        </strong>
+                        <p className="mt-0.5">{t.guidance}</p>
+                      </div>
+                      <div>
+                        <strong className="text-[#172B3A] block">
+                          Evidências exigidas:
+                        </strong>
+                        <p className="mt-0.5">
+                          {t.requiredEvidenceTypes.length > 0
+                            ? t.requiredEvidenceTypes
+                                .map((ev) => EVIDENCE_TYPE_LABELS[ev] || ev)
+                                .join(", ")
+                            : "Registro de conclusão no sistema"}
+                        </p>
+                      </div>
+                      <div>
+                        <strong className="text-[#172B3A] block">
+                          Atividades anteriores necessárias:
+                        </strong>
+                        <p className="mt-0.5">
+                          {t.dependsOnTaskCodes.length > 0
+                            ? t.dependsOnTaskCodes
+                                .map((code) => taskTitleByCode[code] || code)
+                                .join(", ")
+                            : "Nenhuma (disponível desde o início)"}
+                        </p>
+                      </div>
+                      {t.publishedProcedure && (
+                        <div className="sm:col-span-2 pt-2 border-t border-slate-200">
+                          <strong className="text-[#0B3B70] flex items-center gap-1.5">
+                            <BookOpen className="h-3.5 w-3.5 text-[#1684D8]" />
+                            <span>
+                              Procedimento de referência:{" "}
+                              {t.publishedProcedure.title} (v
+                              {t.publishedProcedure.versionNumber})
+                            </span>
+                          </strong>
+                          <p className="mt-0.5 text-slate-600">
+                            {t.publishedProcedure.sections?.[0]?.body || "Procedimento publicado vinculado."}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  </details>
+
+                  {/* Barra de Ação e Atribuição (apenas para tarefas abertas e quando a ação já está disponível) */}
+                  {t.state !== "WAIVED_BY_RULE" &&
+                    t.state !== "COMPLETED" &&
+                    deal.status !== "DELIVERED" && (
+                      <div className="pt-2 border-t border-slate-100 flex flex-wrap items-center justify-between gap-3">
+                        <div className="flex flex-wrap items-center gap-2">
+                          {t.state === "WAITING_PREREQUISITE" ? (
+                            <span className="text-xs font-medium text-slate-500">
+                              Esta atividade ficará disponível assim que as
+                              etapas anteriores forem concluídas.
+                            </span>
+                          ) : (
+                            <>
+                              {t.code === "TASK_BILLING_INVOICE" ||
+                              t.code === "TASK_RELEASE_AUTH" ||
+                              t.code === "TASK_CONFIRM_DELIVERY" ? (
+                                <button
+                                  type="button"
+                                  onClick={() => setActiveTab("SALE_DATA")}
+                                  className="rounded-xl bg-[#1684D8] hover:bg-[#126FB8] px-3.5 py-2 text-xs font-bold text-white transition"
+                                >
+                                  Abrir painel de execução →
+                                </button>
+                              ) : !t.requiresFormalApproval ? (
+                                <button
+                                  type="button"
+                                  disabled={actionLoading}
+                                  onClick={() =>
+                                    callDealApi(
+                                      {
+                                        action: "TASK_ACTION",
+                                        dealId: deal.id,
+                                        taskCode: t.code,
+                                        taskAction: "COMPLETE_OPERATIONAL",
+                                      },
+                                      `Atividade '${t.title}' concluída.`,
+                                    )
+                                  }
+                                  className="rounded-xl bg-[#1684D8] hover:bg-[#126FB8] px-3.5 py-2 text-xs font-bold text-white disabled:opacity-40 transition"
+                                >
+                                  Concluir atividade
+                                </button>
+                              ) : (
+                                <button
+                                  type="button"
+                                  disabled={actionLoading}
+                                  onClick={() =>
+                                    setApprovingTaskCode(
+                                      approvingTaskCode === t.code
+                                        ? null
+                                        : t.code,
+                                    )
+                                  }
+                                  className="rounded-xl bg-[#0B3B70] hover:bg-[#1684D8] px-3.5 py-2 text-xs font-bold text-white disabled:opacity-40 transition"
+                                >
+                                  Registrar aprovação (
+                                  {t.approvalRole
+                                    ? ROLE_LABELS[t.approvalRole]
+                                    : AREA_LABELS[t.responsibleArea]}
+                                  )
+                                </button>
+                              )}
+                            </>
+                          )}
+                        </div>
+
+                        {hasPerm("task:assign") && (
+                          <div className="flex items-center gap-2 text-xs">
+                            <label
+                              htmlFor={`assign-${t.id}`}
+                              className="text-slate-600 font-medium"
+                            >
+                              Responsável:
+                            </label>
+                            <select
+                              id={`assign-${t.id}`}
+                              value={t.assigneeId || ""}
+                              onChange={(e) =>
+                                callDealApi(
+                                  {
+                                    action: "TASK_ACTION",
+                                    dealId: deal.id,
+                                    taskCode: t.code,
+                                    taskAction: "ASSIGN",
+                                    targetAssigneeId: e.target.value,
+                                  },
+                                  "Responsável atualizado.",
+                                )
+                              }
+                              className="rounded-lg border border-slate-300 px-2.5 py-1.5 text-xs text-[#172B3A]"
+                            >
+                              <option value="">
+                                Definir colaborador ({AREA_LABELS[t.responsibleArea]})...
+                              </option>
+                              {compatibleStaff.map((st) => (
+                                <option key={st.id} value={st.id}>
+                                  {st.fullName}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                  {/* Formulário Inline de Aprovação Formal */}
+                  {approvingTaskCode === t.code && (
+                    <div className="rounded-xl bg-[#0B3B70] text-white p-4 space-y-3">
+                      <div className="text-xs font-bold text-[#EAF3FC]">
+                        Decisão de conferência e aprovação — {t.title}
+                      </div>
+                      <textarea
+                        rows={2}
+                        value={approvalJustification}
+                        onChange={(e) =>
+                          setApprovalJustification(e.target.value)
+                        }
+                        placeholder="Informe o parecer da conferência..."
+                        className="w-full rounded-lg bg-[#082B54] border border-white/20 p-2.5 text-xs text-white placeholder:text-white/50"
+                      />
+                      <div className="flex flex-wrap items-center gap-2">
+                        <button
+                          type="button"
+                          disabled={actionLoading}
+                          onClick={async () => {
+                            const ok = await callDealApi(
+                              {
+                                action: "FORMAL_APPROVAL",
+                                dealId: deal.id,
+                                taskCode: t.code,
+                                decision: "APPROVED",
+                                justification:
+                                  approvalJustification.trim() ||
+                                  "Conferido e aprovado com evidências validadas.",
+                              },
+                              `Atividade '${t.title}' aprovada!`,
+                            );
+                            if (ok) {
+                              setApprovingTaskCode(null);
+                              setApprovalJustification("");
+                            }
+                          }}
+                          className="rounded-lg bg-[#1684D8] hover:bg-[#126FB8] px-4 py-2 text-xs font-bold text-white"
+                        >
+                          Aprovar etapa
+                        </button>
+                        <button
+                          type="button"
+                          disabled={actionLoading}
+                          onClick={async () => {
+                            const ok = await callDealApi(
+                              {
+                                action: "FORMAL_APPROVAL",
+                                dealId: deal.id,
+                                taskCode: t.code,
+                                decision: "CORRECTION_REQUESTED",
+                                justification: approvalJustification,
+                              },
+                              `Solicitação de correção registrada para '${t.title}'.`,
+                            );
+                            if (ok) {
+                              setApprovingTaskCode(null);
+                              setApprovalJustification("");
+                            }
+                          }}
+                          className="rounded-lg bg-red-600 hover:bg-red-500 px-4 py-2 text-xs font-bold text-white"
+                        >
+                          Solicitar correção
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })
+          )}
         </div>
       )}
 
-      {/* ABA 2: DOCUMENTOS PRIVADOS E VERSÕES */}
+      {/* ABA 2: DOCUMENTOS E CONFERÊNCIA */}
       {activeTab === "DOCUMENTS" && (
         <div className="space-y-4">
           <div className="flex flex-wrap items-center justify-between gap-3 bg-white rounded-xl border border-slate-200 p-4">
-            <div className="text-xs text-slate-600 flex items-center gap-2">
-              <Lock className="h-4 w-4 text-[#1684D8] shrink-0" />
-              <span>
-                Armazenamento privado com validação de tipo/tamanho no servidor
-                e links temporários assinados (HMAC). Substituir um documento
-                aprovado preserva a versão anterior, marca aprovações
-                dependentes como desatualizadas e reabre verificações.
-              </span>
+            <div className="text-xs text-slate-600">
+              Confira cada documento exigido, abra o arquivo atual ou envie uma
+              nova versão quando necessário.
             </div>
-            {hasPerm("document:request") && deal.status !== "DELIVERED" && (
-              <button
-                type="button"
-                onClick={() => setShowRequestDocModal((v) => !v)}
-                className="inline-flex items-center gap-1.5 rounded-xl bg-[#1684D8] hover:bg-[#126FB8] px-3.5 py-2 text-xs font-bold text-white shrink-0 transition"
-              >
-                <Plus className="h-4 w-4" />
-                <span>Solicitar Documento Adicional</span>
-              </button>
-            )}
+            {hasPerm("document:request") &&
+              deal.status !== "DELIVERED" &&
+              deal.status !== "CANCELLED" && (
+                <button
+                  type="button"
+                  onClick={() => setShowRequestDocModal((v) => !v)}
+                  className="inline-flex items-center gap-1.5 rounded-xl bg-[#1684D8] hover:bg-[#126FB8] px-3.5 py-2 text-xs font-bold text-white shrink-0 transition"
+                >
+                  <Plus className="h-4 w-4" />
+                  <span>Solicitar documento adicional</span>
+                </button>
+              )}
           </div>
 
           {showRequestDocModal && (
             <div className="bg-white rounded-2xl border-2 border-[#1684D8] p-5 space-y-4">
               <h3 className="text-sm font-bold text-[#172B3A]">
-                Solicitar Novo Documento na Negociação
+                Solicitar documento adicional
               </h3>
               <div className="grid sm:grid-cols-2 gap-3 text-xs">
                 <div>
                   <label className="font-semibold text-slate-700 block">
-                    Título do Documento *
+                    Nome do documento *
                   </label>
                   <input
                     type="text"
@@ -1215,7 +1604,7 @@ export function DealPassportClient({
                 </div>
                 <div>
                   <label className="font-semibold text-slate-700 block">
-                    Área Responsável pela Conferência *
+                    Área responsável pela conferência *
                   </label>
                   <select
                     value={reqDocArea}
@@ -1230,7 +1619,7 @@ export function DealPassportClient({
                 </div>
                 <div className="sm:col-span-2">
                   <label className="font-semibold text-slate-700 block">
-                    Por que é exigido? *
+                    Motivo da solicitação *
                   </label>
                   <input
                     type="text"
@@ -1247,7 +1636,7 @@ export function DealPassportClient({
                       checked={reqDocBlocksBilling}
                       onChange={(e) => setReqDocBlocksBilling(e.target.checked)}
                     />
-                    <span>Bloqueia Faturamento</span>
+                    <span>Exigido antes do faturamento</span>
                   </label>
                   <label className="flex items-center gap-2">
                     <input
@@ -1257,7 +1646,7 @@ export function DealPassportClient({
                         setReqDocBlocksDelivery(e.target.checked)
                       }
                     />
-                    <span>Bloqueia Entrega</span>
+                    <span>Exigido antes da entrega</span>
                   </label>
                   <label className="flex items-center gap-2">
                     <input
@@ -1267,7 +1656,7 @@ export function DealPassportClient({
                         setReqDocCustomerVisible(e.target.checked)
                       }
                     />
-                    <span>Compartilhável na Área do Cliente</span>
+                    <span>Visível no Portal do Cliente</span>
                   </label>
                 </div>
               </div>
@@ -1297,7 +1686,7 @@ export function DealPassportClient({
                         blocksDelivery: reqDocBlocksDelivery,
                         isCustomerVisible: reqDocCustomerVisible,
                       },
-                      `Documento '${reqDocTitle}' solicitado com sucesso.`,
+                      `Documento '${reqDocTitle}' solicitado.`,
                     );
                     if (ok) {
                       setShowRequestDocModal(false);
@@ -1307,316 +1696,544 @@ export function DealPassportClient({
                   }}
                   className="rounded-lg bg-[#1684D8] hover:bg-[#126FB8] px-4 py-1.5 text-xs font-bold text-white"
                 >
-                  Confirmar Solicitação
+                  Confirmar solicitação
                 </button>
               </div>
             </div>
           )}
 
-          {passport.documents.map((doc) => (
-            <div
-              key={doc.id}
-              className="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs space-y-4"
-            >
-              <div className="flex flex-wrap items-start justify-between gap-2">
-                <div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-[11px] font-bold uppercase tracking-wider bg-[#EAF3FC] text-[#0B3B70] px-2 py-0.5 rounded">
-                      {doc.category} • Área: {AREA_LABELS[doc.responsibleArea]}
-                    </span>
-                    <span className="text-[11px] font-semibold text-slate-500">
-                      Versão atual: v{doc.currentVersionNumber}
-                    </span>
-                  </div>
-                  <h3 className="text-base font-extrabold text-[#172B3A] mt-1">
-                    {doc.title}
-                  </h3>
-                  <p className="text-xs text-slate-600 mt-0.5">
-                    <strong>Por que é necessário:</strong> {doc.whyRequired}
-                  </p>
-                </div>
+          {passport.documents.map((doc) => {
+            const currentVer =
+              doc.versions.find(
+                (v) => v.versionNumber === doc.currentVersionNumber,
+              ) || doc.versions[0];
+            const linkedTaskTitle = doc.taskCode
+              ? taskTitleByCode[doc.taskCode]
+              : null;
+            const isDocHighlighted = highlightedDocId === doc.id;
 
-                <DocumentStatusBadge status={doc.status} />
-              </div>
-
-              {doc.rejectionReason && (
-                <div className="rounded-lg bg-red-50 border border-red-200 p-3 text-xs text-red-900">
-                  <strong>Motivo de rejeição / correção solicitada:</strong>{" "}
-                  {doc.rejectionReason}
-                </div>
-              )}
-
-              {/* Histórico de Versões do Documento */}
-              {doc.versions.length > 0 && (
-                <div className="space-y-1.5">
-                  <div className="text-xs font-bold text-[#172B3A]">
-                    Versões armazenadas ({doc.versions.length}):
-                  </div>
-                  <div className="divide-y divide-slate-200 border border-slate-200 rounded-xl overflow-hidden text-xs">
-                    {doc.versions.map((ver) => (
-                      <div
-                        key={ver.id}
-                        className="p-3 bg-[#F4F7FA] flex flex-wrap items-center justify-between gap-2"
-                      >
-                        <div>
-                          <div className="font-bold text-[#172B3A]">
-                            v{ver.versionNumber} — {ver.originalFilename} (
-                            {Math.round(ver.sizeBytes / 1024 || 1)} KB)
-                          </div>
-                          <div className="text-[11px] text-slate-500">
-                            Enviado por {ver.uploadedByName} em{" "}
-                            {formatDateTimeBr(ver.createdAt)}
-                            {ver.uploadNotes
-                              ? ` • Obs: ${ver.uploadNotes}`
-                              : ""}
-                          </div>
-                        </div>
-                        <a
-                          href={ver.downloadUrl}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="inline-flex items-center gap-1 rounded-lg border border-slate-300 bg-white hover:bg-slate-100 px-3 py-1.5 text-xs font-bold text-[#0B3B70]"
-                        >
-                          <ExternalLink className="h-3.5 w-3.5 text-[#1684D8]" />
-                          <span>Visualizar (Link Temporário Assinado)</span>
-                        </a>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Botões de Upload / Substituição e de Conferência */}
-              {deal.status !== "DELIVERED" && (
-                <div className="pt-2 border-t border-slate-100 flex flex-wrap items-center justify-between gap-3">
-                  <div className="flex flex-wrap items-center gap-2">
-                    {hasPerm("document:upload") && (
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setUploadingDocId(
-                            uploadingDocId === doc.id ? null : doc.id,
-                          )
-                        }
-                        className="inline-flex items-center gap-1.5 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 px-3.5 py-2 text-xs font-bold text-[#172B3A]"
-                      >
-                        <Upload className="h-3.5 w-3.5 text-[#1684D8]" />
-                        <span>
-                          {doc.status === "APPROVED"
-                            ? "Substituir Documento Aprovado (Gera Nova Versão)"
-                            : "Enviar documento"}
-                        </span>
-                      </button>
+            return (
+              <div
+                key={doc.id}
+                className={`bg-white rounded-2xl border p-5 shadow-xs space-y-3.5 transition ${
+                  isDocHighlighted
+                    ? "border-2 border-[#1684D8] ring-2 ring-[#1684D8]/20"
+                    : "border-slate-200"
+                }`}
+              >
+                {/* Cabeçalho do Documento: Nome, Estado, Responsável */}
+                <div className="flex flex-wrap items-start justify-between gap-2">
+                  <div className="space-y-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="text-[11px] font-bold bg-[#EAF3FC] text-[#0B3B70] px-2 py-0.5 rounded">
+                        {DOCUMENT_CATEGORY_LABELS[doc.category] || doc.category}
+                      </span>
+                      <span className="text-xs text-slate-600">
+                        Conferência:{" "}
+                        <strong className="text-[#172B3A]">
+                          {AREA_LABELS[doc.responsibleArea]}
+                        </strong>
+                      </span>
+                    </div>
+                    <h3 className="text-base font-extrabold text-[#172B3A]">
+                      {doc.title}
+                    </h3>
+                    <p className="text-xs text-slate-600">{doc.whyRequired}</p>
+                    {linkedTaskTitle && (
+                      <p className="text-[11px] font-semibold text-[#0B3B70]">
+                        Vinculado à atividade «{linkedTaskTitle}» (concluída
+                        automaticamente quando os documentos exigidos são
+                        aprovados).
+                      </p>
                     )}
                   </div>
 
-                  {(hasPerm("document:review") ||
-                    (doc.responsibleArea === "FINANCE" &&
-                      hasPerm("approval:finance"))) &&
-                    doc.currentVersionNumber > 0 && (
-                      <div className="flex flex-wrap items-center gap-2">
-                        {doc.status !== "APPROVED" && (
-                          <button
-                            type="button"
-                            disabled={actionLoading}
-                            onClick={() =>
-                              callDealApi(
-                                {
-                                  action: "REVIEW_DOCUMENT",
-                                  dealId: deal.id,
-                                  documentId: doc.id,
-                                  decision: "APPROVED",
-                                  justification:
-                                    "Documento conferido e aprovado.",
-                                },
-                                `Documento '${doc.title}' aprovado!`,
-                              )
-                            }
-                            className="rounded-xl bg-emerald-600 hover:bg-emerald-700 px-3.5 py-2 text-xs font-bold text-white"
-                          >
-                            Aprovar v{doc.currentVersionNumber}
-                          </button>
+                  <DocumentStatusBadge status={doc.status} />
+                </div>
+
+                {/* Orientação pública e Observação interna de conferência */}
+                {(doc.customerRejectionGuidance || doc.rejectionReason) && (
+                  <div className="rounded-xl bg-red-50 border border-red-200 p-3 text-xs text-red-950 space-y-1">
+                    <div>
+                      <strong>
+                        Orientação para regularização (visível ao vendedor e
+                        cliente):
+                      </strong>{" "}
+                      {doc.customerRejectionGuidance || doc.rejectionReason}
+                    </div>
+                    {doc.internalReviewNotes && (
+                      <div className="pt-1 border-t border-red-200/80 text-red-900">
+                        <strong>Observação interna da conferência:</strong>{" "}
+                        {doc.internalReviewNotes}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {!doc.customerRejectionGuidance &&
+                  !doc.rejectionReason &&
+                  doc.internalReviewNotes && (
+                    <div className="rounded-xl bg-slate-100 border border-slate-200 p-2.5 text-xs text-slate-700">
+                      <strong>Observação interna da conferência:</strong>{" "}
+                      {doc.internalReviewNotes}
+                    </div>
+                  )}
+
+                {/* Arquivo Atual */}
+                <div className="rounded-xl bg-[#F4F7FA] border border-slate-200 p-3 text-xs flex flex-wrap items-center justify-between gap-2">
+                  {currentVer ? (
+                    <>
+                      <div>
+                        <span className="font-bold text-[#172B3A]">
+                          Arquivo atual (v{currentVer.versionNumber}):{" "}
+                          {currentVer.originalFilename}
+                        </span>{" "}
+                        <span className="text-slate-500">
+                          ({Math.round(currentVer.sizeBytes / 1024 || 1)} KB •
+                          Enviado por {currentVer.uploadedByName} em{" "}
+                          {formatDateTimeBr(currentVer.createdAt)})
+                        </span>
+                        {currentVer.uploadNotes && (
+                          <div className="text-[11px] text-slate-600 mt-0.5">
+                            Observação do envio: {currentVer.uploadNotes}
+                          </div>
                         )}
+                      </div>
+                      <a
+                        href={currentVer.downloadUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white hover:bg-slate-100 px-3 py-1.5 text-xs font-bold text-[#0B3B70]"
+                      >
+                        <ExternalLink className="h-3.5 w-3.5 text-[#1684D8]" />
+                        <span>Abrir arquivo</span>
+                      </a>
+                    </>
+                  ) : (
+                    <span className="text-slate-500 font-medium">
+                      Nenhum arquivo enviado até o momento.
+                    </span>
+                  )}
+                </div>
+
+                {/* Histórico de Versões Recolhido */}
+                {doc.versions.length > 1 && (
+                  <details className="rounded-xl border border-slate-200 bg-white text-xs">
+                    <summary className="cursor-pointer px-3.5 py-2 font-semibold text-slate-700 hover:text-[#0B3B70]">
+                      Ver histórico de versões ({doc.versions.length} versões)
+                    </summary>
+                    <div className="divide-y divide-slate-200 border-t border-slate-200">
+                      {doc.versions.map((ver) => (
+                        <div
+                          key={ver.id}
+                          className="p-3 flex flex-wrap items-center justify-between gap-2"
+                        >
+                          <div>
+                            <div className="font-bold text-[#172B3A]">
+                              v{ver.versionNumber} — {ver.originalFilename} (
+                              {Math.round(ver.sizeBytes / 1024 || 1)} KB)
+                            </div>
+                            <div className="text-[11px] text-slate-500">
+                              Enviado por {ver.uploadedByName} em{" "}
+                              {formatDateTimeBr(ver.createdAt)}
+                              {ver.uploadNotes
+                                ? ` • Obs: ${ver.uploadNotes}`
+                                : ""}
+                            </div>
+                          </div>
+                          <a
+                            href={ver.downloadUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="inline-flex items-center gap-1 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 px-2.5 py-1 text-xs font-bold text-[#0B3B70]"
+                          >
+                            <ExternalLink className="h-3 w-3 text-[#1684D8]" />
+                            <span>Abrir v{ver.versionNumber}</span>
+                          </a>
+                        </div>
+                      ))}
+                    </div>
+                  </details>
+                )}
+
+                {/* Botões de Ação do Documento */}
+                {deal.status !== "DELIVERED" && deal.status !== "CANCELLED" && (
+                  <div className="pt-2 border-t border-slate-100 flex flex-wrap items-center justify-between gap-3">
+                    <div className="flex flex-wrap items-center gap-2">
+                      {hasPerm("document:upload") && (
                         <button
                           type="button"
                           onClick={() =>
-                            setReviewingDocId(
-                              reviewingDocId === doc.id ? null : doc.id,
+                            setUploadingDocId(
+                              uploadingDocId === doc.id ? null : doc.id,
                             )
                           }
-                          className="rounded-xl border border-red-300 bg-red-50 hover:bg-red-100 px-3 py-2 text-xs font-bold text-red-900"
+                          className="inline-flex items-center gap-1.5 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 px-3.5 py-2 text-xs font-bold text-[#172B3A]"
                         >
-                          Rejeitar / Solicitar Correção
+                          <Upload className="h-3.5 w-3.5 text-[#1684D8]" />
+                          <span>
+                            {doc.status === "APPROVED"
+                              ? "Substituir documento aprovado"
+                              : currentVer
+                                ? "Enviar nova versão"
+                                : "Enviar documento"}
+                          </span>
                         </button>
+                      )}
+                    </div>
+
+                    {canReviewDoc(doc.responsibleArea) &&
+                      doc.currentVersionNumber > 0 && (
+                        <div className="flex flex-wrap items-center gap-2">
+                          {doc.status !== "APPROVED" && (
+                            <button
+                              type="button"
+                              disabled={actionLoading}
+                              onClick={() =>
+                                callDealApi(
+                                  {
+                                    action: "REVIEW_DOCUMENT",
+                                    dealId: deal.id,
+                                    documentId: doc.id,
+                                    decision: "APPROVED",
+                                    justification:
+                                      "Documento conferido e aprovado.",
+                                  },
+                                  `Documento '${doc.title}' aprovado!`,
+                                )
+                              }
+                              className="rounded-xl bg-emerald-600 hover:bg-emerald-700 px-3.5 py-2 text-xs font-bold text-white"
+                            >
+                              Aprovar documento
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setReviewingDocId(
+                                reviewingDocId === doc.id ? null : doc.id,
+                              );
+                              setCustomerRejectionGuidance(
+                                doc.customerRejectionGuidance ||
+                                  doc.rejectionReason ||
+                                  "",
+                              );
+                              setInternalReviewNotes(
+                                doc.internalReviewNotes || "",
+                              );
+                            }}
+                            className="rounded-xl border border-red-300 bg-red-50 hover:bg-red-100 px-3 py-2 text-xs font-bold text-red-900"
+                          >
+                            Pedir correção ou rejeitar
+                          </button>
+                        </div>
+                      )}
+                  </div>
+                )}
+
+                {/* Painel Inline de Envio / Substituição */}
+                {uploadingDocId === doc.id && (
+                  <div className="rounded-xl bg-[#0B3B70] text-white p-4 space-y-3 text-xs">
+                    <div className="font-bold text-[#EAF3FC]">
+                      {doc.status === "APPROVED"
+                        ? `Substituir documento aprovado — ${doc.title}`
+                        : `Enviar arquivo — ${doc.title}`}
+                    </div>
+                    {doc.status === "APPROVED" && (
+                      <div className="rounded-lg bg-amber-500/20 border border-amber-400/40 p-2.5 text-amber-100">
+                        Ao substituir um documento já aprovado, a versão
+                        anterior permanece no histórico e as aprovações que
+                        dependem dele voltam para conferência.
                       </div>
                     )}
-                </div>
-              )}
+                    <div className="grid sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="block font-semibold text-[#EAF3FC]">
+                          Arquivo (PDF, PNG, JPG, WEBP ou TXT — máx. 4 MB)
+                        </label>
+                        <input
+                          type="file"
+                          accept=".pdf,.png,.jpg,.jpeg,.webp,.txt"
+                          onChange={(e) =>
+                            setSelectedFile(e.target.files?.[0] || null)
+                          }
+                          className="mt-1 w-full rounded bg-[#082B54] border border-white/20 p-2 text-xs"
+                        />
+                      </div>
+                      <div>
+                        <label className="block font-semibold text-[#EAF3FC]">
+                          {doc.status === "APPROVED"
+                            ? "Motivo da substituição (Obrigatório) *"
+                            : "Observações do envio (opcional)"}
+                        </label>
+                        <input
+                          type="text"
+                          value={
+                            doc.status === "APPROVED"
+                              ? replacementReason
+                              : uploadNotes
+                          }
+                          onChange={(e) =>
+                            doc.status === "APPROVED"
+                              ? setReplacementReason(e.target.value)
+                              : setUploadNotes(e.target.value)
+                          }
+                          placeholder="Informe o motivo ou observação..."
+                          className="mt-1 w-full rounded bg-[#082B54] border border-white/20 p-2 text-xs text-white"
+                        />
+                      </div>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        disabled={actionLoading || !selectedFile}
+                        onClick={() => handleRealFileUpload(doc.id)}
+                        className="rounded-lg bg-[#1684D8] hover:bg-[#126FB8] px-4 py-2 font-bold text-white disabled:opacity-40"
+                      >
+                        Confirmar envio
+                      </button>
+                    </div>
+                  </div>
+                )}
 
-              {/* Painel Inline de Upload Real ou Substituição de Aprovado */}
-              {uploadingDocId === doc.id && (
-                <div className="rounded-xl bg-[#0B3B70] text-white p-4 space-y-3 text-xs">
-                  <div className="font-bold text-[#EAF3FC]">
-                    {doc.status === "APPROVED"
-                      ? `Substituição de Documento Aprovado — ${doc.title}`
-                      : `Enviar Arquivo Privado — ${doc.title}`}
-                  </div>
-                  {doc.status === "APPROVED" && (
-                    <div className="rounded-lg bg-amber-500/20 border border-amber-400/40 p-2.5 text-amber-100">
-                      Atenção: Ao substituir um documento já aprovado, a versão
-                      anterior (v{doc.currentVersionNumber}) será preservada,
-                      aprovações dependentes ficarão{" "}
-                      <strong>Desatualizadas</strong> e as verificações serão
-                      reabertas automaticamente.
+                {/* Painel Inline de Rejeição / Correção com separação entre orientação pública e nota interna */}
+                {reviewingDocId === doc.id && (
+                  <div className="rounded-xl bg-red-950 text-white p-4 space-y-3 text-xs">
+                    <div className="font-bold text-red-200">
+                      Registrar pedido de correção ou rejeição — {doc.title}
                     </div>
-                  )}
-                  <div className="grid sm:grid-cols-2 gap-3">
-                    <div>
-                      <label className="block font-semibold text-[#EAF3FC]">
-                        Selecionar arquivo (PDF, PNG, JPG, WEBP, TXT — máx 4 MB)
-                      </label>
-                      <input
-                        type="file"
-                        accept=".pdf,.png,.jpg,.jpeg,.webp,.txt"
-                        onChange={(e) =>
-                          setSelectedFile(e.target.files?.[0] || null)
-                        }
-                        className="mt-1 w-full rounded bg-[#082B54] border border-white/20 p-2 text-xs"
-                      />
+                    <div className="grid sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="block font-semibold text-red-100">
+                          Orientação pública para o cliente ou vendedor *
+                        </label>
+                        <input
+                          type="text"
+                          value={customerRejectionGuidance}
+                          onChange={(e) =>
+                            setCustomerRejectionGuidance(e.target.value)
+                          }
+                          placeholder="Ex: Envie uma foto nítida frente e verso da CNH..."
+                          className="mt-1 w-full rounded bg-red-900/60 border border-red-700 p-2 text-white placeholder:text-red-300/60"
+                        />
+                      </div>
+                      <div>
+                        <label className="block font-semibold text-red-100">
+                          Observação interna da conferência (apenas equipe)
+                        </label>
+                        <input
+                          type="text"
+                          value={internalReviewNotes}
+                          onChange={(e) =>
+                            setInternalReviewNotes(e.target.value)
+                          }
+                          placeholder="Ex: Divergência de CEP com a proposta inicial..."
+                          className="mt-1 w-full rounded bg-red-900/60 border border-red-700 p-2 text-white placeholder:text-red-300/60"
+                        />
+                      </div>
                     </div>
-                    <div>
-                      <label className="block font-semibold text-[#EAF3FC]">
-                        {doc.status === "APPROVED"
-                          ? "Motivo da substituição (Obrigatório) *"
-                          : "Observações do envio"}
-                      </label>
-                      <input
-                        type="text"
-                        value={
-                          doc.status === "APPROVED"
-                            ? replacementReason
-                            : uploadNotes
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        disabled={
+                          actionLoading ||
+                          customerRejectionGuidance.trim().length < 5
                         }
-                        onChange={(e) =>
-                          doc.status === "APPROVED"
-                            ? setReplacementReason(e.target.value)
-                            : setUploadNotes(e.target.value)
+                        onClick={async () => {
+                          const ok = await callDealApi(
+                            {
+                              action: "REVIEW_DOCUMENT",
+                              dealId: deal.id,
+                              documentId: doc.id,
+                              decision: "CORRECTION_REQUESTED",
+                              justification: customerRejectionGuidance,
+                              customerRejectionGuidance,
+                              internalReviewNotes,
+                            },
+                            "Pedido de correção registrado.",
+                          );
+                          if (ok) {
+                            setReviewingDocId(null);
+                            setCustomerRejectionGuidance("");
+                            setInternalReviewNotes("");
+                          }
+                        }}
+                        className="rounded-lg bg-amber-500 px-3.5 py-1.5 font-bold text-slate-950 disabled:opacity-40"
+                      >
+                        Solicitar correção
+                      </button>
+                      <button
+                        type="button"
+                        disabled={
+                          actionLoading ||
+                          customerRejectionGuidance.trim().length < 5
                         }
-                        placeholder="Informe o motivo ou observação..."
-                        className="mt-1 w-full rounded bg-[#082B54] border border-white/20 p-2 text-xs text-white"
-                      />
+                        onClick={async () => {
+                          const ok = await callDealApi(
+                            {
+                              action: "REVIEW_DOCUMENT",
+                              dealId: deal.id,
+                              documentId: doc.id,
+                              decision: "REJECTED",
+                              justification: customerRejectionGuidance,
+                              customerRejectionGuidance,
+                              internalReviewNotes,
+                            },
+                            "Documento rejeitado.",
+                          );
+                          if (ok) {
+                            setReviewingDocId(null);
+                            setCustomerRejectionGuidance("");
+                            setInternalReviewNotes("");
+                          }
+                        }}
+                        className="rounded-lg bg-red-600 px-3.5 py-1.5 font-bold text-white disabled:opacity-40"
+                      >
+                        Rejeitar documento
+                      </button>
                     </div>
                   </div>
-                  <div className="flex flex-wrap gap-2">
-                    <button
-                      type="button"
-                      disabled={actionLoading || !selectedFile}
-                      onClick={() => handleRealFileUpload(doc.id)}
-                      className="rounded-lg bg-[#1684D8] hover:bg-[#126FB8] px-4 py-2 font-bold text-white disabled:opacity-40"
-                    >
-                      Enviar Arquivo Selecionado
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              {/* Painel Inline de Rejeição / Correção */}
-              {reviewingDocId === doc.id && (
-                <div className="rounded-xl bg-red-950 text-white p-4 space-y-3 text-xs">
-                  <div className="font-bold text-red-200">
-                    Informar Motivo de Rejeição ou Correção — {doc.title}
-                  </div>
-                  <input
-                    type="text"
-                    value={reviewJustification}
-                    onChange={(e) => setReviewJustification(e.target.value)}
-                    placeholder="Ex: Imagem ilegível / Falta assinatura no verso..."
-                    className="w-full rounded bg-red-900/60 border border-red-700 p-2 text-white"
-                  />
-                  <div className="flex gap-2">
-                    <button
-                      type="button"
-                      disabled={actionLoading}
-                      onClick={async () => {
-                        const ok = await callDealApi(
-                          {
-                            action: "REVIEW_DOCUMENT",
-                            dealId: deal.id,
-                            documentId: doc.id,
-                            decision: "CORRECTION_REQUESTED",
-                            justification: reviewJustification,
-                          },
-                          "Solicitação de correção registrada.",
-                        );
-                        if (ok) {
-                          setReviewingDocId(null);
-                          setReviewJustification("");
-                        }
-                      }}
-                      className="rounded-lg bg-amber-500 px-3.5 py-1.5 font-bold text-slate-950"
-                    >
-                      Solicitar Correção
-                    </button>
-                    <button
-                      type="button"
-                      disabled={actionLoading}
-                      onClick={async () => {
-                        const ok = await callDealApi(
-                          {
-                            action: "REVIEW_DOCUMENT",
-                            dealId: deal.id,
-                            documentId: doc.id,
-                            decision: "REJECTED",
-                            justification: reviewJustification,
-                          },
-                          "Documento rejeitado.",
-                        );
-                        if (ok) {
-                          setReviewingDocId(null);
-                          setReviewJustification("");
-                        }
-                      }}
-                      className="rounded-lg bg-red-600 px-3.5 py-1.5 font-bold text-white"
-                    >
-                      Rejeitar Documento
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
-          ))}
+                )}
+              </div>
+            );
+          })}
         </div>
       )}
 
-      {/* ABA 3: FATURAMENTO, AUTORIZAÇÃO E ENTREGA FÍSICA */}
-      {activeTab === "RELEASE" && (
+      {/* ABA 3: DADOS DA VENDA, FATURAMENTO, AUTORIZAÇÃO E ENTREGA */}
+      {activeTab === "SALE_DATA" && (
         <div className="space-y-6">
-          <div className="grid lg:grid-cols-3 gap-6">
-            {/* 1. Registro de Faturamento */}
+          {/* Condições comerciais, Procuração, Usado na troca e Pilares */}
+          <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs space-y-4">
+            <h2 className="text-base font-extrabold text-[#172B3A]">
+              Condições da venda e resumo das frentes
+            </h2>
+
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+              <div className="rounded-xl bg-[#F4F7FA] border border-slate-200 p-3">
+                <span className="text-slate-500 block text-[11px]">
+                  Modalidade de pagamento
+                </span>
+                <strong className="text-[#172B3A] mt-0.5 block">
+                  {deal.paymentMethod === "FINANCING"
+                    ? `Financiamento (${deal.financingInstitution || "Banco"})`
+                    : deal.paymentMethod === "CASH"
+                      ? "À Vista (PIX/TED)"
+                      : deal.paymentMethod === "CONSORTIUM"
+                        ? "Consórcio"
+                        : "Pagamento Misto"}
+                </strong>
+              </div>
+              <div className="rounded-xl bg-[#F4F7FA] border border-slate-200 p-3">
+                <span className="text-slate-500 block text-[11px]">
+                  Procuração
+                </span>
+                <strong className="text-[#172B3A] mt-0.5 block">
+                  {deal.hasPowerOfAttorney
+                    ? `Sim (${deal.attorneyName})`
+                    : "Não aplicável"}
+                </strong>
+              </div>
+              <div className="rounded-xl bg-[#F4F7FA] border border-slate-200 p-3">
+                <span className="text-slate-500 block text-[11px]">
+                  Nota Fiscal (NF-e)
+                </span>
+                <strong className="text-[#172B3A] mt-0.5 block">
+                  {deal.invoiceNumber || "Aguardando emissão"}
+                </strong>
+              </div>
+              <div className="rounded-xl bg-[#F4F7FA] border border-slate-200 p-3">
+                <span className="text-slate-500 block text-[11px]">
+                  Previsão de entrega
+                </span>
+                <strong className="text-[#172B3A] mt-0.5 block">
+                  {deal.confirmedDeliveryDate
+                    ? `Confirmada: ${formatDateBr(deal.confirmedDeliveryDate)}`
+                    : deal.expectedDeliveryDate
+                      ? `${formatDateBr(deal.expectedDeliveryDate)} (Previsão)`
+                      : "A definir"}
+                </strong>
+              </div>
+            </div>
+
+            {tradeInVehicle && (
+              <div className="rounded-xl bg-amber-50/80 border border-amber-200 p-3.5 text-xs">
+                <span className="font-bold text-amber-950 block">
+                  Veículo usado na troca:
+                </span>
+                <span className="text-amber-900 mt-0.5 block">
+                  <strong>
+                    {tradeInVehicle.brand} {tradeInVehicle.model}{" "}
+                    {tradeInVehicle.modelYear} ({tradeInVehicle.color})
+                  </strong>{" "}
+                  • Placa: <code>{tradeInVehicle.plate}</code> • Chassi:{" "}
+                  <code>{tradeInVehicle.vin}</code> • Avaliação:{" "}
+                  <strong>
+                    {formatCurrencyBr(tradeInVehicle.appraisedValue)}
+                  </strong>
+                </span>
+              </div>
+            )}
+
+            <div className="grid sm:grid-cols-3 gap-3">
+              {[
+                summary.pillars.financial,
+                summary.pillars.documentation,
+                summary.pillars.operational,
+              ].map((p) => (
+                <div
+                  key={p.area}
+                  className={`rounded-xl border p-3 text-xs ${
+                    p.status === "OK"
+                      ? "bg-emerald-50/70 border-emerald-300 text-emerald-950"
+                      : p.status === "BLOCKED"
+                        ? "bg-red-50/70 border-red-300 text-red-950"
+                        : "bg-amber-50/60 border-amber-300 text-amber-950"
+                  }`}
+                >
+                  <div className="font-bold flex items-center justify-between">
+                    <span>{p.label}</span>
+                    {p.status === "OK" ? (
+                      <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
+                    ) : (
+                      <Clock className="h-3.5 w-3.5 text-amber-600" />
+                    )}
+                  </div>
+                  <p className="mt-1 text-[11px] font-medium leading-snug">
+                    {p.summary}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* 3 Marcos Operacionais: Faturamento, Autorização e Entrega Física */}
+          <div className="grid lg:grid-cols-3 gap-5">
+            {/* 1. Faturamento */}
             <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs flex flex-col justify-between space-y-4">
               <div className="space-y-2">
-                <span className="eyebrow">Marco 1 • Faturamento</span>
+                <span className="eyebrow">1 • Faturamento</span>
                 <h3 className="text-base font-extrabold text-[#172B3A]">
-                  Emissão e Registro de Nota Fiscal
+                  Emissão da Nota Fiscal
                 </h3>
-                <p className="text-xs text-slate-600">
-                  Verificado em transação no servidor: exige dossiê documental e
-                  financeiro 100% aprovados.
-                </p>
 
                 {deal.billingRegisteredAt ? (
                   <div className="rounded-xl bg-emerald-50 border border-emerald-300 p-3 text-xs text-emerald-950 space-y-1">
                     <div className="font-bold flex items-center gap-1.5">
                       <CheckCircle2 className="h-4 w-4 text-emerald-600" />
-                      <span>Nota Fiscal Registrada</span>
+                      <span>Nota Fiscal registrada</span>
                     </div>
                     <div>
                       Número: <strong>{deal.invoiceNumber}</strong>
                     </div>
                     <div>Em: {formatDateTimeBr(deal.billingRegisteredAt)}</div>
                   </div>
-                ) : (
-                  <div className="space-y-3 pt-2">
+                ) : summary.billingEligible ? (
+                  <div className="space-y-3 pt-1">
+                    <p className="text-xs text-emerald-800 font-semibold">
+                      Dossiê financeiro e documental aprovados. Faturamento
+                      disponível.
+                    </p>
                     <div>
                       <label className="block text-xs font-semibold text-slate-700">
                         Número da Nota Fiscal (NF-e) *
@@ -1625,12 +2242,13 @@ export function DealPassportClient({
                         type="text"
                         value={invoiceNumber}
                         onChange={(e) => setInvoiceNumber(e.target.value)}
+                        placeholder="Ex: NF-2026-009841"
                         className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-xs text-[#172B3A]"
                       />
                     </div>
                     <div>
                       <label className="block text-xs font-semibold text-slate-700">
-                        Observações do Faturamento
+                        Observações do faturamento
                       </label>
                       <input
                         type="text"
@@ -1640,13 +2258,40 @@ export function DealPassportClient({
                       />
                     </div>
                   </div>
+                ) : (
+                  <div className="rounded-xl bg-[#F4F7FA] border border-slate-200 p-3 text-xs space-y-2">
+                    <p className="text-slate-700 font-medium">
+                      O faturamento ficará disponível após a aprovação dos
+                      documentos e da conferência financeira.
+                    </p>
+                    {summary.billingBlockers[0] && (
+                      <div className="pt-1 border-t border-slate-200 flex items-center justify-between gap-2">
+                        <span className="text-[11px] text-slate-600">
+                          Pendente: <strong>{summary.billingBlockers[0].title}</strong>
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            navigateToBlockerItem(summary.billingBlockers[0])
+                          }
+                          className="text-[11px] font-bold text-[#1684D8] hover:underline shrink-0"
+                        >
+                          Abrir →
+                        </button>
+                      </div>
+                    )}
+                  </div>
                 )}
               </div>
 
-              {!deal.billingRegisteredAt && (
+              {!deal.billingRegisteredAt && summary.billingEligible && (
                 <button
                   type="button"
-                  disabled={actionLoading || !hasPerm("billing:register")}
+                  disabled={
+                    actionLoading ||
+                    !hasPerm("billing:register") ||
+                    invoiceNumber.trim().length < 3
+                  }
                   onClick={() =>
                     callDealApi(
                       {
@@ -1655,13 +2300,13 @@ export function DealPassportClient({
                         invoiceNumber,
                         notes: billingNotes,
                       },
-                      `Faturamento registrado com Nota Fiscal '${invoiceNumber}'!`,
+                      `Faturamento registrado com Nota Fiscal '${invoiceNumber}'.`,
                     )
                   }
                   className="w-full rounded-xl bg-[#0B3B70] hover:bg-[#1684D8] px-4 py-2.5 text-xs font-bold text-white disabled:opacity-40 transition"
                 >
                   {hasPerm("billing:register")
-                    ? "Registrar Faturamento"
+                    ? "Registrar faturamento"
                     : "Requer perfil Faturamento / Admin"}
                 </button>
               )}
@@ -1670,24 +2315,19 @@ export function DealPassportClient({
             {/* 2. Autorização Formal de Liberação */}
             <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs flex flex-col justify-between space-y-4">
               <div className="space-y-2">
-                <span className="eyebrow">Marco 2 • Autorização de Liberação</span>
+                <span className="eyebrow">2 • Autorização de Liberação</span>
                 <h3 className="text-base font-extrabold text-[#172B3A]">
-                  Separado de Elegível e de Entregue
+                  Autorização Formal para Entrega
                 </h3>
-                <p className="text-xs text-slate-600">
-                  A conclusão das tarefas torna a negociação{" "}
-                  <strong>Elegível</strong>, mas a entrega só pode ocorrer após
-                  emissão desta Autorização Formal.
-                </p>
 
                 {passport.activeReleaseAuthorization ? (
                   <div className="rounded-xl bg-emerald-50 border border-emerald-300 p-3 text-xs text-emerald-950 space-y-1">
                     <div className="font-bold flex items-center gap-1.5">
                       <ShieldCheck className="h-4 w-4 text-emerald-600" />
-                      <span>Autorização Formal Ativa</span>
+                      <span>Entrega autorizada</span>
                     </div>
                     <div>
-                      Emitida por:{" "}
+                      Autorizado por:{" "}
                       <strong>
                         {passport.activeReleaseAuthorization.authorizedByName}
                       </strong>
@@ -1701,25 +2341,54 @@ export function DealPassportClient({
                   </div>
                 ) : deal.status === "DELIVERED" ? (
                   <div className="rounded-xl bg-slate-100 border border-slate-300 p-3 text-xs text-slate-800">
-                    Autorização já consumida pela entrega física concluída.
+                    Autorização utilizada na entrega concluída.
                   </div>
-                ) : (
-                  <div className="space-y-2 pt-2">
+                ) : summary.deliveryEligible ? (
+                  <div className="space-y-2 pt-1">
+                    <p className="text-xs text-emerald-800 font-semibold">
+                      Todas as etapas anteriores foram concluídas. Pronta para
+                      autorização formal.
+                    </p>
                     <label className="block text-xs font-semibold text-slate-700">
-                      Parecer de Liberação
+                      Parecer de liberação
                     </label>
                     <textarea
                       rows={2}
                       value={releaseNotes}
                       onChange={(e) => setReleaseNotes(e.target.value)}
+                      placeholder="Observação opcional da conferência final..."
                       className="w-full rounded-lg border border-slate-300 p-2 text-xs text-[#172B3A]"
                     />
+                  </div>
+                ) : (
+                  <div className="rounded-xl bg-[#F4F7FA] border border-slate-200 p-3 text-xs space-y-2">
+                    <p className="text-slate-700 font-medium">
+                      A autorização formal só fica disponível quando todas as
+                      atividades e documentos obrigatórios estão concluídos.
+                    </p>
+                    {currentBlockers[0] && (
+                      <div className="pt-1 border-t border-slate-200 flex items-center justify-between gap-2">
+                        <span className="text-[11px] text-slate-600">
+                          Pendente: <strong>{currentBlockers[0].title}</strong>
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            navigateToBlockerItem(currentBlockers[0])
+                          }
+                          className="text-[11px] font-bold text-[#1684D8] hover:underline shrink-0"
+                        >
+                          Abrir →
+                        </button>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
 
               {!passport.activeReleaseAuthorization &&
-                deal.status !== "DELIVERED" && (
+                deal.status !== "DELIVERED" &&
+                summary.deliveryEligible && (
                   <button
                     type="button"
                     disabled={actionLoading || !hasPerm("release:authorize")}
@@ -1731,14 +2400,14 @@ export function DealPassportClient({
                           notes: releaseNotes,
                           expectedConcurrencyVersion: deal.concurrencyVersion,
                         },
-                        "Autorização Formal de Entrega emitida com sucesso! A Operação já pode realizar a entrega física.",
+                        "Autorização de entrega emitida com sucesso!",
                       )
                     }
                     className="w-full rounded-xl bg-[#1684D8] hover:bg-[#126FB8] px-4 py-2.5 text-xs font-bold text-white disabled:opacity-40 transition"
                   >
                     {hasPerm("release:authorize")
-                      ? "Emitir Autorização Formal de Entrega"
-                      : "Requer perfil Responsável pela Liberação / Gestor"}
+                      ? "Emitir autorização de entrega"
+                      : "Requer perfil Gestor / Responsável pela Liberação"}
                   </button>
                 )}
             </div>
@@ -1746,22 +2415,16 @@ export function DealPassportClient({
             {/* 3. Entrega Física das Chaves */}
             <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs flex flex-col justify-between space-y-4">
               <div className="space-y-2">
-                <span className="eyebrow">Marco 3 • Entrega Física</span>
+                <span className="eyebrow">3 • Entrega Física</span>
                 <h3 className="text-base font-extrabold text-[#172B3A]">
-                  Reconfirmação do Veículo e Entrega
+                  Confirmação do Veículo e Entrega
                 </h3>
-                <p className="text-xs text-slate-600">
-                  Exige autorização ativa, reconfirmação do chassi ou código
-                  interno (<code>{vehicle.vin}</code> ou{" "}
-                  <code>{vehicle.internalCode}</code>) e identificação do
-                  recebedor.
-                </p>
 
                 {passport.deliveryRecord ? (
                   <div className="rounded-xl bg-emerald-100 border border-emerald-400 p-3 text-xs text-emerald-950 space-y-1">
                     <div className="font-bold flex items-center gap-1.5">
                       <CheckCircle2 className="h-4 w-4 text-emerald-700" />
-                      <span>Veículo Entregue</span>
+                      <span>Veículo entregue</span>
                     </div>
                     <div>
                       Entregue por:{" "}
@@ -1779,26 +2442,21 @@ export function DealPassportClient({
                       {formatDateTimeBr(passport.deliveryRecord.deliveredAt)}
                     </div>
                   </div>
-                ) : (
+                ) : passport.activeReleaseAuthorization ? (
                   <div className="space-y-2.5 pt-1 text-xs">
+                    <p className="text-slate-600">
+                      Digite o chassi ou o código interno do veículo na etiqueta
+                      física para confirmar a entrega das chaves.
+                    </p>
                     <div>
-                      <div className="flex items-center justify-between">
-                        <label className="font-semibold text-slate-700">
-                          Reconfirmar Chassi ou Código Interno *
-                        </label>
-                        <button
-                          type="button"
-                          onClick={() => setConfirmedVinInput(vehicle.vin)}
-                          className="text-[11px] text-[#1684D8] font-bold hover:underline"
-                        >
-                          Preencher {vehicle.vin}
-                        </button>
-                      </div>
+                      <label className="font-semibold text-slate-700 block">
+                        Chassi ou código interno do veículo *
+                      </label>
                       <input
                         type="text"
                         value={confirmedVinInput}
                         onChange={(e) => setConfirmedVinInput(e.target.value)}
-                        placeholder={`Digite ${vehicle.vin} ou ${vehicle.internalCode}`}
+                        placeholder="Digite o chassi ou código interno..."
                         className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-1.5 font-mono text-[#172B3A]"
                       />
                     </div>
@@ -1836,48 +2494,51 @@ export function DealPassportClient({
                       />
                     </div>
                   </div>
+                ) : (
+                  <div className="rounded-xl bg-[#F4F7FA] border border-slate-200 p-3 text-xs text-slate-700">
+                    A entrega física só fica disponível após a emissão da
+                    Autorização Formal de Entrega.
+                  </div>
                 )}
               </div>
 
-              {!passport.deliveryRecord && (
-                <button
-                  type="button"
-                  disabled={
-                    actionLoading ||
-                    !hasPerm("delivery:confirm") ||
-                    !passport.activeReleaseAuthorization
-                  }
-                  onClick={() =>
-                    callDealApi(
-                      {
-                        action: "CONFIRM_DELIVERY",
-                        dealId: deal.id,
-                        confirmedVehicleIdentifier: confirmedVinInput,
-                        recipientName,
-                        recipientDocument: recipientDoc,
-                        deliveryNotes,
-                      },
-                      "Entrega física das chaves confirmada e auditada com sucesso!",
-                    )
-                  }
-                  className="w-full rounded-xl bg-emerald-600 hover:bg-emerald-700 px-4 py-2.5 text-xs font-bold text-white disabled:opacity-40 transition"
-                >
-                  {!passport.activeReleaseAuthorization
-                    ? "Aguardando Autorização Formal Ativa"
-                    : hasPerm("delivery:confirm")
-                      ? "Reconfirmar Veículo e Registrar Entrega"
+              {!passport.deliveryRecord &&
+                passport.activeReleaseAuthorization && (
+                  <button
+                    type="button"
+                    disabled={
+                      actionLoading ||
+                      !hasPerm("delivery:confirm") ||
+                      !confirmedVinInput.trim()
+                    }
+                    onClick={() =>
+                      callDealApi(
+                        {
+                          action: "CONFIRM_DELIVERY",
+                          dealId: deal.id,
+                          confirmedVehicleIdentifier: confirmedVinInput,
+                          recipientName,
+                          recipientDocument: recipientDoc,
+                          deliveryNotes,
+                        },
+                        "Entrega física das chaves confirmada com sucesso!",
+                      )
+                    }
+                    className="w-full rounded-xl bg-emerald-600 hover:bg-emerald-700 px-4 py-2.5 text-xs font-bold text-white disabled:opacity-40 transition"
+                  >
+                    {hasPerm("delivery:confirm")
+                      ? "Confirmar veículo e registrar entrega"
                       : "Requer perfil Operação / Admin"}
-                </button>
-              )}
+                  </button>
+                )}
             </div>
           </div>
 
-          {/* Registro de Adendo Pós-Entrega (sem apagar o histórico) */}
+          {/* Adendo Pós-Entrega */}
           {passport.deliveryRecord && (
             <div className="bg-white rounded-2xl border border-slate-200 p-5 space-y-3">
               <h3 className="text-sm font-bold text-[#172B3A]">
-                Adendos e Retificações Pós-Entrega (Histórico Original
-                Preservado)
+                Observações complementares pós-entrega
               </h3>
               {passport.deliveryRecord.addendums.length > 0 && (
                 <ul className="space-y-1.5 text-xs">
@@ -1897,7 +2558,7 @@ export function DealPassportClient({
                   type="text"
                   value={addendumNote}
                   onChange={(e) => setAddendumNote(e.target.value)}
-                  placeholder="Registrar novo evento complementar pós-entrega sem editar o ocorrido..."
+                  placeholder="Registrar anotação complementar pós-entrega..."
                   className="flex-1 rounded-lg border border-slate-300 px-3 py-2 text-xs text-[#172B3A]"
                 />
                 <button
@@ -1910,23 +2571,22 @@ export function DealPassportClient({
                         dealId: deal.id,
                         note: addendumNote,
                       },
-                      "Evento complementar pós-entrega registrado.",
+                      "Anotação complementar registrada.",
                     );
                     if (ok) setAddendumNote("");
                   }}
                   className="rounded-lg bg-[#0B3B70] px-4 py-2 text-xs font-bold text-white disabled:opacity-40"
                 >
-                  Registrar Novo Evento
+                  Registrar anotação
                 </button>
               </div>
             </div>
           )}
 
-          {/* Registros Formais de Aprovação e Autorizações */}
+          {/* Aprovações Formais Registradas */}
           <div className="bg-white rounded-2xl border border-slate-200 p-5 space-y-3">
             <h3 className="text-sm font-bold text-[#172B3A]">
-              Registros Formais de Aprovação e Evidências (
-              {passport.approvals.length})
+              Aprovações formais registradas ({passport.approvals.length})
             </h3>
             {passport.approvals.length === 0 ? (
               <p className="text-xs text-slate-500">
@@ -1942,9 +2602,9 @@ export function DealPassportClient({
                     }`}
                   >
                     <div className="space-y-1">
-                      <div className="font-bold text-[#172B3A] flex items-center gap-2">
+                      <div className="font-bold text-[#172B3A] flex flex-wrap items-center gap-2">
                         <span>
-                          {ap.taskCode} — Decisão: {ap.decision}
+                          {taskTitleByCode[ap.taskCode] || ap.taskCode}
                         </span>
                         <span
                           className={`rounded px-2 py-0.5 text-[10px] font-bold ${
@@ -1954,22 +2614,19 @@ export function DealPassportClient({
                           }`}
                         >
                           {ap.status === "ACTIVE"
-                            ? "VÁLIDA"
-                            : `DESATUALIZADA (${ap.invalidationReason})`}
+                            ? "Válida"
+                            : `Desatualizada (${ap.invalidationReason})`}
                         </span>
                       </div>
-                      <p className="text-slate-700">
-                        Justificativa: {ap.justification}
-                      </p>
+                      <p className="text-slate-700">{ap.justification}</p>
                       <div className="text-[11px] text-slate-500">
-                        Autor: <strong>{ap.authorName}</strong> (Função:{" "}
-                        {ROLE_LABELS[ap.roleUsed]}) • Versão dos dados
-                        analisados: v{ap.analyzedDataVersion} • Em{" "}
+                        Responsável: <strong>{ap.authorName}</strong> (
+                        {ROLE_LABELS[ap.roleUsed]}) • Em{" "}
                         {formatDateTimeBr(ap.createdAt)}
                       </div>
                       {ap.evidenceRefs.length > 0 && (
                         <div className="text-[11px] text-[#0B3B70] font-medium">
-                          Evidências vinculadas:{" "}
+                          Documentos conferidos:{" "}
                           {ap.evidenceRefs
                             .map(
                               (e) => `${e.documentTitle} (v${e.versionNumber})`,
@@ -1986,172 +2643,36 @@ export function DealPassportClient({
         </div>
       )}
 
-      {/* ABA 4: HISTÓRICO E AUDITORIA IMUTÁVEL */}
+      {/* ABA 4: HISTÓRICO */}
       {activeTab === "HISTORY" && (
-        <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-xs space-y-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <h2 className="text-base font-bold text-[#172B3A]">
-                Trilha de Auditoria Imutável da Negociação (
-                {passport.auditEvents.length})
-              </h2>
-              <p className="text-xs text-slate-500">
-                Eventos de auditoria não podem ser editados nem removidos por
-                usuários comuns.
-              </p>
-            </div>
+        <div className="bg-white rounded-2xl border border-slate-200 p-5 sm:p-6 shadow-xs space-y-4">
+          <div>
+            <h2 className="text-base font-bold text-[#172B3A]">
+              Histórico da negociação ({passport.auditEvents.length})
+            </h2>
+            <p className="text-xs text-slate-500">
+              Registro cronológico das atividades, conferências e decisões.
+            </p>
           </div>
 
           <div className="divide-y divide-slate-200 border border-slate-200 rounded-xl overflow-hidden text-xs">
             {passport.auditEvents.map((ev) => (
               <div key={ev.id} className="p-3.5 hover:bg-[#F4F7FA] space-y-1">
                 <div className="flex flex-wrap items-center justify-between gap-2">
-                  <span className="font-bold text-[#172B3A] flex items-center gap-2">
-                    <span className="font-mono text-[11px] bg-[#EAF3FC] text-[#0B3B70] px-2 py-0.5 rounded">
-                      {ev.action}
+                  <span className="font-bold text-[#172B3A] flex flex-wrap items-center gap-2">
+                    <span className="text-[11px] bg-[#EAF3FC] text-[#0B3B70] px-2 py-0.5 rounded font-semibold">
+                      {AUDIT_ACTION_LABELS[ev.action] || ev.action}
                     </span>
-                    <span>
-                      {ev.actorName} ({ev.actorRole})
-                    </span>
+                    <span>{ev.actorName}</span>
                   </span>
                   <span className="text-[11px] text-slate-500">
                     {formatDateTimeBr(ev.createdAt)}
                   </span>
                 </div>
                 <p className="text-slate-700">{ev.summary}</p>
-                <div className="text-[10px] text-slate-400">
-                  Visível na Área do Cliente:{" "}
-                  {ev.isCustomerVisible
-                    ? "Sim (Compartilhável)"
-                    : "Não (Restrito à equipe interna)"}
-                </div>
               </div>
             ))}
           </div>
-        </div>
-      )}
-
-      {/* ABA 5: ASSISTENTE CONTEXTUAL */}
-      {activeTab === "ASSISTANT" && (
-        <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-xs space-y-5">
-          <div className="flex items-start justify-between gap-4 border-b border-slate-200 pb-4">
-            <div className="flex items-center gap-3">
-              <div className="h-10 w-10 rounded-xl bg-[#1684D8] flex items-center justify-center text-white">
-                <Bot className="h-5 w-5" />
-              </div>
-              <div>
-                <div className="flex flex-wrap items-center gap-2">
-                  <h2 className="text-base font-bold text-[#172B3A]">
-                    Assistente Contextual da Negociação
-                  </h2>
-                  <span className="rounded bg-[#EAF3FC] border border-[#1684D8]/30 px-2 py-0.5 text-[10px] font-bold text-[#0B3B70]">
-                    Assistente de Consulta Determinístico (Sem provedor de IA
-                    externo)
-                  </span>
-                </div>
-                <p className="text-xs text-slate-500 mt-0.5">
-                  Explica procedimentos publicados e analisa pendências, mas
-                  nunca aprova etapas nem executa alterações.
-                </p>
-              </div>
-            </div>
-          </div>
-
-          {/* Perguntas Sugeridas */}
-          <div className="space-y-2">
-            <span className="text-xs font-bold text-[#172B3A] block">
-              Perguntas rápidas sobre este passaporte:
-            </span>
-            <div className="flex flex-wrap gap-2">
-              {[
-                "O que falta para entregar este carro?",
-                "Quem precisa agir agora?",
-                "Por que este documento foi solicitado?",
-                "O que posso adiantar?",
-                "Qual foi a última atualização?",
-              ].map((q) => (
-                <button
-                  key={q}
-                  type="button"
-                  onClick={() => {
-                    setAssistantQuestion(q);
-                    askAssistant(q);
-                  }}
-                  className="rounded-xl border border-slate-300 bg-[#F4F7FA] hover:bg-[#EAF3FC] hover:border-[#1684D8] px-3 py-2 text-xs font-semibold text-[#172B3A] transition"
-                >
-                  {q}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Campo de Pergunta Livre */}
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              askAssistant(assistantQuestion);
-            }}
-            className="flex gap-2"
-          >
-            <input
-              type="text"
-              value={assistantQuestion}
-              onChange={(e) => setAssistantQuestion(e.target.value)}
-              placeholder="Pergunte sobre pendências, documentos, responsáveis ou procedimentos desta negociação..."
-              className="flex-1 rounded-xl border border-slate-300 px-4 py-2.5 text-xs sm:text-sm text-[#172B3A]"
-            />
-            <button
-              type="submit"
-              disabled={assistantLoading || !assistantQuestion.trim()}
-              className="inline-flex items-center gap-2 rounded-xl bg-[#1684D8] hover:bg-[#126FB8] px-5 py-2.5 text-xs font-bold text-white transition"
-            >
-              <Send className="h-4 w-4" />
-              <span>{assistantLoading ? "Consultando..." : "Perguntar"}</span>
-            </button>
-          </form>
-
-          {/* Resposta do Assistente */}
-          {assistantReply && (
-            <div className="rounded-2xl bg-[#F4F7FA] border border-slate-200 p-5 space-y-4 text-xs sm:text-sm">
-              <div className="flex items-center justify-between border-b border-slate-200 pb-2 text-xs text-slate-500">
-                <span className="font-bold text-[#172B3A] flex items-center gap-1.5">
-                  <MessageSquare className="h-4 w-4 text-[#1684D8]" />
-                  <span>Pergunta: &ldquo;{assistantReply.question}&rdquo;</span>
-                </span>
-                <span>{assistantReply.modeLabel}</span>
-              </div>
-
-              <div className="whitespace-pre-line text-[#172B3A] leading-relaxed">
-                {assistantReply.answerMarkdown}
-              </div>
-
-              {assistantReply.citations.length > 0 && (
-                <div className="pt-3 border-t border-slate-200 space-y-1.5">
-                  <div className="text-xs font-bold text-[#172B3A]">
-                    Referências de Procedimentos Publicados pela Organização:
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    {assistantReply.citations.map((cit, idx) => (
-                      <span
-                        key={idx}
-                        className="inline-flex items-center gap-1.5 rounded-lg bg-[#EAF3FC] border border-[#1684D8]/30 px-2.5 py-1 text-xs font-semibold text-[#0B3B70]"
-                      >
-                        <BookOpen className="h-3.5 w-3.5 text-[#1684D8]" />
-                        <span>
-                          {cit.procedureTitle} (v{cit.versionNumber} • Seção{" "}
-                          {cit.sectionNumber}: {cit.sectionHeading})
-                        </span>
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              <div className="pt-2 border-t border-slate-200 text-[11px] text-slate-500">
-                {assistantReply.disclaimer}
-              </div>
-            </div>
-          )}
         </div>
       )}
     </div>

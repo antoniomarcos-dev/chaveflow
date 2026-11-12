@@ -1,6 +1,36 @@
-import { withTransaction } from "@/infrastructure/database";
+import { loadDatabaseState, withTransaction } from "@/infrastructure/database";
 import { hashPassword } from "@/lib/passwords";
 import crypto from "node:crypto";
+
+export interface PasswordResetTokenInspection {
+  status: "VALID" | "EXPIRED" | "INVALID_OR_USED" | "MISSING";
+  expiresAtIso: string | null;
+}
+
+export async function inspectPasswordResetToken(
+  token: string,
+): Promise<PasswordResetTokenInspection> {
+  const clean = (token || "").trim();
+  if (!clean) {
+    return { status: "MISSING", expiresAtIso: null };
+  }
+  const hash = crypto.createHash("sha256").update(clean).digest("hex");
+  const db = await loadDatabaseState();
+  const record = db.passwordResetTokens?.find((t) => t.hash === hash);
+  if (!record) {
+    return { status: "INVALID_OR_USED", expiresAtIso: null };
+  }
+  if (record.expiresAt <= Date.now()) {
+    return {
+      status: "EXPIRED",
+      expiresAtIso: new Date(record.expiresAt).toISOString(),
+    };
+  }
+  return {
+    status: "VALID",
+    expiresAtIso: new Date(record.expiresAt).toISOString(),
+  };
+}
 
 export async function sendPasswordReset(email: string) {
   const apiKey = process.env.RESEND_API_KEY;

@@ -280,9 +280,18 @@ export type ApplicabilityCondition = z.infer<
   typeof ApplicabilityConditionSchema
 >;
 
+export type PaymentMethod = "CASH" | "FINANCING" | "CONSORTIUM" | "LEASING";
+
+export const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = {
+  CASH: "À vista / Recursos próprios",
+  FINANCING: "Financiamento bancário",
+  CONSORTIUM: "Consórcio contemplado",
+  LEASING: "Leasing / Arrendamento mercantil",
+};
+
 export interface DealConditionContext {
   buyerType: "PF" | "PJ";
-  paymentMethod: "CASH" | "FINANCING" | "CONSORTIUM" | "LEASING";
+  paymentMethod: PaymentMethod;
   hasFinancing: boolean;
   hasTradeIn: boolean;
   hasPowerOfAttorney: boolean;
@@ -383,6 +392,8 @@ export interface TaskInstance {
   blocksBilling: boolean;
   blocksDelivery: boolean;
   procedureCode: string | null;
+  slaHours?: number;
+  availableAt?: string | null;
   dueAt: string | null;
   startedAt: string | null;
   completedAt: string | null;
@@ -459,6 +470,8 @@ export interface DealDocument {
   status: DocumentStatus;
   currentVersionNumber: number;
   rejectionReason: string | null;
+  customerRejectionGuidance?: string | null;
+  internalReviewNotes?: string | null;
   blocksBilling: boolean;
   blocksDelivery: boolean;
   isCustomerVisible: boolean;
@@ -650,6 +663,48 @@ export const GuidedDealInputSchema = z
     draftDealId: z.string().optional().nullable(),
   })
   .superRefine((data, ctx) => {
+    if (data.paymentMethod === "FINANCING" && !data.hasFinancing) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["hasFinancing"],
+        message:
+          "Combinação incompatível: na modalidade Financiamento, a condição de financiamento deve estar ativa.",
+      });
+    }
+    if (data.paymentMethod === "CASH" && data.hasFinancing) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["hasFinancing"],
+        message:
+          "Combinação incompatível: pagamento à vista (PIX/TED) não pode ter financiamento ativo.",
+      });
+    }
+    if (data.customerMode === "NEW" && data.newCustomer) {
+      if (data.buyerType !== data.newCustomer.personType) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["buyerType"],
+          message:
+            "Combinação incompatível: o tipo do comprador deve permanecer consistente com o cadastro (PF ou PJ).",
+        });
+      }
+      const docDigits = data.newCustomer.documentNumber.replace(/\D/g, "");
+      if (data.newCustomer.personType === "PF" && docDigits.length !== 11) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["newCustomer", "documentNumber"],
+          message: "Para pessoa física (PF), informe um CPF válido com 11 dígitos.",
+        });
+      }
+      if (data.newCustomer.personType === "PJ" && docDigits.length !== 14) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["newCustomer", "documentNumber"],
+          message:
+            "Para pessoa jurídica (PJ), informe um CNPJ válido com 14 dígitos.",
+        });
+      }
+    }
     if (!data.saveAsDraft) {
       if (data.customerMode === "EXISTING" && !data.customerId) {
         ctx.addIssue({

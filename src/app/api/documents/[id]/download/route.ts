@@ -1,3 +1,4 @@
+import { canAccessDealRecord } from "@/domain/permissions";
 import {
   loadDatabaseState,
   readPrivateFileBlob,
@@ -35,6 +36,34 @@ export async function GET(
   }
 
   const db = await loadDatabaseState();
+  const docRecord = db.documents.find(
+    (d) =>
+      d.id === documentId && d.organizationId === verified.organizationId,
+  );
+  if (sessionCtx && docRecord) {
+    const parentDeal = db.deals.find((d) => d.id === docRecord.dealId);
+    if (sessionCtx.profile.isCustomerOnly) {
+      if (
+        !parentDeal ||
+        parentDeal.customerId !== sessionCtx.customerRecordId ||
+        !docRecord.isCustomerVisible
+      ) {
+        return NextResponse.json(
+          { error: "Acesso negado a este documento." },
+          { status: 403 },
+        );
+      }
+    } else if (parentDeal && !canAccessDealRecord(sessionCtx, parentDeal)) {
+      return NextResponse.json(
+        {
+          error:
+            "Acesso restrito: vendedores só podem acessar documentos de suas próprias negociações.",
+        },
+        { status: 403 },
+      );
+    }
+  }
+
   const docVersion = db.documentVersions.find(
     (dv) =>
       dv.documentId === documentId &&

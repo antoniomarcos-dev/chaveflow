@@ -212,6 +212,12 @@ export async function POST(req: NextRequest) {
         justification: body.justification
           ? String(body.justification)
           : undefined,
+        customerRejectionGuidance: body.customerRejectionGuidance
+          ? String(body.customerRejectionGuidance)
+          : undefined,
+        internalReviewNotes: body.internalReviewNotes
+          ? String(body.internalReviewNotes)
+          : undefined,
       });
       return NextResponse.json({ ok: true, document: doc });
     }

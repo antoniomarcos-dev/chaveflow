@@ -1,5 +1,6 @@
 import { listVehiclesForOrg } from "@/application/vehicle-service";
 import { GuidedDealWizardClient } from "@/components/GuidedDealWizardClient";
+import { canAccessDealRecord, isVehicleSellable } from "@/domain/permissions";
 import { loadDatabaseState } from "@/infrastructure/database";
 import { requireInternalSession } from "@/lib/server-session";
 
@@ -12,7 +13,7 @@ export default async function NovaNegociacaoPage({
   const ctx = await requireInternalSession();
   const db = await loadDatabaseState();
 
-  const existingDraft = sp.draftId
+  const candidateDraft = sp.draftId
     ? db.deals.find(
         (d) =>
           d.id === sp.draftId &&
@@ -21,20 +22,27 @@ export default async function NovaNegociacaoPage({
       )
     : undefined;
 
+  const existingDraft =
+    candidateDraft && canAccessDealRecord(ctx, candidateDraft)
+      ? candidateDraft
+      : undefined;
+
   const existingDraftTradeIn = existingDraft
     ? (db.tradeInVehicles.find((t) => t.dealId === existingDraft.id) ?? null)
     : null;
 
   const allVehicles = await listVehiclesForOrg({ ctx });
   const availableVehicles = allVehicles.filter(
-    (v) => !v.activeDeal || v.id === existingDraft?.vehicleId,
+    (v) =>
+      isVehicleSellable(v, Boolean(v.activeDeal)) ||
+      v.id === existingDraft?.vehicleId,
   );
 
   const customers = db.customers.filter(
     (c) => c.organizationId === ctx.organization.id,
   );
   const branches = db.branches.filter(
-    (b) => b.organizationId === ctx.organization.id,
+    (b) => b.organizationId === ctx.organization.id && b.isActive,
   );
 
   const internalSellers = db.memberships
@@ -59,6 +67,9 @@ export default async function NovaNegociacaoPage({
   const taskTemplates = db.taskTemplates
     .filter((tt) => tt.workflowVersionId === wfTemplate.activeVersionId)
     .sort((a, b) => a.sortOrder - b.sortOrder);
+  const documentRequirements = db.documentRequirements.filter(
+    (dr) => dr.workflowVersionId === wfTemplate.activeVersionId,
+  );
 
   return (
     <GuidedDealWizardClient
@@ -67,6 +78,7 @@ export default async function NovaNegociacaoPage({
       branches={branches}
       sellers={internalSellers}
       taskTemplates={taskTemplates}
+      documentRequirements={documentRequirements}
       defaultSellerId={ctx.profile.id}
       defaultBranchId={ctx.branch?.id || branches[0]?.id || ""}
       preselectedVehicleId={sp.vehicleId}

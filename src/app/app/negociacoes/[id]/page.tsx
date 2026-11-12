@@ -6,10 +6,18 @@ import { notFound } from "next/navigation";
 
 export default async function DealPassportPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{
+    tab?: string;
+    taskCode?: string;
+    docId?: string;
+    from?: string;
+  }>;
 }) {
   const { id } = await params;
+  const sp = await searchParams;
   const ctx = await requireInternalSession();
 
   try {
@@ -32,12 +40,31 @@ export default async function DealPassportPage({
         };
       });
 
+    const initialTab =
+      sp.tab === "DOCUMENTS" ||
+      sp.tab === "SALE_DATA" ||
+      sp.tab === "RELEASE" ||
+      sp.tab === "HISTORY" ||
+      sp.tab === "TASKS"
+        ? sp.tab === "RELEASE"
+          ? "SALE_DATA"
+          : sp.tab
+        : sp.docId
+          ? "DOCUMENTS"
+          : "TASKS";
+
     return (
       <DealPassportClient
         passport={passport}
         userRoles={ctx.roles}
         userPermissions={ctx.permissions}
         internalStaffList={internalStaffList}
+        initialTab={initialTab}
+        initialTaskCode={sp.taskCode}
+        initialDocId={sp.docId}
+        backHref={
+          sp.from && sp.from.startsWith("/app") ? sp.from : "/app/negociacoes"
+        }
       />
     );
   } catch {
