@@ -82,32 +82,35 @@ export function CustomerPortalViewClient({
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 pb-12">
-      {/* Cabeçalho mobile-friendly */}
+    <div className="min-h-screen bg-[#F4F7FA] pb-12 text-[#172B3A]">
+      {/* Cabeçalho mobile-friendly (4.15 Portal/visão do cliente) */}
       <header className="bg-white border-b border-slate-200">
         <div className="max-w-3xl mx-auto px-4 py-4 flex items-center justify-between gap-3">
           <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-lg bg-blue-600 flex items-center justify-center text-white shadow-sm">
-              <KeyRound className="w-5 h-5" />
+            <div className="w-9 h-9 rounded-lg bg-[#0B3B70] flex items-center justify-center text-white shadow-sm">
+              <KeyRound className="w-5 h-5 text-[#7CC4FA]" />
             </div>
             <div>
-              <div className="flex items-center gap-2">
-                <span className="font-bold text-slate-900 text-base">
-                  ChaveFlow
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="font-extrabold text-[#0B3B70] text-base">
+                  <span className="text-[#1684D8] mr-0.5">//</span>AUTOFLOW
                 </span>
-                <span className="text-xs px-2 py-0.5 rounded-full bg-blue-50 text-blue-800 border border-blue-200 font-semibold">
-                  Portal do Comprador
+                <span className="text-xs px-2 py-0.5 rounded-full bg-[#EAF3FC] text-[#0B3B70] border border-[#1684D8]/30 font-bold">
+                  Portal do Cliente
+                </span>
+                <span className="hidden sm:inline text-[11px] font-semibold text-slate-500">
+                  • Pinauto BYD — Ceres/GO
                 </span>
               </div>
               <p className="text-xs text-slate-500">
-                Acompanhamento transparente da sua aquisição
+                Acompanhamento simplificado e autorizado da sua aquisição
               </p>
             </div>
           </div>
 
           <Link
             href="/cliente"
-            className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-600 hover:text-slate-900 px-2.5 py-1.5 rounded-lg border border-slate-200 bg-slate-50"
+            className="inline-flex items-center gap-1.5 text-xs font-bold text-[#172B3A] hover:text-[#1684D8] px-3 py-1.5 rounded-lg border border-slate-200 bg-[#F4F7FA]"
           >
             <ArrowLeft className="w-3.5 h-3.5" />
             Início

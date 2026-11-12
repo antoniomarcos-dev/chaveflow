@@ -46,16 +46,18 @@ export function ResetPasswordClient({ token }: { token: string }) {
       >
         <Link
           href="/"
-          className="mb-7 flex items-center gap-3 text-xl font-bold tracking-tight"
+          className="mb-7 flex items-center gap-3 text-xl font-extrabold tracking-tight text-[#0B3B70]"
         >
-          <span className="rounded-xl bg-teal-600 p-2.5 text-white">
-            <KeyRound className="h-5 w-5" />
+          <span className="rounded-xl bg-[#0B3B70] p-2.5 text-white">
+            <KeyRound className="h-5 w-5 text-[#7CC4FA]" />
           </span>
-          chaveflow
+          <span>
+            <span className="text-[#1684D8] mr-1">//</span>AUTOFLOW
+          </span>
         </Link>
         <div>
           <span className="eyebrow">Seu acesso é individual</span>
-          <h1 className="mt-2 text-2xl font-bold tracking-tight">
+          <h1 className="mt-2 text-2xl font-bold tracking-tight text-[#172B3A]">
             Vamos preparar sua conta.
           </h1>
           <p className="mt-2 text-sm leading-relaxed text-slate-500">
@@ -65,7 +67,7 @@ export function ResetPasswordClient({ token }: { token: string }) {
         {message && <p role="status">{message}</p>}
         {!done && (
           <>
-            <label className="block">
+            <label className="block text-sm font-semibold text-slate-700">
               Nova senha
               <input
                 autoComplete="new-password"
@@ -75,10 +77,10 @@ export function ResetPasswordClient({ token }: { token: string }) {
                 maxLength={128}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="block border rounded p-3 w-full"
+                className="mt-1 block border border-slate-300 rounded-xl p-3 w-full text-sm text-[#172B3A]"
               />
             </label>
-            <label className="block">
+            <label className="block text-sm font-semibold text-slate-700">
               Confirme a senha
               <input
                 autoComplete="new-password"
@@ -88,7 +90,7 @@ export function ResetPasswordClient({ token }: { token: string }) {
                 maxLength={128}
                 value={confirmation}
                 onChange={(e) => setConfirmation(e.target.value)}
-                className="block border rounded p-3 w-full"
+                className="mt-1 block border border-slate-300 rounded-xl p-3 w-full text-sm text-[#172B3A]"
               />
             </label>
             <p className="text-xs text-slate-500">
@@ -96,13 +98,13 @@ export function ResetPasswordClient({ token }: { token: string }) {
             </p>
             <button
               disabled={loading || !token}
-              className="bg-teal-600 text-white font-semibold rounded-xl p-3 w-full disabled:opacity-40"
+              className="bg-[#1684D8] hover:bg-[#126FB8] text-white font-bold rounded-xl p-3 w-full disabled:opacity-40 transition"
             >
               {loading ? "Salvando…" : "Salvar senha"}
             </button>
           </>
         )}
-        <Link href="/login" className="block text-teal-700">
+        <Link href="/login" className="block text-sm font-semibold text-[#1684D8] hover:underline">
           Voltar para o login
         </Link>
       </form>

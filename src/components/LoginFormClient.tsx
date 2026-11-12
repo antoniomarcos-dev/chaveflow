@@ -33,7 +33,7 @@ export function LoginFormClient({
         ? "Equipe de vendas"
         : area === "cliente"
           ? "Área do cliente"
-          : "Seu espaço no ChaveFlow";
+          : "Seu espaço no AUTOFLOW";
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
@@ -64,68 +64,84 @@ export function LoginFormClient({
     }
   }
   return (
-    <main className="min-h-screen bg-[#f6f8fa] lg:grid lg:grid-cols-[1fr_1fr]">
-      <section className="relative hidden overflow-hidden bg-[#101d31] p-12 text-white lg:flex lg:flex-col xl:p-16">
-        <div className="absolute -bottom-32 -right-32 h-[32rem] w-[32rem] rounded-full border-[70px] border-teal-500/8" />
-        <Link href="/" className="relative flex w-fit items-center gap-3">
-          <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-teal-500 text-slate-950">
-            <KeyRound className="h-6 w-6" />
-          </span>
-          <span className="text-2xl font-bold tracking-tight">chaveflow</span>
-        </Link>
+    <main className="min-h-screen bg-[#F4F7FA] lg:grid lg:grid-cols-[1fr_1fr]">
+      <section className="relative hidden overflow-hidden bg-[#0B3B70] p-12 text-white lg:flex lg:flex-col xl:p-16">
+        <div className="absolute -bottom-32 -right-32 h-[32rem] w-[32rem] rounded-full border-[70px] border-[#1684D8]/15" />
+        <div className="relative flex items-center justify-between gap-4">
+          <Link href="/" className="flex w-fit items-center gap-3">
+            <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[#1684D8] text-white">
+              <KeyRound className="h-6 w-6" />
+            </span>
+            <div>
+              <span className="text-2xl font-extrabold tracking-tight block">
+                <span className="text-[#7CC4FA] mr-1">//</span>AUTOFLOW
+              </span>
+              <span className="text-[11px] text-blue-200 block">
+                Sua operação conectada do início ao fim.
+              </span>
+            </div>
+          </Link>
+        </div>
         <div className="relative my-auto max-w-lg py-16">
-          <span className="text-xs font-semibold uppercase tracking-[0.22em] text-teal-300">
-            Pinauto BYD · Ceres
+          <span className="inline-flex items-center rounded-lg bg-white/10 border border-white/15 px-3 py-1 text-xs font-bold uppercase tracking-[0.18em] text-[#7CC4FA]">
+            Unidade: Pinauto BYD · Ceres/GO
           </span>
           <h1 className="mt-6 text-5xl font-bold leading-[1.12] tracking-tight xl:text-6xl">
-            Cada passo
+            Sua operação
             <br />
-            mais perto
+            conectada
             <br />
-            <span className="text-teal-300">das chaves.</span>
+            <span className="text-[#7CC4FA]">do início ao fim.</span>
           </h1>
-          <p className="mt-7 max-w-sm text-base leading-relaxed text-slate-400">
-            Seu próximo passo está aqui. Entre para continuar de onde parou.
+          <p className="mt-7 max-w-sm text-base leading-relaxed text-blue-100/90">
+            Acesse o Passaporte Digital das negociações, conferências, faturamento e liberações.
           </p>
           <div className="mt-10 space-y-4">
             {[
-              "Equipe conectada e acessos individuais",
-              "Negociações organizadas em um só lugar",
-              "Cliente informado em cada etapa",
+              "Equipe conectada e acessos individuais por função",
+              "Negociações, documentos e aprovações em um só lugar",
+              "Liberação condicionada aos requisitos obrigatórios",
             ].map((text) => (
               <p
                 key={text}
-                className="flex items-center gap-3 text-sm text-slate-300"
+                className="flex items-center gap-3 text-sm text-blue-100"
               >
-                <span className="rounded-full bg-teal-400/10 p-1">
-                  <Check className="h-3.5 w-3.5 text-teal-300" />
+                <span className="rounded-full bg-[#1684D8]/30 p-1">
+                  <Check className="h-3.5 w-3.5 text-[#7CC4FA]" />
                 </span>
                 {text}
               </p>
             ))}
           </div>
         </div>
-        <p className="relative text-xs text-slate-500">
-          Conectando pessoas. Simplificando jornadas.
+        <p className="relative text-xs text-blue-200/70">
+          AUTOFLOW · Plataforma Operacional — Pinauto BYD (Ceres/GO)
         </p>
       </section>
       <section className="flex min-h-screen flex-col px-6 py-7 sm:px-12">
         <Link
           href="/"
-          className="inline-flex w-fit items-center gap-2 text-sm font-medium text-slate-500 hover:text-teal-700"
+          className="inline-flex w-fit items-center gap-2 text-sm font-medium text-slate-500 hover:text-[#1684D8]"
         >
           <ArrowLeft className="h-4 w-4" />
           Voltar ao início
         </Link>
         <div className="mx-auto my-auto w-full max-w-md py-12">
           <Link href="/" className="mb-10 flex items-center gap-3 lg:hidden">
-            <span className="rounded-xl bg-teal-600 p-2.5 text-white">
-              <KeyRound className="h-6 w-6" />
+            <span className="rounded-xl bg-[#0B3B70] p-2.5 text-white">
+              <KeyRound className="h-6 w-6 text-[#7CC4FA]" />
             </span>
-            <span className="text-xl font-bold">chaveflow</span>
+            <div>
+              <span className="text-xl font-extrabold text-[#0B3B70] block">
+                <span className="text-[#1684D8] mr-1">//</span>AUTOFLOW
+              </span>
+              <span className="text-[10px] text-slate-500 block">
+                Pinauto BYD — Ceres/GO
+              </span>
+            </div>
           </Link>
           <span className="eyebrow">{areaLabel}</span>
-          <h2 className="mt-3 text-3xl font-bold tracking-tight text-slate-900">
+          <h2 className="mt-3 text-3xl font-bold tracking-tight text-[#172B3A]">
             Bom ter você por aqui.
           </h2>
           <p className="mt-3 text-sm leading-relaxed text-slate-500">
@@ -156,7 +172,7 @@ export function LoginFormClient({
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="voce@empresa.com.br"
-                className="mt-2 block w-full rounded-xl border border-slate-200 bg-white px-4 py-3.5 text-sm text-slate-900 outline-none"
+                className="mt-2 block w-full rounded-xl border border-slate-300 bg-white px-4 py-3.5 text-sm text-[#172B3A] outline-none"
               />
             </div>
             <div>
@@ -169,7 +185,7 @@ export function LoginFormClient({
                 </label>
                 <Link
                   href="/recuperar-senha"
-                  className="text-xs font-semibold text-teal-700 hover:underline"
+                  className="text-xs font-semibold text-[#1684D8] hover:underline"
                 >
                   Esqueceu a senha?
                 </Link>
@@ -183,7 +199,7 @@ export function LoginFormClient({
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="Sua senha de acesso"
-                  className="block w-full rounded-xl border border-slate-200 bg-white px-4 py-3.5 pr-12 text-sm outline-none"
+                  className="block w-full rounded-xl border border-slate-300 bg-white px-4 py-3.5 pr-12 text-sm text-[#172B3A] outline-none"
                 />
                 <button
                   type="button"
@@ -201,22 +217,22 @@ export function LoginFormClient({
             </div>
             <button
               disabled={loading}
-              className="flex w-full items-center justify-center gap-2 rounded-xl bg-teal-600 px-4 py-3.5 text-sm font-bold text-white shadow-lg shadow-teal-600/10 transition hover:bg-teal-700 disabled:opacity-50"
+              className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#1684D8] px-4 py-3.5 text-sm font-bold text-white shadow-lg shadow-[#1684D8]/15 transition hover:bg-[#126FB8] disabled:opacity-50"
             >
-              {loading ? "Entrando…" : "Entrar no ChaveFlow"}
+              {loading ? "Entrando…" : "Entrar no AUTOFLOW"}
               <ArrowRight className="h-4 w-4" />
             </button>
           </form>
           <div className="mt-7 border-t border-slate-200 pt-6">
-            <p className="flex items-start gap-2 text-xs leading-relaxed text-slate-400">
-              <Lock className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+            <p className="flex items-start gap-2 text-xs leading-relaxed text-slate-500">
+              <Lock className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[#1684D8]" />
               Primeiro acesso? Use o link enviado pelo administrador ou pelo seu
               vendedor para definir sua senha.
             </p>
           </div>
         </div>
         <p className="text-center text-xs text-slate-400">
-          Pinauto BYD — Ceres · ChaveFlow
+          AUTOFLOW · Unidade: Pinauto BYD — Ceres/GO
         </p>
       </section>
     </main>

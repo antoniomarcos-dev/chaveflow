@@ -47,18 +47,20 @@ export default async function MinhasTarefasPage() {
   });
 
   const openTasks = enrichedTasks.filter((t) => t.task.state !== "COMPLETED");
+  const overdueTasks = openTasks.filter((t) => t.isOverdue);
+  const dueTodayOrFutureTasks = openTasks.filter((t) => !t.isOverdue);
   const completedTasks = enrichedTasks.filter(
     (t) => t.task.state === "COMPLETED",
   );
 
   return (
     <div className="space-y-6">
-      <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-xs flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      <div className="bg-white rounded-2xl border border-slate-200/90 p-6 shadow-xs flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <span className="text-xs font-bold uppercase tracking-wider text-teal-700">
+          <span className="eyebrow">
             Fila Individual e por Área Autorizada
           </span>
-          <h1 className="text-2xl font-extrabold text-slate-900 mt-1">
+          <h1 className="text-2xl font-extrabold text-[#172B3A] mt-1">
             Minhas Tarefas ({openTasks.length} abertas)
           </h1>
           <p className="text-xs sm:text-sm text-slate-600 mt-0.5">
@@ -67,12 +69,38 @@ export default async function MinhasTarefasPage() {
             <strong>{ctx.roles.map((r) => ROLE_LABELS[r]).join(", ")}</strong>.
           </p>
         </div>
+
+        {/* Contadores rápidos por situação (4.10 Minhas tarefas) */}
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="rounded-xl bg-red-50 border border-red-200 px-3.5 py-2 text-xs">
+            <span className="text-red-700 font-semibold block">Vencidas</span>
+            <strong className="text-base font-extrabold text-red-900">
+              {overdueTasks.length}
+            </strong>
+          </div>
+          <div className="rounded-xl bg-[#EAF3FC] border border-[#1684D8]/30 px-3.5 py-2 text-xs">
+            <span className="text-[#0B3B70] font-semibold block">
+              Para hoje / Futuras
+            </span>
+            <strong className="text-base font-extrabold text-[#0B3B70]">
+              {dueTodayOrFutureTasks.length}
+            </strong>
+          </div>
+          <div className="rounded-xl bg-emerald-50 border border-emerald-200 px-3.5 py-2 text-xs">
+            <span className="text-emerald-700 font-semibold block">
+              Concluídas
+            </span>
+            <strong className="text-base font-extrabold text-emerald-900">
+              {completedTasks.length}
+            </strong>
+          </div>
+        </div>
       </div>
 
       {/* Tarefas em Aberto */}
       <section className="space-y-3">
-        <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
-          <CheckSquare className="h-5 w-5 text-teal-600" />
+        <h2 className="text-base font-bold text-[#172B3A] flex items-center gap-2">
+          <CheckSquare className="h-5 w-5 text-[#1684D8]" />
           <span>Tarefas Abertas / Aguardando Ação ({openTasks.length})</span>
         </h2>
 
@@ -86,14 +114,16 @@ export default async function MinhasTarefasPage() {
               ({ task, deal, vehicle, customerName, isOverdue }) => (
                 <div
                   key={task.id}
-                  className="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4"
+                  className={`bg-white rounded-2xl border p-5 shadow-xs flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 ${
+                    isOverdue ? "border-red-300" : "border-slate-200/90"
+                  }`}
                 >
                   <div className="space-y-1.5 flex-1">
                     <div className="flex flex-wrap items-center gap-2">
-                      <span className="font-mono text-xs font-bold bg-teal-50 text-teal-900 border border-teal-200 px-2 py-0.5 rounded">
+                      <span className="font-mono text-xs font-bold bg-[#EAF3FC] text-[#0B3B70] border border-[#1684D8]/30 px-2.5 py-0.5 rounded">
                         {deal.dealNumber}
                       </span>
-                      <span className="font-mono text-xs font-semibold text-slate-700">
+                      <span className="font-mono text-xs font-semibold text-[#172B3A]">
                         {vehicle.internalCode} ({vehicle.brand} {vehicle.model})
                       </span>
                       <span className="text-xs bg-slate-100 text-slate-700 px-2 py-0.5 rounded font-medium">
@@ -101,14 +131,14 @@ export default async function MinhasTarefasPage() {
                       </span>
                       <TaskStateBadge state={task.state} />
                       {isOverdue && (
-                        <span className="inline-flex items-center gap-1 rounded bg-red-100 text-red-900 px-2 py-0.5 text-xs font-bold">
+                        <span className="inline-flex items-center gap-1 rounded bg-red-100 text-red-900 border border-red-200 px-2 py-0.5 text-xs font-bold">
                           <AlertTriangle className="h-3.5 w-3.5 text-red-600" />
                           Prazo Ultrapassado
                         </span>
                       )}
                     </div>
 
-                    <h3 className="text-base font-extrabold text-slate-900">
+                    <h3 className="text-base font-extrabold text-[#172B3A]">
                       {task.title}
                     </h3>
                     <p className="text-xs text-slate-600">{task.description}</p>
@@ -120,9 +150,9 @@ export default async function MinhasTarefasPage() {
                     )}
 
                     <div className="flex flex-wrap items-center gap-4 text-[11px] text-slate-500 pt-1">
-                      <span>Comprador: {customerName}</span>
+                      <span>Comprador: <strong>{customerName}</strong></span>
                       <span className="flex items-center gap-1">
-                        <Clock className="h-3.5 w-3.5" />
+                        <Clock className="h-3.5 w-3.5 text-[#1684D8]" />
                         Prazo: {formatDateTimeBr(task.dueAt)}
                       </span>
                     </div>
@@ -130,10 +160,10 @@ export default async function MinhasTarefasPage() {
 
                   <Link
                     href={`/app/negociacoes/${deal.id}`}
-                    className="inline-flex items-center gap-1.5 rounded-xl bg-[#0f172a] hover:bg-slate-800 px-4 py-2.5 text-xs font-bold text-white shrink-0"
+                    className="inline-flex items-center gap-1.5 rounded-xl bg-[#1684D8] hover:bg-[#126FB8] px-4 py-2.5 text-xs font-bold text-white shrink-0 transition"
                   >
                     <span>Executar no Passaporte</span>
-                    <ArrowRight className="h-3.5 w-3.5 text-teal-400" />
+                    <ArrowRight className="h-3.5 w-3.5" />
                   </Link>
                 </div>
               ),
@@ -144,17 +174,17 @@ export default async function MinhasTarefasPage() {
 
       {/* Tarefas Concluídas */}
       <section className="space-y-3">
-        <h2 className="text-sm font-bold text-slate-700">
+        <h2 className="text-sm font-bold text-[#172B3A]">
           Tarefas Concluídas Recentemente ({completedTasks.length})
         </h2>
         <div className="grid md:grid-cols-2 gap-3">
           {completedTasks.map(({ task, deal, vehicle }) => (
             <div
               key={task.id}
-              className="bg-white rounded-xl border border-slate-200 p-4 flex items-center justify-between gap-3 text-xs"
+              className="bg-white rounded-xl border border-slate-200/90 p-4 flex items-center justify-between gap-3 text-xs"
             >
               <div>
-                <div className="font-bold text-slate-900">
+                <div className="font-bold text-[#172B3A]">
                   {deal.dealNumber} • {task.title}
                 </div>
                 <div className="text-slate-500 mt-0.5">
@@ -164,7 +194,7 @@ export default async function MinhasTarefasPage() {
               </div>
               <Link
                 href={`/app/negociacoes/${deal.id}`}
-                className="text-teal-700 font-bold hover:underline shrink-0"
+                className="text-[#1684D8] font-bold hover:underline shrink-0"
               >
                 Abrir →
               </Link>

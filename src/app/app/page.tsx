@@ -11,11 +11,12 @@ import {
   Car,
   CheckCircle2,
   ClipboardCheck,
+  Clock,
   FileSpreadsheet,
-  PlusCircle,
+  Plus,
   QrCode,
   ShieldCheck,
-  UserPlus,
+  User,
   Users,
 } from "lucide-react";
 import Link from "next/link";
@@ -35,401 +36,557 @@ export default async function OperationalHomePage() {
       d.deal.status === "DELIVERY_AUTHORIZED",
   );
 
+  const dealsWithPendencies = activeDeals.filter(
+    (d) => d.summary.deliveryBlockers.length > 0,
+  );
+
+  const awaitingReleaseOrAuth = deals.filter(
+    (d) =>
+      d.deal.status === "ELIGIBLE_FOR_AUTHORIZATION" ||
+      d.deal.status === "DELIVERY_AUTHORIZED" ||
+      (d.summary.deliveryEligible && d.deal.status === "ACTIVE"),
+  );
+
+  const deliveredDeals = deals.filter((d) => d.deal.status === "DELIVERED");
+
   const availableVehicles = vehicles.filter(
     (v) => v.stockStatus === "AVAILABLE" && !v.activeDeal,
   );
 
+  const enrichedDeals = deals
+    .map((item) => {
+      const dealTasks = db.taskInstances.filter(
+        (t) => t.dealId === item.deal.id,
+      );
+      const dealDocs = db.documents.filter((d) => d.dealId === item.deal.id);
+      const nextAction = computeUserNextAction(
+        ctx,
+        item.deal,
+        dealTasks,
+        dealDocs,
+        item.summary,
+      );
+      const stageObj = WORKFLOW_STAGES.find(
+        (s) => s.code === item.summary.currentStage,
+      );
+      return {
+        ...item,
+        nextAction,
+        stageName: stageObj?.name ?? item.summary.currentStage,
+      };
+    })
+    .sort((a, b) => {
+      // Priorizar itens que exigem ação direta do usuário ou possuem pendências ativas
+      if (a.nextAction.hasDirectAction !== b.nextAction.hasDirectAction) {
+        return a.nextAction.hasDirectAction ? -1 : 1;
+      }
+      const aActive = a.deal.status !== "DELIVERED";
+      const bActive = b.deal.status !== "DELIVERED";
+      if (aActive !== bActive) return aActive ? -1 : 1;
+      return b.summary.deliveryBlockers.length - a.summary.deliveryBlockers.length;
+    });
+
   return (
-    <div className="space-y-8">
-      {/* Cabeçalho Operacional */}
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 bg-white rounded-2xl border border-slate-200 p-6 shadow-xs">
+    <div className="space-y-6">
+      {/* Cabeçalho Direto da Página */}
+      <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-xs flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
-          <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-teal-700">
-            <span>
-              {isAdmin
-                ? "Administração"
-                : isSeller
-                  ? "Seu espaço de vendas"
-                  : "Central operacional"}{" "}
-              • {ctx.branch?.name}
-            </span>
-          </div>
-          <h1 className="text-2xl font-extrabold text-slate-900 mt-1">
-            Olá, {ctx.profile.fullName.split(" ")[0]}.
-          </h1>
-          <p className="text-xs sm:text-sm text-slate-600 mt-1">
+          <span className="eyebrow">
             {isAdmin
-              ? "Uma visão clara da operação, da sua equipe e dos próximos passos."
+              ? "Visão Operacional da Unidade"
               : isSeller
-                ? "Acompanhe suas negociações e mantenha seus clientes por perto."
-                : "Suas atividades, pendências e próximos passos em um só lugar."}
+                ? "Painel de Vendas"
+                : "Central Operacional"}{" "}
+            • {ctx.branch?.name}
+          </span>
+          <h1 className="text-2xl font-extrabold text-[#172B3A] mt-1">
+            Painel Operacional
+          </h1>
+          <p className="text-xs sm:text-sm text-slate-600 mt-0.5">
+            Acompanhe as negociações, próximas ações, pendências impeditivas e o
+            fluxo de liberação de veículos.
           </p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-3">
+        <div className="flex flex-wrap items-center gap-2.5">
           <Link
             href="/app/escanear"
-            className="inline-flex items-center gap-2 rounded-xl bg-teal-600 hover:bg-teal-700 px-4 py-2.5 text-sm font-bold text-white shadow-sm transition"
+            className="inline-flex items-center gap-2 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 px-4 py-2.5 text-xs sm:text-sm font-bold text-[#172B3A] transition"
           >
-            <QrCode className="h-4 w-4" />
-            <span>Escanear Veículo (QR Code)</span>
+            <QrCode className="h-4 w-4 text-[#0B3B70]" />
+            <span>Identificar Veículo (QR)</span>
           </Link>
           <Link
             href="/app/negociacoes/nova"
-            className="inline-flex items-center gap-2 rounded-xl bg-[#0f172a] hover:bg-slate-800 px-4 py-2.5 text-sm font-bold text-white shadow-sm transition"
+            className="inline-flex items-center gap-2 rounded-xl bg-[#1684D8] hover:bg-[#126FB8] px-4 py-2.5 text-xs sm:text-sm font-bold text-white shadow-xs transition"
           >
-            <PlusCircle className="h-4 w-4 text-teal-400" />
-            <span>Nova Negociação Guiada</span>
+            <Plus className="h-4 w-4" />
+            <span>Nova Negociação</span>
           </Link>
         </div>
       </div>
 
-      {(isAdmin || isSeller) && (
-        <div className="grid gap-4 sm:grid-cols-2">
-          <Link
-            href={isAdmin ? "/app/configuracoes" : "/app/clientes"}
-            className="group flex items-center gap-4 rounded-2xl bg-[#101d31] p-6 text-white transition hover:bg-slate-800"
-          >
-            <div className="rounded-xl bg-white/10 p-3 text-teal-300">
-              {isAdmin ? (
-                <UserPlus className="h-6 w-6" />
-              ) : (
-                <Users className="h-6 w-6" />
-              )}
-            </div>
-            <div className="min-w-0 flex-1">
-              <h2 className="font-bold">
-                {isAdmin ? "Sua equipe começa aqui" : "Clientes e acessos"}
-              </h2>
-              <p className="mt-1 text-xs leading-relaxed text-slate-400">
-                {isAdmin
-                  ? "Cadastre vendedores e prepare os acessos da equipe."
-                  : "Crie o acesso de cada cliente para acompanhar a compra."}
-              </p>
-            </div>
-            <ArrowRight className="h-5 w-5 text-teal-300" />
-          </Link>
-          <Link
-            href="/app/negociacoes/nova"
-            className="group flex items-center gap-4 rounded-2xl border border-teal-200 bg-teal-50 p-6"
-          >
-            <div className="rounded-xl bg-white p-3 text-teal-700">
-              <PlusCircle className="h-6 w-6" />
-            </div>
-            <div className="flex-1">
-              <h2 className="font-bold text-slate-900">Uma nova negociação</h2>
-              <p className="mt-1 text-xs leading-relaxed text-slate-500">
-                Conecte o veículo, o comprador e cada etapa da venda.
-              </p>
-            </div>
-            <ArrowRight className="h-5 w-5 text-teal-700" />
-          </Link>
-        </div>
-      )}
-      {/* Indicadores Rápidos */}
+      {/* Indicadores Principais no Topo */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-xs">
-          <div className="flex items-center justify-between text-slate-500 text-xs font-semibold">
-            <span>Negociações Ativas</span>
-            <FileSpreadsheet className="h-4 w-4 text-blue-600" />
+        <Link
+          href="/app/negociacoes"
+          className="group bg-white rounded-2xl border border-slate-200 p-4 sm:p-5 shadow-xs hover:border-[#1684D8]/50 transition flex items-center gap-3.5"
+        >
+          <div className="h-11 w-11 rounded-xl bg-[#EAF3FC] text-[#0B3B70] flex items-center justify-center shrink-0">
+            <FileSpreadsheet className="h-5 w-5 text-[#1684D8]" />
           </div>
-          <div className="text-2xl font-extrabold text-slate-900 mt-2">
-            {activeDeals.length}
+          <div className="min-w-0 flex-1">
+            <div className="text-2xl font-extrabold text-[#172B3A] leading-none">
+              {activeDeals.length}
+            </div>
+            <div className="text-xs font-bold text-[#172B3A] mt-1 truncate">
+              Negociações ativas
+            </div>
+            <div className="text-[11px] text-slate-500 truncate">
+              Em acompanhamento
+            </div>
           </div>
-          <div className="text-xs text-slate-500 mt-1">
-            Com passaporte em acompanhamento
-          </div>
-        </div>
+        </Link>
 
-        <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-xs">
-          <div className="flex items-center justify-between text-slate-500 text-xs font-semibold">
-            <span>Prontas para Autorização</span>
-            <ClipboardCheck className="h-4 w-4 text-teal-600" />
+        <Link
+          href="/app/negociacoes?filtro=PENDENTES"
+          className="group bg-white rounded-2xl border border-slate-200 p-4 sm:p-5 shadow-xs hover:border-amber-400 transition flex items-center gap-3.5"
+        >
+          <div className="h-11 w-11 rounded-xl bg-amber-50 text-amber-700 border border-amber-200 flex items-center justify-center shrink-0">
+            <Clock className="h-5 w-5" />
           </div>
-          <div className="text-2xl font-extrabold text-teal-700 mt-2">
-            {
-              deals.filter(
-                (d) =>
-                  d.deal.status === "ELIGIBLE_FOR_AUTHORIZATION" ||
-                  (d.summary.deliveryEligible && d.deal.status === "ACTIVE"),
-              ).length
-            }
+          <div className="min-w-0 flex-1">
+            <div className="text-2xl font-extrabold text-amber-800 leading-none">
+              {dealsWithPendencies.length}
+            </div>
+            <div className="text-xs font-bold text-[#172B3A] mt-1 truncate">
+              Com pendências
+            </div>
+            <div className="text-[11px] text-slate-500 truncate">
+              Exigem ação ou conferência
+            </div>
           </div>
-          <div className="text-xs text-slate-500 mt-1">
-            100% dos requisitos cumpridos
-          </div>
-        </div>
+        </Link>
 
-        <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-xs">
-          <div className="flex items-center justify-between text-slate-500 text-xs font-semibold">
-            <span>Veículos Disponíveis</span>
-            <Car className="h-4 w-4 text-emerald-600" />
+        <Link
+          href="/app/aprovacoes"
+          className="group bg-white rounded-2xl border border-slate-200 p-4 sm:p-5 shadow-xs hover:border-emerald-400 transition flex items-center gap-3.5"
+        >
+          <div className="h-11 w-11 rounded-xl bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center justify-center shrink-0">
+            <ClipboardCheck className="h-5 w-5" />
           </div>
-          <div className="text-2xl font-extrabold text-slate-900 mt-2">
-            {availableVehicles.length}
+          <div className="min-w-0 flex-1">
+            <div className="text-2xl font-extrabold text-emerald-800 leading-none">
+              {awaitingReleaseOrAuth.length}
+            </div>
+            <div className="text-xs font-bold text-[#172B3A] mt-1 truncate">
+              Prontas / Autorizadas
+            </div>
+            <div className="text-[11px] text-slate-500 truncate">
+              Elegíveis para liberação
+            </div>
           </div>
-          <div className="text-xs text-slate-500 mt-1">
-            Sem negociação ativa vinculada
-          </div>
-        </div>
+        </Link>
 
-        <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-xs">
-          <div className="flex items-center justify-between text-slate-500 text-xs font-semibold">
-            <span>Entregas Concluídas</span>
-            <ShieldCheck className="h-4 w-4 text-emerald-700" />
+        <Link
+          href="/app/veiculos"
+          className="group bg-white rounded-2xl border border-slate-200 p-4 sm:p-5 shadow-xs hover:border-[#1684D8]/50 transition flex items-center gap-3.5"
+        >
+          <div className="h-11 w-11 rounded-xl bg-[#EAF3FC] text-[#0B3B70] flex items-center justify-center shrink-0">
+            <Car className="h-5 w-5 text-[#1684D8]" />
           </div>
-          <div className="text-2xl font-extrabold text-slate-900 mt-2">
-            {deals.filter((d) => d.deal.status === "DELIVERED").length}
+          <div className="min-w-0 flex-1">
+            <div className="text-2xl font-extrabold text-[#172B3A] leading-none">
+              {availableVehicles.length}
+            </div>
+            <div className="text-xs font-bold text-[#172B3A] mt-1 truncate">
+              Veículos disponíveis
+            </div>
+            <div className="text-[11px] text-slate-500 truncate">
+              {deliveredDeals.length} entrega(s) concluída(s)
+            </div>
           </div>
-          <div className="text-xs text-slate-500 mt-1">
-            Com reconfirmação de chassi auditada
-          </div>
-        </div>
+        </Link>
       </div>
 
-      {/* Lista de Passaportes Digitais da Concessionária */}
-      <section className="space-y-4">
-        <div className="flex items-center justify-between">
+      {/* Atalhos Operacionais Compactos */}
+      <div className="grid sm:grid-cols-3 gap-3">
+        <Link
+          href="/app/minhas-tarefas"
+          className="bg-white rounded-xl border border-slate-200 px-4 py-3 shadow-2xs hover:border-[#1684D8] transition flex items-center justify-between gap-3"
+        >
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="h-8 w-8 rounded-lg bg-[#EAF3FC] text-[#0B3B70] flex items-center justify-center shrink-0">
+              <ClipboardCheck className="h-4 w-4 text-[#1684D8]" />
+            </div>
+            <div className="min-w-0">
+              <div className="text-xs font-bold text-[#172B3A] truncate">
+                Minhas Tarefas
+              </div>
+              <div className="text-[11px] text-slate-500 truncate">
+                Prazos e pendências da sua área
+              </div>
+            </div>
+          </div>
+          <ArrowRight className="h-4 w-4 text-[#1684D8] shrink-0" />
+        </Link>
+
+        <Link
+          href="/app/aprovacoes"
+          className="bg-white rounded-xl border border-slate-200 px-4 py-3 shadow-2xs hover:border-[#1684D8] transition flex items-center justify-between gap-3"
+        >
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="h-8 w-8 rounded-lg bg-[#EAF3FC] text-[#0B3B70] flex items-center justify-center shrink-0">
+              <ShieldCheck className="h-4 w-4 text-[#1684D8]" />
+            </div>
+            <div className="min-w-0">
+              <div className="text-xs font-bold text-[#172B3A] truncate">
+                Faturamento, Docs e Liberações
+              </div>
+              <div className="text-[11px] text-slate-500 truncate">
+                Conferências e autorizações formais
+              </div>
+            </div>
+          </div>
+          <ArrowRight className="h-4 w-4 text-[#1684D8] shrink-0" />
+        </Link>
+
+        <Link
+          href={isAdmin ? "/app/configuracoes" : "/app/clientes"}
+          className="bg-white rounded-xl border border-slate-200 px-4 py-3 shadow-2xs hover:border-[#1684D8] transition flex items-center justify-between gap-3"
+        >
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="h-8 w-8 rounded-lg bg-[#EAF3FC] text-[#0B3B70] flex items-center justify-center shrink-0">
+              <Users className="h-4 w-4 text-[#1684D8]" />
+            </div>
+            <div className="min-w-0">
+              <div className="text-xs font-bold text-[#172B3A] truncate">
+                {isAdmin ? "Equipe e Acessos" : "Clientes e Acessos"}
+              </div>
+              <div className="text-[11px] text-slate-500 truncate">
+                {isAdmin
+                  ? "Gerenciar usuários e permissões"
+                  : "Preparar acesso individual do comprador"}
+              </div>
+            </div>
+          </div>
+          <ArrowRight className="h-4 w-4 text-[#1684D8] shrink-0" />
+        </Link>
+      </div>
+
+      {/* Negociações em Acompanhamento (Priorizando pendências e próximas ações) */}
+      <section className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
+        <div className="px-5 py-4 border-b border-slate-200 flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h2 className="text-lg font-bold text-slate-900">
+            <h2 className="text-base font-extrabold text-[#172B3A]">
               {isSeller
-                ? "Minhas negociações"
-                : "Negociações em acompanhamento"}
+                ? "Minhas negociações em andamento"
+                : "Negociações em andamento"}
             </h2>
-            <p className="text-xs text-slate-500">
-              Visão em tempo real do veículo, situação, próxima ação do seu
-              perfil e bloqueios impeditivos.
+            <p className="text-xs text-slate-500 mt-0.5">
+              Priorizadas por pendências e próximas ações atribuídas ao seu
+              perfil.
             </p>
           </div>
           <Link
             href="/app/negociacoes"
-            className="text-xs font-bold text-teal-700 hover:underline flex items-center gap-1"
+            className="text-xs font-bold text-[#1684D8] hover:underline inline-flex items-center gap-1"
           >
-            <span>Ver todas as negociações</span>
+            <span>Ver todas ({deals.length})</span>
             <ArrowRight className="h-3.5 w-3.5" />
           </Link>
         </div>
 
-        {deals.length === 0 && (
-          <div className="empty-state">
-            <FileSpreadsheet className="mx-auto h-10 w-10 text-teal-500" />
-            <h2>Pronto para a próxima negociação.</h2>
-            <p>
-              {isAdmin
-                ? "Cadastre sua equipe e adicione os veículos ao estoque para começar a operação."
-                : "Suas negociações aparecerão aqui, com documentos, pendências e o próximo passo de cada venda."}
+        {enrichedDeals.length === 0 ? (
+          <div className="p-10 text-center space-y-2">
+            <FileSpreadsheet className="mx-auto h-9 w-9 text-[#1684D8]" />
+            <h3 className="text-sm font-bold text-[#172B3A]">
+              Nenhuma negociação registrada no momento
+            </h3>
+            <p className="text-xs text-slate-500 max-w-md mx-auto">
+              Inicie uma nova negociação guiada para gerar o Passaporte Digital
+              e acompanhar documentos, aprovações e liberação.
             </p>
-            <Link
-              href={isAdmin ? "/app/configuracoes" : "/app/negociacoes/nova"}
-              className="text-sm font-semibold text-teal-700"
-            >
-              {isAdmin ? "Organizar minha equipe" : "Abrir uma negociação"} →
-            </Link>
-          </div>
-        )}
-        <div className="grid lg:grid-cols-2 gap-4">
-          {deals.map(({ deal, vehicle, customer, sellerName, summary }) => {
-            const dealTasks = db.taskInstances.filter(
-              (t) => t.dealId === deal.id,
-            );
-            const dealDocs = db.documents.filter((d) => d.dealId === deal.id);
-            const nextAction = computeUserNextAction(
-              ctx,
-              deal,
-              dealTasks,
-              dealDocs,
-              summary,
-            );
-            const stageObj = WORKFLOW_STAGES.find(
-              (s) => s.code === summary.currentStage,
-            );
-
-            return (
-              <div
-                key={deal.id}
-                className="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs flex flex-col justify-between gap-4 hover:border-slate-300 transition"
+            <div className="pt-2">
+              <Link
+                href="/app/negociacoes/nova"
+                className="inline-flex items-center gap-1.5 rounded-xl bg-[#1684D8] px-4 py-2 text-xs font-bold text-white"
               >
-                <div className="space-y-3">
-                  <div className="flex flex-wrap items-start justify-between gap-2">
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <span className="font-mono text-xs font-bold text-teal-800 bg-teal-50 border border-teal-200 px-2 py-0.5 rounded">
-                          {deal.dealNumber}
-                        </span>
-                        <span className="font-mono text-xs font-semibold text-slate-600">
-                          {vehicle.internalCode}
-                        </span>
+                <Plus className="h-4 w-4" />
+                <span>Nova Negociação</span>
+              </Link>
+            </div>
+          </div>
+        ) : (
+          <>
+            {/* Tabela Desktop */}
+            <div className="hidden lg:block overflow-x-auto">
+              <table className="w-full text-left border-collapse text-xs">
+                <thead>
+                  <tr className="bg-slate-50/90 border-b border-slate-200 text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                    <th className="py-3 px-4">Negociação & Veículo</th>
+                    <th className="py-3 px-4">Cliente & Responsável</th>
+                    <th className="py-3 px-4">Etapa Atual & Próxima Ação</th>
+                    <th className="py-3 px-4">Situação</th>
+                    <th className="py-3 px-4 text-right">Ação</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-200">
+                  {enrichedDeals.map(
+                    ({
+                      deal,
+                      vehicle,
+                      customer,
+                      sellerName,
+                      summary,
+                      nextAction,
+                      stageName,
+                    }) => (
+                      <tr
+                        key={deal.id}
+                        className="hover:bg-[#F4F7FA]/70 transition"
+                      >
+                        <td className="py-3.5 px-4">
+                          <div className="flex items-center gap-3">
+                            <img
+                              src={
+                                vehicle.photos[0] || "/vehicle-placeholder.svg"
+                              }
+                              alt={`${vehicle.brand} ${vehicle.model}`}
+                              className="h-11 w-16 rounded-lg border border-slate-200 object-cover bg-slate-900 shrink-0"
+                            />
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-1.5">
+                                <span className="font-mono text-[11px] font-bold text-[#0B3B70] bg-[#EAF3FC] px-2 py-0.5 rounded">
+                                  {deal.dealNumber}
+                                </span>
+                                <span className="font-mono text-[11px] text-slate-500">
+                                  {vehicle.internalCode}
+                                </span>
+                              </div>
+                              <div className="font-bold text-[#172B3A] text-sm mt-0.5 truncate">
+                                {vehicle.brand} {vehicle.model}
+                              </div>
+                              <div className="text-[11px] text-slate-500">
+                                {vehicle.modelYear} • {vehicle.color} • Chassi{" "}
+                                <code className="font-mono">{vehicle.vin}</code>
+                              </div>
+                            </div>
+                          </div>
+                        </td>
+
+                        <td className="py-3.5 px-4">
+                          <div className="flex items-center gap-2 font-bold text-[#172B3A]">
+                            <User className="h-3.5 w-3.5 text-[#1684D8] shrink-0" />
+                            <span>{customer.fullName}</span>
+                          </div>
+                          <div className="text-[11px] text-slate-500 mt-0.5 pl-5">
+                            {deal.buyerType} • Vendedor: {sellerName}
+                          </div>
+                        </td>
+
+                        <td className="py-3.5 px-4 max-w-sm">
+                          <div className="flex items-center gap-2">
+                            <span className="inline-flex items-center gap-1 rounded-md bg-slate-100 px-2 py-0.5 text-[11px] font-bold text-[#172B3A]">
+                              Etapa: {stageName}
+                            </span>
+                            <span className="text-[11px] font-semibold text-slate-500">
+                              Área: {nextAction.responsibleAreaLabel}
+                            </span>
+                          </div>
+                          <div
+                            className={`mt-1 text-xs font-semibold truncate ${
+                              nextAction.hasDirectAction
+                                ? "text-[#0B3B70]"
+                                : "text-slate-700"
+                            }`}
+                          >
+                            {nextAction.headline}
+                          </div>
+                          <div className="text-[11px] text-slate-500 truncate">
+                            {nextAction.description}
+                          </div>
+                        </td>
+
+                        <td className="py-3.5 px-4">
+                          <div className="flex flex-col items-start gap-1.5">
+                            <DealStatusBadge status={deal.status} />
+                            {summary.deliveryBlockers.length > 0 ? (
+                              <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-red-700">
+                                <AlertTriangle className="h-3 w-3 shrink-0" />
+                                {summary.deliveryBlockers.length} pendência(s)
+                                impeditiva(s)
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700">
+                                <CheckCircle2 className="h-3 w-3 shrink-0" />
+                                Requisitos em dia (
+                                {summary.completedApplicableTasksCount}/
+                                {summary.applicableTasksCount})
+                              </span>
+                            )}
+                          </div>
+                        </td>
+
+                        <td className="py-3.5 px-4 text-right">
+                          <Link
+                            href={`/app/negociacoes/${deal.id}`}
+                            className="inline-flex items-center gap-1.5 rounded-xl bg-[#0B3B70] hover:bg-[#1684D8] px-3.5 py-2 text-xs font-bold text-white transition"
+                          >
+                            <span>Ver detalhes</span>
+                            <ArrowRight className="h-3.5 w-3.5" />
+                          </Link>
+                        </td>
+                      </tr>
+                    ),
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Cards Responsivos Mobile / Tablet */}
+            <div className="lg:hidden divide-y divide-slate-200">
+              {enrichedDeals.map(
+                ({
+                  deal,
+                  vehicle,
+                  customer,
+                  sellerName,
+                  summary,
+                  nextAction,
+                  stageName,
+                }) => (
+                  <div key={deal.id} className="p-4 space-y-3">
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <div className="flex items-center gap-1.5">
+                          <span className="font-mono text-xs font-bold text-[#0B3B70] bg-[#EAF3FC] px-2 py-0.5 rounded">
+                            {deal.dealNumber}
+                          </span>
+                          <span className="font-mono text-xs text-slate-500">
+                            {vehicle.internalCode}
+                          </span>
+                        </div>
+                        <h3 className="text-sm font-extrabold text-[#172B3A] mt-1">
+                          {vehicle.brand} {vehicle.model} ({vehicle.color})
+                        </h3>
+                        <p className="text-xs text-slate-600">
+                          Cliente: <strong>{customer.fullName}</strong> •
+                          Vendedor: {sellerName}
+                        </p>
                       </div>
-                      <h3 className="text-base font-bold text-slate-900 mt-1">
-                        {vehicle.brand} {vehicle.model} {vehicle.trim} (
-                        {vehicle.color})
-                      </h3>
-                      <p className="text-xs text-slate-500">
-                        Comprador: <strong>{customer.fullName}</strong> (
-                        {deal.buyerType}) • Vendedor: {sellerName}
+                      <DealStatusBadge status={deal.status} />
+                    </div>
+
+                    <div className="rounded-xl bg-[#F4F7FA] border border-slate-200 p-3 text-xs space-y-1">
+                      <div className="flex items-center justify-between font-bold text-[#0B3B70]">
+                        <span>Etapa: {stageName}</span>
+                        <span>{nextAction.responsibleAreaLabel}</span>
+                      </div>
+                      <p className="font-semibold text-[#172B3A]">
+                        {nextAction.headline}
                       </p>
+                      <p className="text-slate-600">{nextAction.description}</p>
                     </div>
-                    <DealStatusBadge status={deal.status} />
-                  </div>
 
-                  {/* Condições da Negociação */}
-                  <div className="flex flex-wrap gap-1.5 text-[11px]">
-                    <span className="rounded bg-slate-100 px-2 py-0.5 font-medium text-slate-700">
-                      Etapa: {stageObj?.name ?? summary.currentStage}
-                    </span>
-                    <span className="rounded bg-slate-100 px-2 py-0.5 font-medium text-slate-700">
-                      Financiamento: {deal.hasFinancing ? "Sim" : "Não"}
-                    </span>
-                    <span className="rounded bg-slate-100 px-2 py-0.5 font-medium text-slate-700">
-                      Usado na troca: {deal.hasTradeIn ? "Sim" : "Não"}
-                    </span>
-                    <span className="rounded bg-slate-100 px-2 py-0.5 font-medium text-slate-700">
-                      Procuração: {deal.hasPowerOfAttorney ? "Sim" : "Não"}
-                    </span>
-                  </div>
-
-                  {/* Próxima Ação Recomendada para o Usuário Atual */}
-                  <div
-                    className={`rounded-xl p-3 border text-xs ${
-                      nextAction.hasDirectAction
-                        ? "bg-teal-50/70 border-teal-300 text-teal-950"
-                        : "bg-slate-50 border-slate-200 text-slate-700"
-                    }`}
-                  >
-                    <div className="font-bold flex items-center justify-between gap-2">
-                      <span>
-                        {nextAction.hasDirectAction
-                          ? "Sua próxima ação nesta negociação:"
-                          : "Situação atual da fila:"}
-                      </span>
-                      <span className="text-[11px] font-semibold px-2 py-0.5 rounded bg-white border border-slate-200">
-                        Área: {nextAction.responsibleAreaLabel}
-                      </span>
+                    <div className="flex items-center justify-between gap-2 pt-1">
+                      <div className="text-xs">
+                        {summary.deliveryBlockers.length > 0 ? (
+                          <span className="inline-flex items-center gap-1 text-red-700 font-semibold">
+                            <AlertTriangle className="h-3.5 w-3.5" />
+                            {summary.deliveryBlockers.length} pendência(s)
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 text-emerald-700 font-semibold">
+                            <CheckCircle2 className="h-3.5 w-3.5" />
+                            Sem bloqueios
+                          </span>
+                        )}
+                      </div>
+                      <Link
+                        href={`/app/negociacoes/${deal.id}`}
+                        className="inline-flex items-center gap-1.5 rounded-xl bg-[#1684D8] px-3.5 py-2 text-xs font-bold text-white"
+                      >
+                        <span>Abrir Passaporte</span>
+                        <ArrowRight className="h-3.5 w-3.5" />
+                      </Link>
                     </div>
-                    <p className="font-semibold mt-1">{nextAction.headline}</p>
-                    <p className="text-slate-600 mt-0.5">
-                      {nextAction.description}
-                    </p>
                   </div>
-                </div>
-
-                <div className="pt-3 border-t border-slate-100 flex flex-wrap items-center justify-between gap-3">
-                  <div className="flex items-center gap-3 text-xs">
-                    {summary.deliveryBlockers.length > 0 ? (
-                      <span className="inline-flex items-center gap-1 text-red-700 font-semibold">
-                        <AlertTriangle className="h-3.5 w-3.5" />
-                        {summary.deliveryBlockers.length} bloqueio(s) p/ entrega
-                      </span>
-                    ) : (
-                      <span className="inline-flex items-center gap-1 text-emerald-700 font-semibold">
-                        <CheckCircle2 className="h-3.5 w-3.5" />
-                        Sem bloqueios técnicos
-                      </span>
-                    )}
-                    <span className="text-slate-400">•</span>
-                    <span className="text-slate-600 font-medium">
-                      Tarefas aplicáveis:{" "}
-                      {summary.completedApplicableTasksCount}/
-                      {summary.applicableTasksCount}
-                    </span>
-                  </div>
-
-                  <Link
-                    href={`/app/negociacoes/${deal.id}`}
-                    className="inline-flex items-center gap-1.5 rounded-lg bg-[#0f172a] hover:bg-slate-800 px-3.5 py-2 text-xs font-bold text-white transition"
-                  >
-                    <span>Abrir Passaporte Digital</span>
-                    <ArrowRight className="h-3.5 w-3.5 text-teal-400" />
-                  </Link>
-                </div>
-              </div>
-            );
-          })}
-        </div>
+                ),
+              )}
+            </div>
+          </>
+        )}
       </section>
 
-      {/* Veículos no Estoque Prontos para Escaneamento ou Nova Venda */}
-      <section className="space-y-4">
+      {/* Visão Rápida do Estoque da Unidade */}
+      <section className="space-y-3">
         <div className="flex items-center justify-between">
           <div>
-            <h2 className="text-lg font-bold text-slate-900">
+            <h2 className="text-base font-extrabold text-[#172B3A]">
               Estoque da Unidade ({vehicles.length} veículos)
             </h2>
             <p className="text-xs text-slate-500">
-              Situação do estoque separada da situação da negociação. Clique
-              para imprimir etiqueta QR Code ou iniciar negociação.
+              Situação física do veículo separada do passaporte da negociação.
             </p>
           </div>
           <Link
             href="/app/veiculos"
-            className="text-xs font-bold text-teal-700 hover:underline flex items-center gap-1"
+            className="text-xs font-bold text-[#1684D8] hover:underline inline-flex items-center gap-1"
           >
-            <span>Gerenciar estoque e importar CSV</span>
+            <span>Ver estoque completo</span>
             <ArrowRight className="h-3.5 w-3.5" />
           </Link>
         </div>
 
-        {vehicles.length === 0 && (
-          <div className="empty-state">
-            <Car className="mx-auto h-10 w-10 text-slate-300" />
-            <h2>Seu estoque está pronto para começar.</h2>
-            <p>
-              {isAdmin
-                ? "Cadastre o primeiro veículo para iniciar negociações e gerar as etiquetas de identificação."
-                : "Os veículos cadastrados pela administração ficarão disponíveis aqui."}
-            </p>
-            {isAdmin && (
-              <Link
-                href="/app/veiculos/novo"
-                className="text-sm font-semibold text-teal-700"
-              >
-                Cadastrar primeiro veículo →
-              </Link>
-            )}
-          </div>
-        )}
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {vehicles.slice(0, 6).map((v) => (
             <div
               key={v.id}
-              className="bg-white rounded-xl border border-slate-200 p-4 shadow-xs flex flex-col justify-between gap-3"
+              className="bg-white rounded-2xl border border-slate-200 p-4 shadow-xs flex flex-col justify-between gap-3 hover:border-[#1684D8]/40 transition"
             >
-              <div>
-                <div className="flex items-center justify-between gap-2">
-                  <span className="font-mono text-xs font-bold text-slate-800 bg-slate-100 px-2 py-0.5 rounded">
-                    {v.internalCode}
-                  </span>
-                  <StockStatusBadge status={v.stockStatus} />
+              <div className="flex items-start gap-3">
+                <img
+                  src={v.photos[0] || "/vehicle-placeholder.svg"}
+                  alt={`${v.brand} ${v.model}`}
+                  className="h-14 w-20 rounded-xl border border-slate-200 object-cover bg-slate-900 shrink-0"
+                />
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center justify-between gap-1">
+                    <span className="font-mono text-[11px] font-bold text-[#0B3B70] bg-[#EAF3FC] px-2 py-0.5 rounded">
+                      {v.internalCode}
+                    </span>
+                    <StockStatusBadge status={v.stockStatus} />
+                  </div>
+                  <h3 className="text-sm font-extrabold text-[#172B3A] mt-1.5 truncate">
+                    {v.brand} {v.model}
+                  </h3>
+                  <p className="text-xs text-slate-500 truncate">
+                    {v.modelYear} • {v.color}
+                  </p>
                 </div>
-                <h3 className="text-sm font-bold text-slate-900 mt-2">
-                  {v.brand} {v.model} • {v.color}
-                </h3>
-                <p className="text-xs text-slate-500">
-                  {v.trim} • {v.manufacturingYear}/{v.modelYear} • Chassi:{" "}
-                  <code className="font-mono">{v.vin}</code>
-                </p>
               </div>
 
-              <div className="pt-2 border-t border-slate-100 flex items-center justify-between gap-2">
+              <div className="pt-2.5 border-t border-slate-100 flex items-center justify-between gap-2 text-xs">
                 <Link
                   href={`/app/veiculos/${v.id}`}
-                  className="text-xs font-semibold text-slate-700 hover:text-slate-900 hover:underline"
+                  className="font-semibold text-slate-600 hover:text-[#0B3B70] hover:underline"
                 >
-                  Cadastro & Etiqueta QR
+                  Ficha & QR Code
                 </Link>
                 {v.activeDeal ? (
                   <Link
                     href={`/app/negociacoes/${v.activeDeal.id}`}
-                    className="text-xs font-bold text-teal-700 hover:underline"
+                    className="font-bold text-[#1684D8] hover:underline"
                   >
                     Passaporte {v.activeDeal.dealNumber} →
                   </Link>
                 ) : (
                   <Link
                     href={`/app/negociacoes/nova?vehicleId=${v.id}`}
-                    className="text-xs font-bold text-emerald-700 hover:underline"
+                    className="font-bold text-emerald-700 hover:underline"
                   >
-                    + Iniciar Negociação
+                    + Nova negociação
                   </Link>
                 )}
               </div>

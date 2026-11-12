@@ -67,6 +67,12 @@ export function ProceduresAdminClient({
   const [publishImmediately, setPublishImmediately] = useState(true);
   const [loading, setLoading] = useState(false);
   const [feedback, setFeedback] = useState<string | null>(null);
+  const [areaFilter, setAreaFilter] = useState<ResponsibleArea | "ALL">("ALL");
+
+  const filteredProcedures =
+    areaFilter === "ALL"
+      ? procedures
+      : procedures.filter((p) => p.responsibleArea === areaFilter);
 
   async function handleSaveProcedure(e: React.FormEvent) {
     e.preventDefault();
@@ -134,19 +140,18 @@ export function ProceduresAdminClient({
 
   return (
     <div className="space-y-8">
-      {/* Cabeçalho */}
-      <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-xs flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      {/* Cabeçalho (4.12 Procedimentos e regras) */}
+      <div className="bg-white rounded-2xl border border-slate-200/90 p-6 shadow-xs flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <span className="inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-amber-800 bg-amber-100 px-2.5 py-0.5 rounded">
-            <ShieldAlert className="h-3.5 w-3.5" />
-            <span>Procedimentos da organização</span>
+          <span className="inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-[#0B3B70] bg-[#EAF3FC] border border-[#1684D8]/30 px-2.5 py-0.5 rounded">
+            <ShieldAlert className="h-3.5 w-3.5 text-[#1684D8]" />
+            <span>Procedimentos e Regras Confirmadas da Organização</span>
           </span>
-          <h1 className="text-2xl font-extrabold text-slate-900 mt-2">
-            Procedimentos
+          <h1 className="text-2xl font-extrabold text-[#172B3A] mt-2">
+            Procedimentos e Regras Operacionais
           </h1>
           <p className="text-xs sm:text-sm text-slate-600 mt-0.5">
-            Orientações da equipe. Publique um procedimento para
-            disponibilizá-lo nas negociações.
+            Orientações oficiais por área responsável, finalidade e condição de aplicação. Publique uma versão para disponibilizá-la nas negociações.
           </p>
         </div>
 
@@ -154,7 +159,7 @@ export function ProceduresAdminClient({
           <button
             type="button"
             onClick={() => setShowNewForm((v) => !v)}
-            className="inline-flex items-center gap-2 rounded-xl bg-teal-600 hover:bg-teal-700 px-4 py-2.5 text-xs sm:text-sm font-bold text-white shrink-0"
+            className="inline-flex items-center gap-2 rounded-xl bg-[#1684D8] hover:bg-[#126FB8] px-4 py-2.5 text-xs sm:text-sm font-bold text-white shadow-xs transition shrink-0"
           >
             <FilePlus className="h-4 w-4" />
             <span>Novo procedimento</span>
@@ -172,9 +177,9 @@ export function ProceduresAdminClient({
       {showNewForm && canManageProcedures && (
         <form
           onSubmit={handleSaveProcedure}
-          className="bg-white rounded-2xl border-2 border-teal-500 p-6 shadow-md space-y-4 text-xs"
+          className="bg-white rounded-2xl border-2 border-[#1684D8] p-6 shadow-md space-y-4 text-xs"
         >
-          <h2 className="text-base font-bold text-slate-900">
+          <h2 className="text-base font-bold text-[#172B3A]">
             Criar ou Versionar Procedimento Operacional
           </h2>
           <div className="grid sm:grid-cols-3 gap-4">
@@ -187,7 +192,7 @@ export function ProceduresAdminClient({
                 required
                 value={code}
                 onChange={(e) => setCode(e.target.value)}
-                className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-mono text-slate-900"
+                className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-mono text-[#172B3A]"
               />
             </div>
             <div>
@@ -199,7 +204,7 @@ export function ProceduresAdminClient({
                 onChange={(e) =>
                   setResponsibleArea(e.target.value as ResponsibleArea)
                 }
-                className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-slate-900"
+                className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-[#172B3A]"
               >
                 {(Object.keys(AREA_LABELS) as ResponsibleArea[]).map((ar) => (
                   <option key={ar} value={ar}>
@@ -209,7 +214,7 @@ export function ProceduresAdminClient({
               </select>
             </div>
             <div className="flex items-end">
-              <label className="flex items-center gap-2 font-bold text-slate-800 pb-2 cursor-pointer">
+              <label className="flex items-center gap-2 font-bold text-[#172B3A] pb-2 cursor-pointer">
                 <input
                   type="checkbox"
                   checked={publishImmediately}
@@ -227,7 +232,7 @@ export function ProceduresAdminClient({
                 required
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
-                className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-slate-900"
+                className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-[#172B3A]"
               />
             </div>
             <div className="sm:col-span-3">
@@ -239,7 +244,7 @@ export function ProceduresAdminClient({
                 required
                 value={content}
                 onChange={(e) => setContent(e.target.value)}
-                className="mt-1 w-full rounded-lg border border-slate-300 p-2 text-slate-900"
+                className="mt-1 w-full rounded-lg border border-slate-300 p-2 text-[#172B3A]"
               />
             </div>
             <div>
@@ -250,7 +255,7 @@ export function ProceduresAdminClient({
                 type="text"
                 value={secNum}
                 onChange={(e) => setSecNum(e.target.value)}
-                className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-slate-900"
+                className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-[#172B3A]"
               />
             </div>
             <div className="sm:col-span-2">
@@ -261,7 +266,7 @@ export function ProceduresAdminClient({
                 type="text"
                 value={secHeading}
                 onChange={(e) => setSecHeading(e.target.value)}
-                className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-slate-900"
+                className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-[#172B3A]"
               />
             </div>
             <div className="sm:col-span-3">
@@ -272,7 +277,7 @@ export function ProceduresAdminClient({
                 rows={2}
                 value={secBody}
                 onChange={(e) => setSecBody(e.target.value)}
-                className="mt-1 w-full rounded-lg border border-slate-300 p-2 text-slate-900"
+                className="mt-1 w-full rounded-lg border border-slate-300 p-2 text-[#172B3A]"
               />
             </div>
           </div>
@@ -280,14 +285,14 @@ export function ProceduresAdminClient({
             <button
               type="button"
               onClick={() => setShowNewForm(false)}
-              className="rounded-lg border border-slate-300 px-4 py-2 font-bold text-slate-700"
+              className="rounded-lg border border-slate-300 px-4 py-2 font-bold text-slate-700 hover:bg-slate-50"
             >
               Cancelar
             </button>
             <button
               type="submit"
               disabled={loading}
-              className="rounded-lg bg-teal-600 px-5 py-2 font-bold text-white"
+              className="rounded-lg bg-[#1684D8] hover:bg-[#126FB8] px-5 py-2 font-bold text-white transition"
             >
               {publishImmediately
                 ? "Salvar e Publicar Versão"
@@ -297,30 +302,61 @@ export function ProceduresAdminClient({
         </form>
       )}
 
-      {/* Lista de Procedimentos e Suas Versões (Publicado vs Rascunho) */}
+      {/* Lista de Procedimentos e Suas Versões por Categoria/Área */}
       <section className="space-y-4">
-        <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
-          <BookOpen className="h-5 w-5 text-teal-600" />
-          <span>Procedimentos da Concessionária ({procedures.length})</span>
-        </h2>
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <h2 className="text-base font-bold text-[#172B3A] flex items-center gap-2">
+            <BookOpen className="h-5 w-5 text-[#1684D8]" />
+            <span>Procedimentos da Concessionária ({filteredProcedures.length})</span>
+          </h2>
+
+          {/* Abas de filtro por área responsável */}
+          <div className="flex flex-wrap items-center gap-1.5">
+            <button
+              type="button"
+              onClick={() => setAreaFilter("ALL")}
+              className={`rounded-lg px-2.5 py-1.5 text-xs font-bold transition ${
+                areaFilter === "ALL"
+                  ? "bg-[#1684D8] text-white"
+                  : "bg-white border border-slate-200 text-slate-600 hover:bg-slate-50"
+              }`}
+            >
+              Todas as áreas
+            </button>
+            {(Object.keys(AREA_LABELS) as ResponsibleArea[]).map((ar) => (
+              <button
+                key={ar}
+                type="button"
+                onClick={() => setAreaFilter(ar)}
+                className={`rounded-lg px-2.5 py-1.5 text-xs font-bold transition ${
+                  areaFilter === ar
+                    ? "bg-[#1684D8] text-white"
+                    : "bg-white border border-slate-200 text-slate-600 hover:bg-slate-50"
+                }`}
+              >
+                {AREA_LABELS[ar]}
+              </button>
+            ))}
+          </div>
+        </div>
 
         <div className="space-y-4">
-          {procedures.map((proc) => (
+          {filteredProcedures.map((proc) => (
             <div
               key={proc.id}
-              className="bg-white rounded-2xl border border-slate-200 p-6 shadow-xs space-y-4"
+              className="bg-white rounded-2xl border border-slate-200/90 p-6 shadow-xs space-y-4"
             >
               <div className="flex flex-wrap items-start justify-between gap-2 border-b border-slate-200 pb-3">
                 <div>
                   <div className="flex items-center gap-2">
-                    <span className="font-mono text-xs font-bold bg-slate-900 text-white px-2.5 py-0.5 rounded">
+                    <span className="font-mono text-xs font-bold bg-[#0B3B70] text-white px-2.5 py-0.5 rounded">
                       {proc.code}
                     </span>
-                    <span className="text-xs font-bold bg-blue-50 text-blue-900 border border-blue-200 px-2.5 py-0.5 rounded">
-                      Área: {proc.areaLabel}
+                    <span className="text-xs font-bold bg-[#EAF3FC] text-[#0B3B70] border border-[#1684D8]/30 px-2.5 py-0.5 rounded">
+                      Responsável: {proc.areaLabel}
                     </span>
                   </div>
-                  <h3 className="text-lg font-extrabold text-slate-900 mt-1">
+                  <h3 className="text-lg font-extrabold text-[#172B3A] mt-1">
                     {proc.title}
                   </h3>
                 </div>
@@ -342,16 +378,21 @@ export function ProceduresAdminClient({
 
               {proc.publishedVersion && (
                 <div className="space-y-2 text-xs">
-                  <p className="text-slate-700 font-medium">
-                    {proc.publishedVersion.content}
-                  </p>
+                  <div className="rounded-xl bg-[#EAF3FC]/50 border border-[#1684D8]/20 p-3 text-[#172B3A]">
+                    <span className="font-bold text-[#0B3B70] block mb-0.5">
+                      Finalidade e Condição de Aplicação:
+                    </span>
+                    <p className="font-medium leading-relaxed">
+                      {proc.publishedVersion.content}
+                    </p>
+                  </div>
                   <div className="grid sm:grid-cols-2 gap-2.5 pt-1">
                     {proc.publishedVersion.sections.map((sec) => (
                       <div
                         key={sec.sectionNumber}
-                        className="rounded-xl bg-slate-50 border border-slate-200 p-3"
+                        className="rounded-xl bg-[#F4F7FA] border border-slate-200 p-3"
                       >
-                        <div className="font-bold text-slate-900">
+                        <div className="font-bold text-[#172B3A]">
                           Seção {sec.sectionNumber} — {sec.heading}
                         </div>
                         <p className="text-slate-600 mt-1">{sec.body}</p>
@@ -370,10 +411,10 @@ export function ProceduresAdminClient({
                   {proc.allVersions.map((ver) => (
                     <div
                       key={ver.id}
-                      className="p-3 bg-slate-50/60 flex flex-wrap items-center justify-between gap-2"
+                      className="p-3 bg-[#F4F7FA]/60 flex flex-wrap items-center justify-between gap-2"
                     >
                       <div>
-                        <span className="font-bold text-slate-900">
+                        <span className="font-bold text-[#172B3A]">
                           Versão v{ver.versionNumber} — {ver.title}
                         </span>
                         <span
@@ -404,7 +445,7 @@ export function ProceduresAdminClient({
                           type="button"
                           disabled={loading}
                           onClick={() => handlePublishDraft(ver.id)}
-                          className="rounded-lg bg-teal-600 hover:bg-teal-700 px-3 py-1.5 text-xs font-bold text-white"
+                          className="rounded-lg bg-[#1684D8] hover:bg-[#126FB8] px-3 py-1.5 text-xs font-bold text-white transition"
                         >
                           Publicar esta Versão (v{ver.versionNumber})
                         </button>

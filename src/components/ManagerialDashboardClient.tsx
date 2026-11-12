@@ -51,23 +51,79 @@ export function ManagerialDashboardClient({
 
   return (
     <div className="space-y-6">
-      {/* Cabeçalho */}
-      <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-xs flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+      {/* Cabeçalho (4.13 Painel gerencial e relatórios — Tela 10 da prancha) */}
+      <div className="bg-white rounded-2xl border border-slate-200/90 p-6 shadow-xs flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
         <div>
-          <span className="text-xs font-bold uppercase tracking-wider text-teal-700">
+          <span className="eyebrow">
             Inteligência Operacional Real (Sem Estimativas Fictícias)
           </span>
-          <h1 className="text-2xl font-extrabold text-slate-900 mt-1">
-            Painel Gerencial da Concessionária
+          <h1 className="text-2xl font-extrabold text-[#172B3A] mt-1">
+            Relatórios e Painel Gerencial
           </h1>
           <p className="text-xs sm:text-sm text-slate-600 mt-0.5">
-            Todos os indicadores e tempos são calculados estritamente a partir dos registros e timestamps reais do banco de dados.
+            Análises e indicadores da operação calculados estritamente a partir dos registros e timestamps reais do banco de dados.
           </p>
         </div>
       </div>
 
+      {/* Cards de Categorias de Análise (Tela 10 da prancha) */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="bg-white rounded-2xl border border-slate-200/90 p-4 shadow-xs flex items-center gap-3.5">
+          <div className="h-11 w-11 rounded-xl bg-[#EAF3FC] flex items-center justify-center text-[#1684D8] shrink-0">
+            <BarChart3 className="h-5 w-5" />
+          </div>
+          <div>
+            <div className="text-sm font-extrabold text-[#172B3A]">
+              Negociações
+            </div>
+            <div className="text-xs text-slate-500">
+              Acompanhamento e status ({kpis.activeDealsCount} ativas)
+            </div>
+          </div>
+        </div>
+        <div className="bg-white rounded-2xl border border-slate-200/90 p-4 shadow-xs flex items-center gap-3.5">
+          <div className="h-11 w-11 rounded-xl bg-[#EAF3FC] flex items-center justify-center text-[#1684D8] shrink-0">
+            <FileCheck2 className="h-5 w-5" />
+          </div>
+          <div>
+            <div className="text-sm font-extrabold text-[#172B3A]">
+              Faturamento & Docs
+            </div>
+            <div className="text-xs text-slate-500">
+              Conferências e emissão de NF
+            </div>
+          </div>
+        </div>
+        <div className="bg-white rounded-2xl border border-slate-200/90 p-4 shadow-xs flex items-center gap-3.5">
+          <div className="h-11 w-11 rounded-xl bg-[#EAF3FC] flex items-center justify-center text-[#1684D8] shrink-0">
+            <ShieldCheck className="h-5 w-5" />
+          </div>
+          <div>
+            <div className="text-sm font-extrabold text-[#172B3A]">
+              Liberações
+            </div>
+            <div className="text-xs text-slate-500">
+              Prazos e entregas ({kpis.deliveredInPeriodCount} no período)
+            </div>
+          </div>
+        </div>
+        <div className="bg-white rounded-2xl border border-slate-200/90 p-4 shadow-xs flex items-center gap-3.5">
+          <div className="h-11 w-11 rounded-xl bg-[#EAF3FC] flex items-center justify-center text-[#1684D8] shrink-0">
+            <Clock className="h-5 w-5" />
+          </div>
+          <div>
+            <div className="text-sm font-extrabold text-[#172B3A]">
+              Operacional
+            </div>
+            <div className="text-xs text-slate-500">
+              Etapas, SLAs e produtividade
+            </div>
+          </div>
+        </div>
+      </div>
+
       {/* Barra de Filtros: Período, Vendedor, Modelo e Situação */}
-      <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-xs grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
+      <div className="bg-white rounded-2xl border border-slate-200/90 p-4 shadow-xs grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
         <div>
           <label className="block text-[11px] font-bold uppercase text-slate-500">
             Período
@@ -77,7 +133,7 @@ export function ManagerialDashboardClient({
             onChange={(e) =>
               updateFilter({ periodDays: Number(e.target.value) })
             }
-            className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-900"
+            className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-xs font-semibold text-[#172B3A]"
           >
             <option value={7}>Últimos 7 dias</option>
             <option value={30}>Últimos 30 dias</option>
@@ -93,7 +149,7 @@ export function ManagerialDashboardClient({
           <select
             value={filtersApplied.sellerId}
             onChange={(e) => updateFilter({ sellerId: e.target.value })}
-            className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-900"
+            className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-xs font-semibold text-[#172B3A]"
           >
             <option value="ALL">Todos os vendedores</option>
             {availableFilterOptions.sellers.map((s) => (
@@ -111,7 +167,7 @@ export function ManagerialDashboardClient({
           <select
             value={filtersApplied.vehicleModel}
             onChange={(e) => updateFilter({ vehicleModel: e.target.value })}
-            className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-900"
+            className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-xs font-semibold text-[#172B3A]"
           >
             <option value="ALL">Todos os modelos</option>
             {availableFilterOptions.models.map((m) => (
@@ -129,7 +185,7 @@ export function ManagerialDashboardClient({
           <select
             value={filtersApplied.statusFilter}
             onChange={(e) => updateFilter({ statusFilter: e.target.value })}
-            className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-900"
+            className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-xs font-semibold text-[#172B3A]"
           >
             <option value="ALL">Todas as situações</option>
             {(Object.keys(DEAL_STATUS_LABELS) as DealStatus[]).map((st) => (
@@ -148,58 +204,71 @@ export function ManagerialDashboardClient({
             key: "activeDealsCount",
             title: "Negociações Ativas",
             value: kpis.activeDealsCount,
-            accent: "text-blue-700",
+            unit: "negociações",
+            accent: "text-[#0B3B70]",
           },
           {
             key: "waitingDocumentsCount",
             title: "Aguardando Documentos",
             value: kpis.waitingDocumentsCount,
+            unit: "negociações",
             accent: "text-amber-700",
           },
           {
             key: "waitingFinancialAnalysisCount",
             title: "Aguardando Análise Financeira",
             value: kpis.waitingFinancialAnalysisCount,
+            unit: "negociações",
             accent: "text-amber-700",
           },
           {
             key: "waitingDocumentAnalysisCount",
             title: "Aguardando Análise Documental",
             value: kpis.waitingDocumentAnalysisCount,
-            accent: "text-indigo-700",
+            unit: "negociações",
+            accent: "text-[#1684D8]",
           },
           {
             key: "eligibleForAuthorizationCount",
             title: "Elegíveis para Autorização",
             value: kpis.eligibleForAuthorizationCount,
-            accent: "text-teal-700",
+            unit: "veículos",
+            accent: "text-[#1684D8]",
           },
           {
             key: "deliveryAuthorizedCount",
             title: "Entregas Autorizadas",
             value: kpis.deliveryAuthorizedCount,
+            unit: "veículos",
             accent: "text-emerald-700",
           },
           {
             key: "deliveredInPeriodCount",
             title: "Entregas Realizadas no Período",
             value: kpis.deliveredInPeriodCount,
+            unit: `últimos ${filtersApplied.periodDays}d`,
             accent: "text-emerald-800",
           },
           {
             key: "overdueTasksCount",
             title: "Tarefas Atrasadas (SLA)",
             value: kpis.overdueTasksCount,
+            unit: "tarefas",
             accent: "text-red-700",
           },
         ].map((item) => (
           <div
             key={item.key}
-            className="bg-white rounded-2xl border border-slate-200 p-4 shadow-xs flex flex-col justify-between gap-2"
+            className="bg-white rounded-2xl border border-slate-200/90 p-4 shadow-xs flex flex-col justify-between gap-2"
           >
             <div>
-              <div className="text-xs font-bold text-slate-700">
-                {item.title}
+              <div className="flex items-center justify-between gap-1">
+                <span className="text-xs font-bold text-[#172B3A]">
+                  {item.title}
+                </span>
+                <span className="text-[10px] font-semibold text-slate-400 uppercase">
+                  {item.unit}
+                </span>
               </div>
               <div className={`text-3xl font-extrabold mt-1 ${item.accent}`}>
                 {item.value}
@@ -215,11 +284,11 @@ export function ManagerialDashboardClient({
       {/* Gráficos 1 e 2: Processos por Etapa & Pendências por Motivo */}
       <div className="grid lg:grid-cols-2 gap-6">
         {/* Gráfico: Processos por Etapa */}
-        <section className="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs space-y-4">
+        <section className="bg-white rounded-2xl border border-slate-200/90 p-5 shadow-xs space-y-4">
           <div className="flex items-center justify-between">
             <div>
-              <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
-                <BarChart3 className="h-5 w-5 text-teal-600" />
+              <h2 className="text-base font-bold text-[#172B3A] flex items-center gap-2">
+                <BarChart3 className="h-5 w-5 text-[#1684D8]" />
                 <span>Processos por Etapa do Fluxo</span>
               </h2>
               <p className="text-xs text-slate-500">
@@ -233,13 +302,13 @@ export function ManagerialDashboardClient({
               const pct = Math.round((st.count / maxStageCount) * 100);
               return (
                 <div key={st.stageCode} className="space-y-1">
-                  <div className="flex justify-between font-semibold text-slate-800">
+                  <div className="flex justify-between font-semibold text-[#172B3A]">
                     <span>{st.stageName}</span>
                     <span>{st.count} negociação(ões)</span>
                   </div>
                   <div className="h-2.5 w-full rounded-full bg-slate-100 overflow-hidden">
                     <div
-                      className="h-full bg-teal-600 rounded-full transition-all"
+                      className="h-full bg-[#1684D8] rounded-full transition-all"
                       style={{ width: `${st.count > 0 ? Math.max(8, pct) : 0}%` }}
                     />
                   </div>
@@ -250,9 +319,9 @@ export function ManagerialDashboardClient({
         </section>
 
         {/* Gráfico: Pendências por Motivo */}
-        <section className="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs space-y-4">
+        <section className="bg-white rounded-2xl border border-slate-200/90 p-5 shadow-xs space-y-4">
           <div>
-            <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
+            <h2 className="text-base font-bold text-[#172B3A] flex items-center gap-2">
               <AlertTriangle className="h-5 w-5 text-amber-600" />
               <span>Pendências Ativas por Motivo</span>
             </h2>
@@ -266,7 +335,7 @@ export function ManagerialDashboardClient({
               const pct = Math.round((r.count / maxReasonCount) * 100);
               return (
                 <div key={r.reasonCategory} className="space-y-1">
-                  <div className="flex justify-between font-semibold text-slate-800">
+                  <div className="flex justify-between font-semibold text-[#172B3A]">
                     <span>{r.reasonCategory}</span>
                     <span>{r.count}</span>
                   </div>
@@ -285,15 +354,15 @@ export function ManagerialDashboardClient({
 
       {/* Gráficos 3 e 4: Tempo Mediano Venda -> Entrega & Tempo em Cada Etapa */}
       <div className="grid lg:grid-cols-12 gap-6">
-        <section className="lg:col-span-5 bg-[#0f172a] text-white rounded-2xl p-6 border border-slate-800 flex flex-col justify-between space-y-4">
+        <section className="lg:col-span-5 bg-[#0B3B70] text-white rounded-2xl p-6 border border-[#1684D8]/30 flex flex-col justify-between space-y-4">
           <div className="space-y-2">
-            <span className="text-xs font-bold uppercase tracking-wider text-teal-400">
+            <span className="text-xs font-bold uppercase tracking-wider text-[#7CC4FA]">
               Ciclo Ponta a Ponta Auditado
             </span>
             <h2 className="text-lg font-bold">
               Tempo Mediano entre Venda e Entrega
             </h2>
-            <p className="text-xs text-slate-300 leading-relaxed">
+            <p className="text-xs text-blue-100 leading-relaxed">
               Calculado pela diferença exata entre a criação do passaporte (
               <code>deal.createdAt</code>) e o registro de entrega física das chaves (
               <code>delivery.deliveredAt</code>).
@@ -301,33 +370,33 @@ export function ManagerialDashboardClient({
           </div>
 
           {medianSaleToDeliveryHours !== null ? (
-            <div className="rounded-xl bg-slate-900 border border-slate-700 p-4">
-              <div className="text-3xl font-extrabold text-teal-400">
+            <div className="rounded-xl bg-[#082B54] border border-white/15 p-4">
+              <div className="text-3xl font-extrabold text-[#7CC4FA]">
                 {medianSaleToDeliveryHours} horas
               </div>
-              <div className="text-xs text-slate-400 mt-1">
+              <div className="text-xs text-blue-100/80 mt-1">
                 (~{Math.round((medianSaleToDeliveryHours / 24) * 10) / 10} dias
                 corridos nas entregas concluídas do período)
               </div>
             </div>
           ) : (
-            <div className="rounded-xl bg-slate-900 border border-slate-700 p-4 text-xs text-slate-300">
+            <div className="rounded-xl bg-[#082B54] border border-white/15 p-4 text-xs text-blue-100">
               <strong>Dados insuficientes no filtro selecionado:</strong> Não há entregas físicas concluídas no recorte atual para cálculo da mediana.
             </div>
           )}
 
-          <div className="text-[11px] text-slate-400 flex items-start gap-2">
-            <Info className="h-4 w-4 text-teal-400 shrink-0 mt-0.5" />
+          <div className="text-[11px] text-blue-100/80 flex items-start gap-2">
+            <Info className="h-4 w-4 text-[#7CC4FA] shrink-0 mt-0.5" />
             <span>
               Política de integridade: O sistema nunca inventa percentuais de economia ou redução de tempo sem base histórica real.
             </span>
           </div>
         </section>
 
-        <section className="lg:col-span-7 bg-white rounded-2xl border border-slate-200 p-5 shadow-xs space-y-4">
+        <section className="lg:col-span-7 bg-white rounded-2xl border border-slate-200/90 p-5 shadow-xs space-y-4">
           <div>
-            <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
-              <Clock className="h-5 w-5 text-teal-600" />
+            <h2 className="text-base font-bold text-[#172B3A] flex items-center gap-2">
+              <Clock className="h-5 w-5 text-[#1684D8]" />
               <span>Tempo Registrado em Cada Etapa (Horas)</span>
             </h2>
             <p className="text-xs text-slate-500">
@@ -341,9 +410,9 @@ export function ManagerialDashboardClient({
                 key={hs.stageCode}
                 className="p-3 flex items-center justify-between gap-2"
               >
-                <span className="font-bold text-slate-800">{hs.stageName}</span>
+                <span className="font-bold text-[#172B3A]">{hs.stageName}</span>
                 {hs.avgHours !== null ? (
-                  <span className="font-mono font-bold text-teal-800 bg-teal-50 border border-teal-200 px-2.5 py-0.5 rounded">
+                  <span className="font-mono font-bold text-[#0B3B70] bg-[#EAF3FC] border border-[#1684D8]/30 px-2.5 py-0.5 rounded">
                     {hs.avgHours}h ({hs.sampleSize} concluída(s))
                   </span>
                 ) : (
@@ -359,10 +428,10 @@ export function ManagerialDashboardClient({
 
       {/* Gráficos 5 e 6: Retrabalho por Negociação & Volume por Responsável / Unidade */}
       <div className="grid lg:grid-cols-2 gap-6">
-        <section className="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs space-y-4">
+        <section className="bg-white rounded-2xl border border-slate-200/90 p-5 shadow-xs space-y-4">
           <div>
-            <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
-              <RefreshCcw className="h-5 w-5 text-teal-600" />
+            <h2 className="text-base font-bold text-[#172B3A] flex items-center gap-2">
+              <RefreshCcw className="h-5 w-5 text-[#1684D8]" />
               <span>Retrabalho por Negociação</span>
             </h2>
             <p className="text-xs text-slate-500">
@@ -384,7 +453,7 @@ export function ManagerialDashboardClient({
                   <div>
                     <Link
                       href={`/app/negociacoes/${rw.dealId}`}
-                      className="font-bold text-slate-900 hover:underline"
+                      className="font-bold text-[#0B3B70] hover:underline"
                     >
                       {rw.dealNumber} — {rw.vehicleLabel}
                     </Link>
@@ -408,10 +477,10 @@ export function ManagerialDashboardClient({
           )}
         </section>
 
-        <section className="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs space-y-4">
+        <section className="bg-white rounded-2xl border border-slate-200/90 p-5 shadow-xs space-y-4">
           <div>
-            <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
-              <Users className="h-5 w-5 text-teal-600" />
+            <h2 className="text-base font-bold text-[#172B3A] flex items-center gap-2">
+              <Users className="h-5 w-5 text-[#1684D8]" />
               <span>Volume por Responsável e Unidade</span>
             </h2>
             <p className="text-xs text-slate-500">
@@ -425,9 +494,9 @@ export function ManagerialDashboardClient({
               {volumeByResponsibleAndBranch.byBranch.map((b) => (
                 <div
                   key={b.branchId}
-                  className="rounded-xl bg-slate-50 border border-slate-200 p-3"
+                  className="rounded-xl bg-[#F4F7FA] border border-slate-200 p-3"
                 >
-                  <div className="font-bold text-slate-900 truncate">
+                  <div className="font-bold text-[#172B3A] truncate">
                     {b.branchName}
                   </div>
                   <div className="text-slate-600 mt-1">
@@ -447,7 +516,7 @@ export function ManagerialDashboardClient({
                   key={resp.profileId}
                   className="p-2.5 flex items-center justify-between gap-2"
                 >
-                  <span className="font-semibold text-slate-800">
+                  <span className="font-semibold text-[#172B3A]">
                     {resp.fullName}
                   </span>
                   <div className="flex items-center gap-2">

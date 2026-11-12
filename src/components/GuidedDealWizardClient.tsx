@@ -252,10 +252,8 @@ export function GuidedDealWizardClient({
       {/* Cabeçalho e Passos do Assistente */}
       <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-xs space-y-5">
         <div>
-          <span className="text-xs font-bold uppercase tracking-wider text-teal-700">
-            Assistente Guiado em 5 Etapas
-          </span>
-          <h1 className="text-2xl font-extrabold text-slate-900 mt-1">
+          <span className="eyebrow">Assistente Guiado em 5 Etapas</span>
+          <h1 className="text-2xl font-extrabold text-[#172B3A] mt-1">
             Abertura do Passaporte Digital da Negociação
           </h1>
           <p className="text-xs text-slate-500 mt-0.5">
@@ -279,9 +277,9 @@ export function GuidedDealWizardClient({
                 onClick={() => setStep(item.num)}
                 className={`w-full rounded-xl p-2.5 text-left font-bold border transition ${
                   step === item.num
-                    ? "bg-[#0f172a] text-white border-slate-900"
+                    ? "bg-[#1684D8] text-white border-[#1684D8] shadow-2xs"
                     : step > item.num
-                      ? "bg-teal-50 text-teal-900 border-teal-200"
+                      ? "bg-[#EAF3FC] text-[#0B3B70] border-[#1684D8]/30"
                       : "bg-slate-50 text-slate-500 border-slate-200"
                 }`}
               >
@@ -307,8 +305,8 @@ export function GuidedDealWizardClient({
         {/* ETAPA 1: CONFIRMAR VEÍCULO */}
         {step === 1 && (
           <div className="space-y-4 pt-2">
-            <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
-              <Car className="h-5 w-5 text-teal-600" />
+            <h2 className="text-base font-bold text-[#172B3A] flex items-center gap-2">
+              <Car className="h-5 w-5 text-[#1684D8]" />
               <span>Etapa 1: Confirmar Veículo Vendido</span>
             </h2>
             <p className="text-xs text-slate-600">
@@ -326,19 +324,19 @@ export function GuidedDealWizardClient({
                     onClick={() => setVehicleId(v.id)}
                     className={`text-left rounded-xl border-2 p-4 transition ${
                       isSelected
-                        ? "border-teal-600 bg-teal-50/40"
+                        ? "border-[#1684D8] bg-[#EAF3FC]/50"
                         : "border-slate-200 hover:border-slate-300 bg-white"
                     }`}
                   >
                     <div className="flex items-center justify-between">
-                      <span className="font-mono text-xs font-bold bg-slate-900 text-white px-2 py-0.5 rounded">
+                      <span className="font-mono text-xs font-bold bg-[#0B3B70] text-white px-2 py-0.5 rounded">
                         {v.internalCode}
                       </span>
-                      <span className="text-[11px] font-semibold text-teal-800">
+                      <span className="text-[11px] font-semibold text-[#0B3B70]">
                         {v.condition === "NEW" ? "0km / Novo" : "Seminovo"}
                       </span>
                     </div>
-                    <div className="text-sm font-extrabold text-slate-900 mt-2">
+                    <div className="text-sm font-extrabold text-[#172B3A] mt-2">
                       {v.brand} {v.model} ({v.color})
                     </div>
                     <div className="text-xs text-slate-600">
@@ -357,7 +355,7 @@ export function GuidedDealWizardClient({
                 type="button"
                 disabled={!vehicleId}
                 onClick={() => setStep(2)}
-                className="inline-flex items-center gap-2 rounded-xl bg-teal-600 hover:bg-teal-700 px-5 py-2.5 text-xs font-bold text-white"
+                className="inline-flex items-center gap-2 rounded-xl bg-[#1684D8] hover:bg-[#126FB8] px-5 py-2.5 text-xs font-bold text-white"
               >
                 <span>Avançar para Comprador</span>
                 <ArrowRight className="h-4 w-4" />
@@ -369,8 +367,8 @@ export function GuidedDealWizardClient({
         {/* ETAPA 2: SELECIONAR OU CADASTRAR COMPRADOR */}
         {step === 2 && (
           <div className="space-y-4 pt-2">
-            <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
-              <User className="h-5 w-5 text-teal-600" />
+            <h2 className="text-base font-bold text-[#172B3A] flex items-center gap-2">
+              <User className="h-5 w-5 text-[#1684D8]" />
               <span>Etapa 2: Selecionar ou Cadastrar Comprador</span>
             </h2>
 
@@ -380,7 +378,7 @@ export function GuidedDealWizardClient({
                 onClick={() => setCustomerMode("EXISTING")}
                 className={`rounded-lg px-4 py-2 text-xs font-bold border ${
                   customerMode === "EXISTING"
-                    ? "bg-slate-900 text-white border-slate-900"
+                    ? "bg-[#0B3B70] text-white border-[#0B3B70]"
                     : "bg-white text-slate-700 border-slate-300"
                 }`}
               >
@@ -391,7 +389,7 @@ export function GuidedDealWizardClient({
                 onClick={() => setCustomerMode("NEW")}
                 className={`rounded-lg px-4 py-2 text-xs font-bold border ${
                   customerMode === "NEW"
-                    ? "bg-slate-900 text-white border-slate-900"
+                    ? "bg-[#0B3B70] text-white border-[#0B3B70]"
                     : "bg-white text-slate-700 border-slate-300"
                 }`}
               >
@@ -412,7 +410,7 @@ export function GuidedDealWizardClient({
                     const found = customers.find((c) => c.id === cid);
                     if (found) setBuyerType(found.personType);
                   }}
-                  className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm text-slate-900"
+                  className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm text-[#172B3A]"
                 >
                   {customers.map((c) => (
                     <option key={c.id} value={c.id}>
@@ -422,7 +420,7 @@ export function GuidedDealWizardClient({
                 </select>
               </div>
             ) : (
-              <div className="grid sm:grid-cols-2 gap-4 bg-slate-50 p-4 rounded-xl border border-slate-200">
+              <div className="grid sm:grid-cols-2 gap-4 bg-[#F4F7FA] p-4 rounded-xl border border-slate-200">
                 <div>
                   <label className="block text-xs font-semibold text-slate-700">
                     Tipo de Pessoa *
@@ -434,7 +432,7 @@ export function GuidedDealWizardClient({
                       setNewPersonType(pt);
                       setBuyerType(pt);
                     }}
-                    className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900"
+                    className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-[#172B3A]"
                   >
                     <option value="PF">Pessoa Física (PF)</option>
                     <option value="PJ">Pessoa Jurídica (PJ)</option>
@@ -449,7 +447,7 @@ export function GuidedDealWizardClient({
                     value={newDocNumber}
                     onChange={(e) => setNewDocNumber(e.target.value)}
                     placeholder="000.000.000-00"
-                    className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900"
+                    className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-[#172B3A]"
                   />
                 </div>
                 <div className="sm:col-span-2">
@@ -460,7 +458,7 @@ export function GuidedDealWizardClient({
                     type="text"
                     value={newFullName}
                     onChange={(e) => setNewFullName(e.target.value)}
-                    className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900"
+                    className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-[#172B3A]"
                   />
                 </div>
                 <div>
@@ -471,7 +469,7 @@ export function GuidedDealWizardClient({
                     type="email"
                     value={newEmail}
                     onChange={(e) => setNewNewEmail(e.target.value)}
-                    className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900"
+                    className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-[#172B3A]"
                   />
                 </div>
                 <div>
@@ -482,7 +480,7 @@ export function GuidedDealWizardClient({
                     type="text"
                     value={newPhone}
                     onChange={(e) => setNewPhone(e.target.value)}
-                    className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900"
+                    className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-[#172B3A]"
                   />
                 </div>
                 <div className="sm:col-span-2">
@@ -493,7 +491,7 @@ export function GuidedDealWizardClient({
                     type="text"
                     value={newAddress}
                     onChange={(e) => setNewAddress(e.target.value)}
-                    className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900"
+                    className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-[#172B3A]"
                   />
                 </div>
               </div>
@@ -510,7 +508,7 @@ export function GuidedDealWizardClient({
               <button
                 type="button"
                 onClick={() => setStep(3)}
-                className="inline-flex items-center gap-2 rounded-xl bg-teal-600 hover:bg-teal-700 px-5 py-2.5 text-xs font-bold text-white"
+                className="inline-flex items-center gap-2 rounded-xl bg-[#1684D8] hover:bg-[#126FB8] px-5 py-2.5 text-xs font-bold text-white"
               >
                 <span>Avançar para Condições da Negociação</span>
                 <ArrowRight className="h-4 w-4" />
@@ -522,8 +520,8 @@ export function GuidedDealWizardClient({
         {/* ETAPA 3: CONDIÇÕES DA NEGOCIAÇÃO */}
         {step === 3 && (
           <div className="space-y-5 pt-2">
-            <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
-              <SlidersHorizontal className="h-5 w-5 text-teal-600" />
+            <h2 className="text-base font-bold text-[#172B3A] flex items-center gap-2">
+              <SlidersHorizontal className="h-5 w-5 text-[#1684D8]" />
               <span>
                 Etapa 3: Condições da Negociação (Determinam a Trilha)
               </span>
@@ -537,7 +535,7 @@ export function GuidedDealWizardClient({
                 <select
                   value={buyerType}
                   onChange={(e) => setBuyerType(e.target.value as "PF" | "PJ")}
-                  className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900"
+                  className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-[#172B3A]"
                 >
                   <option value="PF">Pessoa Física (PF)</option>
                   <option value="PJ">Pessoa Jurídica (PJ)</option>
@@ -556,7 +554,7 @@ export function GuidedDealWizardClient({
                     setPaymentMethod(pm);
                     if (pm === "FINANCING") setHasFinancing(true);
                   }}
-                  className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900"
+                  className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-[#172B3A]"
                 >
                   <option value="CASH">À Vista (PIX / TED)</option>
                   <option value="FINANCING">Financiamento Bancário</option>
@@ -567,15 +565,15 @@ export function GuidedDealWizardClient({
             </div>
 
             {/* Condição 1: Existência de Financiamento */}
-            <div className="rounded-xl border border-slate-200 p-4 space-y-3 bg-slate-50/60">
+            <div className="rounded-xl border border-slate-200 p-4 space-y-3 bg-[#F4F7FA]">
               <label className="flex items-center gap-2.5 cursor-pointer">
                 <input
                   type="checkbox"
                   checked={hasFinancing}
                   onChange={(e) => setHasFinancing(e.target.checked)}
-                  className="h-4 w-4 rounded border-slate-300 text-teal-600"
+                  className="h-4 w-4 rounded border-slate-300 text-[#1684D8]"
                 />
-                <span className="text-sm font-bold text-slate-900">
+                <span className="text-sm font-bold text-[#172B3A]">
                   Possui financiamento bancário vinculado?
                 </span>
               </label>
@@ -589,22 +587,22 @@ export function GuidedDealWizardClient({
                     value={financingInstitution}
                     onChange={(e) => setFinancingInstitution(e.target.value)}
                     placeholder="Ex: Banco Santander / Safra / Alfa"
-                    className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900"
+                    className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-[#172B3A]"
                   />
                 </div>
               )}
             </div>
 
             {/* Condição 2: Veículo Usado na Troca (Registrado Separadamente) */}
-            <div className="rounded-xl border border-slate-200 p-4 space-y-3 bg-slate-50/60">
+            <div className="rounded-xl border border-slate-200 p-4 space-y-3 bg-[#F4F7FA]">
               <label className="flex items-center gap-2.5 cursor-pointer">
                 <input
                   type="checkbox"
                   checked={hasTradeIn}
                   onChange={(e) => setHasTradeIn(e.target.checked)}
-                  className="h-4 w-4 rounded border-slate-300 text-teal-600"
+                  className="h-4 w-4 rounded border-slate-300 text-[#1684D8]"
                 />
-                <span className="text-sm font-bold text-slate-900">
+                <span className="text-sm font-bold text-[#172B3A]">
                   Possui veículo usado recebido na troca?
                 </span>
               </label>
@@ -626,7 +624,7 @@ export function GuidedDealWizardClient({
                         type="text"
                         value={tradeInBrand}
                         onChange={(e) => setTradeInBrand(e.target.value)}
-                        className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs text-slate-900"
+                        className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs text-[#172B3A]"
                       />
                     </div>
                     <div>
@@ -637,7 +635,7 @@ export function GuidedDealWizardClient({
                         type="text"
                         value={tradeInModel}
                         onChange={(e) => setTradeInModel(e.target.value)}
-                        className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs text-slate-900"
+                        className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs text-[#172B3A]"
                       />
                     </div>
                     <div>
@@ -648,7 +646,7 @@ export function GuidedDealWizardClient({
                         type="number"
                         value={tradeInYear}
                         onChange={(e) => setTradeInYear(Number(e.target.value))}
-                        className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs text-slate-900"
+                        className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs text-[#172B3A]"
                       />
                     </div>
                     <div>
@@ -659,7 +657,7 @@ export function GuidedDealWizardClient({
                         type="text"
                         value={tradeInColor}
                         onChange={(e) => setTradeInColor(e.target.value)}
-                        className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs text-slate-900"
+                        className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs text-[#172B3A]"
                       />
                     </div>
                     <div>
@@ -672,7 +670,7 @@ export function GuidedDealWizardClient({
                         onChange={(e) =>
                           setTradeInPlate(e.target.value.toUpperCase())
                         }
-                        className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-mono text-slate-900"
+                        className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-mono text-[#172B3A]"
                       />
                     </div>
                     <div>
@@ -685,7 +683,7 @@ export function GuidedDealWizardClient({
                         onChange={(e) =>
                           setTradeInVin(e.target.value.toUpperCase())
                         }
-                        className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-mono text-slate-900"
+                        className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-mono text-[#172B3A]"
                       />
                     </div>
                     <div>
@@ -698,7 +696,7 @@ export function GuidedDealWizardClient({
                         onChange={(e) =>
                           setTradeInValue(Number(e.target.value))
                         }
-                        className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs text-slate-900"
+                        className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs text-[#172B3A]"
                       />
                     </div>
                     <div className="sm:col-span-2">
@@ -709,7 +707,7 @@ export function GuidedDealWizardClient({
                         type="text"
                         value={tradeInNotes}
                         onChange={(e) => setTradeInNotes(e.target.value)}
-                        className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs text-slate-900"
+                        className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs text-[#172B3A]"
                       />
                     </div>
                   </div>
@@ -718,15 +716,15 @@ export function GuidedDealWizardClient({
             </div>
 
             {/* Condição 3: Representante por Procuração */}
-            <div className="rounded-xl border border-slate-200 p-4 space-y-3 bg-slate-50/60">
+            <div className="rounded-xl border border-slate-200 p-4 space-y-3 bg-[#F4F7FA]">
               <label className="flex items-center gap-2.5 cursor-pointer">
                 <input
                   type="checkbox"
                   checked={hasPowerOfAttorney}
                   onChange={(e) => setHasPowerOfAttorney(e.target.checked)}
-                  className="h-4 w-4 rounded border-slate-300 text-teal-600"
+                  className="h-4 w-4 rounded border-slate-300 text-[#1684D8]"
                 />
-                <span className="text-sm font-bold text-slate-900">
+                <span className="text-sm font-bold text-[#172B3A]">
                   Possui representante legal por procuração?
                 </span>
               </label>
@@ -741,7 +739,7 @@ export function GuidedDealWizardClient({
                       type="text"
                       value={attorneyName}
                       onChange={(e) => setAttorneyName(e.target.value)}
-                      className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs text-slate-900"
+                      className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs text-[#172B3A]"
                     />
                   </div>
                   <div>
@@ -752,7 +750,7 @@ export function GuidedDealWizardClient({
                       type="text"
                       value={attorneyDocument}
                       onChange={(e) => setAttorneyDocument(e.target.value)}
-                      className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs text-slate-900"
+                      className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs text-[#172B3A]"
                     />
                   </div>
                 </div>
@@ -772,7 +770,7 @@ export function GuidedDealWizardClient({
                   type="date"
                   value={expectedDeliveryDate}
                   onChange={(e) => setExpectedDeliveryDate(e.target.value)}
-                  className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900"
+                  className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-[#172B3A]"
                 />
                 <p className="text-[11px] text-slate-500 mt-1">
                   Não é exibida ao cliente como previsão confirmada até
@@ -787,7 +785,7 @@ export function GuidedDealWizardClient({
                   rows={2}
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}
-                  className="mt-1 w-full rounded-lg border border-slate-300 p-2 text-xs text-slate-900"
+                  className="mt-1 w-full rounded-lg border border-slate-300 p-2 text-xs text-[#172B3A]"
                 />
               </div>
             </div>
@@ -796,14 +794,14 @@ export function GuidedDealWizardClient({
               <button
                 type="button"
                 onClick={() => setStep(2)}
-                className="rounded-lg border border-slate-300 px-4 py-2 text-xs font-bold text-slate-700"
+                className="rounded-lg border border-slate-300 px-4 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50"
               >
                 ← Voltar
               </button>
               <button
                 type="button"
                 onClick={() => setStep(4)}
-                className="inline-flex items-center gap-2 rounded-xl bg-teal-600 hover:bg-teal-700 px-5 py-2.5 text-xs font-bold text-white"
+                className="inline-flex items-center gap-2 rounded-xl bg-[#1684D8] hover:bg-[#126FB8] px-5 py-2.5 text-xs font-bold text-white transition"
               >
                 <span>Avançar para Vendedor e Unidade</span>
                 <ArrowRight className="h-4 w-4" />
@@ -815,7 +813,7 @@ export function GuidedDealWizardClient({
         {/* ETAPA 4: VENDEDOR E UNIDADE */}
         {step === 4 && (
           <div className="space-y-4 pt-2">
-            <h2 className="text-base font-bold text-slate-900">
+            <h2 className="text-base font-bold text-[#172B3A]">
               Etapa 4: Definir Vendedor Responsável e Unidade
             </h2>
 
@@ -827,7 +825,7 @@ export function GuidedDealWizardClient({
                 <select
                   value={sellerId}
                   onChange={(e) => setSellerId(e.target.value)}
-                  className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm text-slate-900"
+                  className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm text-[#172B3A]"
                 >
                   {sellers.map((s) => (
                     <option key={s.id} value={s.id}>
@@ -844,7 +842,7 @@ export function GuidedDealWizardClient({
                 <select
                   value={branchId}
                   onChange={(e) => setBranchId(e.target.value)}
-                  className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm text-slate-900"
+                  className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm text-[#172B3A]"
                 >
                   {branches.map((b) => (
                     <option key={b.id} value={b.id}>
@@ -859,14 +857,14 @@ export function GuidedDealWizardClient({
               <button
                 type="button"
                 onClick={() => setStep(3)}
-                className="rounded-lg border border-slate-300 px-4 py-2 text-xs font-bold text-slate-700"
+                className="rounded-lg border border-slate-300 px-4 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50"
               >
                 ← Voltar
               </button>
               <button
                 type="button"
                 onClick={() => setStep(5)}
-                className="inline-flex items-center gap-2 rounded-xl bg-teal-600 hover:bg-teal-700 px-5 py-2.5 text-xs font-bold text-white"
+                className="inline-flex items-center gap-2 rounded-xl bg-[#1684D8] hover:bg-[#126FB8] px-5 py-2.5 text-xs font-bold text-white transition"
               >
                 <span>Avançar para Revisão da Trilha</span>
                 <ArrowRight className="h-4 w-4" />
@@ -878,17 +876,17 @@ export function GuidedDealWizardClient({
         {/* ETAPA 5: REVISAR E CRIAR PASSAPORTE */}
         {step === 5 && (
           <div className="space-y-5 pt-2">
-            <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
-              <FileSpreadsheet className="h-5 w-5 text-teal-600" />
+            <h2 className="text-base font-bold text-[#172B3A] flex items-center gap-2">
+              <FileSpreadsheet className="h-5 w-5 text-[#1684D8]" />
               <span>
                 Etapa 5: Revisão da Trilha Gerada pelo Motor de Processos
               </span>
             </h2>
 
-            <div className="rounded-xl bg-slate-50 border border-slate-200 p-4 grid sm:grid-cols-3 gap-3 text-xs">
+            <div className="rounded-xl bg-[#EAF3FC]/60 border border-[#1684D8]/25 p-4 grid sm:grid-cols-3 gap-3 text-xs">
               <div>
                 <span className="text-slate-500 block">Veículo Vendido:</span>
-                <strong className="text-slate-900">
+                <strong className="text-[#172B3A]">
                   {selectedVehicle
                     ? `${selectedVehicle.internalCode} — ${selectedVehicle.brand} ${selectedVehicle.model}`
                     : "—"}
@@ -896,7 +894,7 @@ export function GuidedDealWizardClient({
               </div>
               <div>
                 <span className="text-slate-500 block">Condições:</span>
-                <strong className="text-slate-900">
+                <strong className="text-[#172B3A]">
                   {buyerType} • {paymentMethod} • Financiamento:{" "}
                   {hasFinancing ? "Sim" : "Não"}
                 </strong>
@@ -905,7 +903,7 @@ export function GuidedDealWizardClient({
                 <span className="text-slate-500 block">
                   Troca / Procuração:
                 </span>
-                <strong className="text-slate-900">
+                <strong className="text-[#172B3A]">
                   Usado:{" "}
                   {hasTradeIn ? `${tradeInBrand} ${tradeInModel}` : "Não"} •
                   Procuração: {hasPowerOfAttorney ? "Sim" : "Não"}
@@ -926,7 +924,7 @@ export function GuidedDealWizardClient({
                     }`}
                   >
                     <div>
-                      <div className="font-bold text-slate-900">
+                      <div className="font-bold text-[#172B3A]">
                         {template.title}
                       </div>
                       {!applicable && waivedReason && (
@@ -954,7 +952,7 @@ export function GuidedDealWizardClient({
               <button
                 type="button"
                 onClick={() => setStep(4)}
-                className="rounded-lg border border-slate-300 px-4 py-2.5 text-xs font-bold text-slate-700"
+                className="rounded-lg border border-slate-300 px-4 py-2.5 text-xs font-bold text-slate-700 hover:bg-slate-50"
               >
                 ← Voltar
               </button>
@@ -964,7 +962,7 @@ export function GuidedDealWizardClient({
                   type="button"
                   disabled={submitting}
                   onClick={() => submitDeal(true)}
-                  className="rounded-xl border border-slate-300 bg-white hover:bg-slate-50 px-4 py-2.5 text-xs font-bold text-slate-800"
+                  className="rounded-xl border border-slate-300 bg-white hover:bg-slate-50 px-4 py-2.5 text-xs font-bold text-[#172B3A]"
                 >
                   Salvar como Rascunho
                 </button>
@@ -972,7 +970,7 @@ export function GuidedDealWizardClient({
                   type="button"
                   disabled={submitting}
                   onClick={() => submitDeal(false)}
-                  className="inline-flex items-center gap-2 rounded-xl bg-teal-600 hover:bg-teal-700 px-6 py-3 text-xs sm:text-sm font-bold text-white shadow-md transition"
+                  className="inline-flex items-center gap-2 rounded-xl bg-[#1684D8] hover:bg-[#126FB8] px-6 py-3 text-xs sm:text-sm font-bold text-white shadow-md transition"
                 >
                   <CheckCircle2 className="h-4 w-4" />
                   <span>

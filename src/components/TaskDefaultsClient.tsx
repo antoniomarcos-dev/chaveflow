@@ -132,7 +132,7 @@ function TaskDefaultRow({
         <button
           disabled={busy || !changed}
           type="submit"
-          className="rounded-lg bg-slate-900 px-3 py-2 text-sm font-medium text-white disabled:bg-slate-100 disabled:text-slate-400"
+          className="rounded-lg bg-[#1684D8] hover:bg-[#126FB8] px-3 py-2 text-sm font-bold text-white transition disabled:bg-slate-100 disabled:text-slate-400"
         >
           {busy ? "Salvando…" : "Salvar"}
         </button>

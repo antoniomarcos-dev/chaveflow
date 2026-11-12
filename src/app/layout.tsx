@@ -2,9 +2,9 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "ChaveFlow — Faturamento, Passaporte Digital e Liberação de Veículos",
+  title: "AUTOFLOW — Sua operação conectada do início ao fim",
   description:
-    "Escaneou o carro. Entendeu o próximo passo. Acompanhou até a entrega. Gestão operacional de faturamento e liberação para concessionárias.",
+    "Sua operação conectada do início ao fim. Passaporte Digital da negociação, conferência documental, faturamento e liberação de veículos.",
 };
 
 export default function RootLayout({
@@ -14,7 +14,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="pt-BR">
-      <body className="min-h-screen bg-slate-50 text-slate-900 antialiased">
+      <body className="min-h-screen bg-[#F4F7FA] text-[#172B3A] antialiased">
         {children}
       </body>
     </html>

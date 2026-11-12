@@ -108,13 +108,13 @@ export function VehicleFormClient({
         </Link>
       </div>
 
-      <div className="bg-white rounded-2xl border border-slate-200 p-6 sm:p-8 shadow-xs space-y-6">
+      <div className="bg-white rounded-2xl border border-slate-200/90 p-6 sm:p-8 shadow-xs space-y-6">
         <div className="flex items-center gap-3 border-b border-slate-200 pb-4">
-          <div className="h-10 w-10 rounded-xl bg-teal-600 flex items-center justify-center text-white">
+          <div className="h-10 w-10 rounded-xl bg-[#0B3B70] flex items-center justify-center text-white">
             <Car className="h-5 w-5" />
           </div>
           <div>
-            <h1 className="text-xl font-extrabold text-slate-900">
+            <h1 className="text-xl font-extrabold text-[#172B3A]">
               {existingVehicle
                 ? `Editar Veículo ${existingVehicle.internalCode}`
                 : "Novo Cadastro de Veículo no Estoque"}
@@ -343,14 +343,14 @@ export function VehicleFormClient({
           <div className="pt-4 border-t border-slate-200 flex items-center justify-end gap-3">
             <Link
               href="/app/veiculos"
-              className="rounded-lg border border-slate-300 px-4 py-2.5 text-xs font-bold text-slate-700"
+              className="rounded-lg border border-slate-300 px-4 py-2.5 text-xs font-bold text-slate-700 hover:bg-slate-50"
             >
               Cancelar
             </Link>
             <button
               type="submit"
               disabled={saving}
-              className="inline-flex items-center gap-2 rounded-lg bg-teal-600 hover:bg-teal-700 px-5 py-2.5 text-xs sm:text-sm font-bold text-white shadow-xs transition"
+              className="inline-flex items-center gap-2 rounded-lg bg-[#1684D8] hover:bg-[#126FB8] px-5 py-2.5 text-xs sm:text-sm font-bold text-white shadow-xs transition"
             >
               <Save className="h-4 w-4" />
               <span>

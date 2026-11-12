@@ -34,15 +34,15 @@ export function DealStatusBadge({ status }: { status: DealStatus }) {
       Icon: Clock,
     },
     ACTIVE: {
-      bg: "bg-blue-50",
-      text: "text-blue-900",
-      border: "border-blue-200",
+      bg: "bg-[#EAF3FC]",
+      text: "text-[#0B3B70]",
+      border: "border-[#1684D8]/35",
       Icon: PlayCircle,
     },
     ELIGIBLE_FOR_AUTHORIZATION: {
-      bg: "bg-teal-50",
-      text: "text-teal-900",
-      border: "border-teal-300",
+      bg: "bg-amber-50",
+      text: "text-amber-900",
+      border: "border-amber-300",
       Icon: FileCheck2,
     },
     DELIVERY_AUTHORIZED: {
@@ -60,7 +60,7 @@ export function DealStatusBadge({ status }: { status: DealStatus }) {
     CANCELLED: {
       bg: "bg-red-50",
       text: "text-red-900",
-      border: "border-red-200",
+      border: "border-red-300",
       Icon: Ban,
     },
   };
@@ -70,7 +70,7 @@ export function DealStatusBadge({ status }: { status: DealStatus }) {
 
   return (
     <span
-      className={`inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs font-semibold ${c.bg} ${c.text} ${c.border}`}
+      className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-semibold ${c.bg} ${c.text} ${c.border}`}
     >
       <Icon className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
       <span>{DEAL_STATUS_LABELS[status]}</span>
@@ -90,15 +90,15 @@ export function TaskStateBadge({ state }: { state: TaskState }) {
       Icon: Lock,
     },
     AVAILABLE: {
-      bg: "bg-teal-50",
-      text: "text-teal-900",
-      border: "border-teal-300",
+      bg: "bg-[#EAF3FC]",
+      text: "text-[#0B3B70]",
+      border: "border-[#1684D8]/35",
       Icon: PlayCircle,
     },
     IN_PROGRESS: {
-      bg: "bg-blue-50",
-      text: "text-blue-900",
-      border: "border-blue-200",
+      bg: "bg-[#EAF3FC]",
+      text: "text-[#0B3B70]",
+      border: "border-[#1684D8]/40",
       Icon: Clock,
     },
     WAITING_INFO: {
@@ -108,9 +108,9 @@ export function TaskStateBadge({ state }: { state: TaskState }) {
       Icon: AlertTriangle,
     },
     IN_REVIEW: {
-      bg: "bg-indigo-50",
-      text: "text-indigo-900",
-      border: "border-indigo-200",
+      bg: "bg-[#EAF3FC]",
+      text: "text-[#0B3B70]",
+      border: "border-[#1684D8]/40",
       Icon: FileCheck2,
     },
     COMPLETED: {
@@ -128,7 +128,7 @@ export function TaskStateBadge({ state }: { state: TaskState }) {
     CANCELLED: {
       bg: "bg-red-50",
       text: "text-red-900",
-      border: "border-red-200",
+      border: "border-red-300",
       Icon: Ban,
     },
   };
@@ -138,7 +138,7 @@ export function TaskStateBadge({ state }: { state: TaskState }) {
 
   return (
     <span
-      className={`inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs font-semibold ${c.bg} ${c.text} ${c.border}`}
+      className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-semibold ${c.bg} ${c.text} ${c.border}`}
     >
       <Icon className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
       <span>{TASK_STATE_LABELS[state]}</span>
@@ -158,9 +158,9 @@ export function DocumentStatusBadge({ status }: { status: DocumentStatus }) {
       Icon: Clock,
     },
     UPLOADED_PENDING_REVIEW: {
-      bg: "bg-blue-50",
-      text: "text-blue-900",
-      border: "border-blue-200",
+      bg: "bg-[#EAF3FC]",
+      text: "text-[#0B3B70]",
+      border: "border-[#1684D8]/40",
       Icon: FileCheck2,
     },
     APPROVED: {
@@ -194,7 +194,7 @@ export function DocumentStatusBadge({ status }: { status: DocumentStatus }) {
 
   return (
     <span
-      className={`inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs font-semibold ${c.bg} ${c.text} ${c.border}`}
+      className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-semibold ${c.bg} ${c.text} ${c.border}`}
     >
       <Icon className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
       <span>{DOCUMENT_STATUS_LABELS[status]}</span>
@@ -214,9 +214,9 @@ export function StockStatusBadge({ status }: { status: VehicleStockStatus }) {
       Icon: CheckCircle2,
     },
     RESERVED: {
-      bg: "bg-blue-50",
-      text: "text-blue-900",
-      border: "border-blue-200",
+      bg: "bg-[#EAF3FC]",
+      text: "text-[#0B3B70]",
+      border: "border-[#1684D8]/40",
       Icon: Lock,
     },
     IN_PREPARATION: {
@@ -234,7 +234,7 @@ export function StockStatusBadge({ status }: { status: VehicleStockStatus }) {
     BLOCKED: {
       bg: "bg-red-50",
       text: "text-red-900",
-      border: "border-red-200",
+      border: "border-red-300",
       Icon: Ban,
     },
   };
@@ -244,7 +244,7 @@ export function StockStatusBadge({ status }: { status: VehicleStockStatus }) {
 
   return (
     <span
-      className={`inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs font-semibold ${c.bg} ${c.text} ${c.border}`}
+      className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-semibold ${c.bg} ${c.text} ${c.border}`}
     >
       <Icon className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
       <span>{VEHICLE_STOCK_STATUS_LABELS[status]}</span>

@@ -85,7 +85,7 @@ export function VehicleDetailClient({
       <div className="no-print flex flex-wrap items-center justify-between gap-3">
         <Link
           href="/app/veiculos"
-          className="inline-flex items-center gap-1.5 text-xs font-bold text-slate-600 hover:text-slate-900"
+          className="inline-flex items-center gap-1.5 text-xs font-bold text-slate-600 hover:text-[#172B3A]"
         >
           <ArrowLeft className="h-4 w-4" />
           <span>Voltar para Veículos e Estoque</span>
@@ -96,18 +96,18 @@ export function VehicleDetailClient({
             <button
               type="button"
               onClick={() => setEditing(true)}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 px-3.5 py-2 text-xs font-bold text-slate-800"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 px-3.5 py-2 text-xs font-bold text-[#172B3A]"
             >
-              <Edit3 className="h-3.5 w-3.5 text-teal-600" />
+              <Edit3 className="h-3.5 w-3.5 text-[#1684D8]" />
               <span>Editar Cadastro</span>
             </button>
           )}
           <button
             type="button"
             onClick={() => window.print()}
-            className="inline-flex items-center gap-1.5 rounded-lg bg-[#0f172a] hover:bg-slate-800 px-3.5 py-2 text-xs font-bold text-white"
+            className="inline-flex items-center gap-1.5 rounded-lg bg-[#0B3B70] hover:bg-[#1684D8] px-3.5 py-2 text-xs font-bold text-white transition"
           >
-            <Printer className="h-3.5 w-3.5 text-teal-400" />
+            <Printer className="h-3.5 w-3.5 text-[#7CC4FA]" />
             <span>Imprimir Etiqueta QR Code</span>
           </button>
         </div>
@@ -115,13 +115,13 @@ export function VehicleDetailClient({
 
       {/* Card Principal do Veículo + Etiqueta QR Code */}
       <div className="grid lg:grid-cols-12 gap-6">
-        <div className="lg:col-span-8 bg-white rounded-2xl border border-slate-200 p-6 shadow-xs space-y-5">
+        <div className="lg:col-span-8 bg-white rounded-2xl border border-slate-200/90 p-6 shadow-xs space-y-5">
           <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 pb-4">
             <div className="flex items-center gap-2">
-              <span className="font-mono text-xs font-bold bg-slate-900 text-white px-2.5 py-1 rounded">
+              <span className="font-mono text-xs font-bold bg-[#0B3B70] text-white px-2.5 py-1 rounded">
                 {vehicle.internalCode}
               </span>
-              <span className="text-xs font-bold bg-teal-50 text-teal-900 border border-teal-200 px-2.5 py-1 rounded">
+              <span className="text-xs font-bold bg-[#EAF3FC] text-[#0B3B70] border border-[#1684D8]/30 px-2.5 py-1 rounded">
                 {vehicle.condition === "NEW"
                   ? "Novo / 0km"
                   : "Usado / Seminovo"}
@@ -139,7 +139,7 @@ export function VehicleDetailClient({
               />
             </div>
             <div className="sm:col-span-7 space-y-2">
-              <h1 className="text-2xl font-extrabold text-slate-900">
+              <h1 className="text-2xl font-extrabold text-[#172B3A]">
                 {vehicle.brand} {vehicle.model}
               </h1>
               <p className="text-sm font-medium text-slate-600">
@@ -147,27 +147,27 @@ export function VehicleDetailClient({
               </p>
 
               <div className="grid grid-cols-2 gap-3 pt-2 text-xs">
-                <div className="rounded-lg bg-slate-50 p-2.5 border border-slate-200">
+                <div className="rounded-lg bg-[#F4F7FA] p-2.5 border border-slate-200">
                   <span className="text-slate-500 block">Chassi (VIN):</span>
-                  <code className="font-mono font-bold text-slate-900">
+                  <code className="font-mono font-bold text-[#172B3A]">
                     {vehicle.vin}
                   </code>
                 </div>
-                <div className="rounded-lg bg-slate-50 p-2.5 border border-slate-200">
+                <div className="rounded-lg bg-[#F4F7FA] p-2.5 border border-slate-200">
                   <span className="text-slate-500 block">Ano Fab/Mod:</span>
-                  <strong className="text-slate-900">
+                  <strong className="text-[#172B3A]">
                     {vehicle.manufacturingYear}/{vehicle.modelYear}
                   </strong>
                 </div>
-                <div className="rounded-lg bg-slate-50 p-2.5 border border-slate-200">
+                <div className="rounded-lg bg-[#F4F7FA] p-2.5 border border-slate-200">
                   <span className="text-slate-500 block">Placa:</span>
-                  <strong className="font-mono text-slate-900">
+                  <strong className="font-mono text-[#172B3A]">
                     {vehicle.plate || "Sem placa (0km)"}
                   </strong>
                 </div>
-                <div className="rounded-lg bg-slate-50 p-2.5 border border-slate-200">
+                <div className="rounded-lg bg-[#F4F7FA] p-2.5 border border-slate-200">
                   <span className="text-slate-500 block">Entrada Estoque:</span>
-                  <strong className="text-slate-900">
+                  <strong className="text-[#172B3A]">
                     {formatDateBr(vehicle.entryDate)}
                   </strong>
                 </div>
@@ -187,32 +187,32 @@ export function VehicleDetailClient({
           {/* Vínculo de Negociação Ativa */}
           <div className="no-print pt-3 border-t border-slate-200">
             {vehicle.activeDeal ? (
-              <div className="rounded-xl bg-teal-50 border border-teal-300 p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              <div className="rounded-xl bg-[#EAF3FC] border border-[#1684D8]/30 p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                 <div>
-                  <div className="text-xs font-bold text-teal-950 flex items-center gap-1.5">
-                    <FileSpreadsheet className="h-4 w-4 text-teal-700" />
+                  <div className="text-xs font-bold text-[#0B3B70] flex items-center gap-1.5">
+                    <FileSpreadsheet className="h-4 w-4 text-[#1684D8]" />
                     <span>
                       Negociação Ativa Vinculada:{" "}
                       {vehicle.activeDeal.dealNumber}
                     </span>
                   </div>
-                  <p className="text-xs text-teal-800 mt-0.5">
+                  <p className="text-xs text-slate-700 mt-0.5">
                     Garantia do banco: o veículo não pode ter outra negociação
                     ativa simultânea.
                   </p>
                 </div>
                 <Link
                   href={`/app/negociacoes/${vehicle.activeDeal.id}`}
-                  className="inline-flex items-center gap-1.5 rounded-lg bg-teal-600 hover:bg-teal-700 px-4 py-2.5 text-xs font-bold text-white shrink-0"
+                  className="inline-flex items-center gap-1.5 rounded-lg bg-[#1684D8] hover:bg-[#126FB8] px-4 py-2.5 text-xs font-bold text-white shrink-0 transition"
                 >
                   <span>Abrir Passaporte Digital</span>
                   <ArrowRight className="h-4 w-4" />
                 </Link>
               </div>
             ) : (
-              <div className="rounded-xl bg-slate-50 border border-slate-200 p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              <div className="rounded-xl bg-[#F4F7FA] border border-slate-200 p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                 <div>
-                  <div className="text-xs font-bold text-slate-900">
+                  <div className="text-xs font-bold text-[#172B3A]">
                     Veículo sem negociação ativa no momento
                   </div>
                   <p className="text-xs text-slate-600 mt-0.5">
@@ -222,7 +222,7 @@ export function VehicleDetailClient({
                 {canCreateDeal && (
                   <Link
                     href={`/app/negociacoes/nova?vehicleId=${vehicle.id}`}
-                    className="inline-flex items-center gap-1.5 rounded-lg bg-teal-600 hover:bg-teal-700 px-4 py-2.5 text-xs font-bold text-white shrink-0"
+                    className="inline-flex items-center gap-1.5 rounded-lg bg-[#1684D8] hover:bg-[#126FB8] px-4 py-2.5 text-xs font-bold text-white shrink-0 transition"
                   >
                     <PlusCircle className="h-4 w-4" />
                     <span>Iniciar Abertura Guiada</span>
@@ -234,13 +234,13 @@ export function VehicleDetailClient({
         </div>
 
         {/* Etiqueta QR Code Interna para Impressão */}
-        <div className="lg:col-span-4 bg-white rounded-2xl border-2 border-slate-900 p-6 shadow-xs flex flex-col items-center justify-between text-center space-y-3">
+        <div className="lg:col-span-4 bg-white rounded-2xl border-2 border-[#0B3B70] p-6 shadow-xs flex flex-col items-center justify-between text-center space-y-3">
           <div className="space-y-1">
-            <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-widest text-teal-800 bg-teal-50 px-2.5 py-0.5 rounded border border-teal-200">
-              <QrCode className="h-3 w-3" />
-              Etiqueta Interna ChaveFlow
+            <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-widest text-[#0B3B70] bg-[#EAF3FC] px-2.5 py-0.5 rounded border border-[#1684D8]/30">
+              <QrCode className="h-3 w-3 text-[#1684D8]" />
+              Etiqueta Interna AUTOFLOW
             </span>
-            <h2 className="text-base font-extrabold text-slate-900">
+            <h2 className="text-base font-extrabold text-[#172B3A]">
               {vehicle.internalCode}
             </h2>
             <p className="text-xs text-slate-600">
@@ -260,7 +260,7 @@ export function VehicleDetailClient({
           )}
 
           <div className="space-y-1 text-[11px] text-slate-500">
-            <div className="font-mono font-bold text-slate-800">
+            <div className="font-mono font-bold text-[#172B3A]">
               cf://v/{vehicle.qrToken}
             </div>
             <p>
@@ -272,11 +272,11 @@ export function VehicleDetailClient({
       </div>
 
       {/* Histórico Permanente de Negociações do Veículo */}
-      <section className="no-print bg-white rounded-2xl border border-slate-200 p-6 shadow-xs space-y-4">
+      <section className="no-print bg-white rounded-2xl border border-slate-200/90 p-6 shadow-xs space-y-4">
         <div className="flex items-center gap-2">
-          <History className="h-5 w-5 text-teal-600" />
+          <History className="h-5 w-5 text-[#1684D8]" />
           <div>
-            <h2 className="text-base font-bold text-slate-900">
+            <h2 className="text-base font-bold text-[#172B3A]">
               Histórico de Negociações deste Veículo ({dealHistory.length})
             </h2>
             <p className="text-xs text-slate-500">
@@ -287,7 +287,7 @@ export function VehicleDetailClient({
         </div>
 
         {dealHistory.length === 0 ? (
-          <div className="rounded-xl bg-slate-50 border border-slate-200 p-6 text-center text-xs text-slate-500">
+          <div className="rounded-xl bg-[#F4F7FA] border border-slate-200 p-6 text-center text-xs text-slate-500">
             Nenhuma negociação registrada para este veículo até o momento.
           </div>
         ) : (
@@ -295,11 +295,11 @@ export function VehicleDetailClient({
             {dealHistory.map((dh) => (
               <div
                 key={dh.id}
-                className="p-4 flex flex-wrap items-center justify-between gap-3 hover:bg-slate-50"
+                className="p-4 flex flex-wrap items-center justify-between gap-3 hover:bg-[#F4F7FA]/70"
               >
                 <div className="space-y-0.5">
                   <div className="flex items-center gap-2">
-                    <span className="font-mono text-xs font-bold text-slate-900">
+                    <span className="font-mono text-xs font-bold text-[#0B3B70]">
                       {dh.dealNumber}
                     </span>
                     <DealStatusBadge status={dh.status} />
@@ -316,10 +316,10 @@ export function VehicleDetailClient({
 
                 <Link
                   href={`/app/negociacoes/${dh.id}`}
-                  className="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 px-3.5 py-2 text-xs font-bold text-white"
+                  className="inline-flex items-center gap-1.5 rounded-lg bg-[#0B3B70] hover:bg-[#1684D8] px-3.5 py-2 text-xs font-bold text-white transition"
                 >
                   <span>Consultar Passaporte</span>
-                  <ArrowRight className="h-3.5 w-3.5 text-teal-400" />
+                  <ArrowRight className="h-3.5 w-3.5 text-[#7CC4FA]" />
                 </Link>
               </div>
             ))}

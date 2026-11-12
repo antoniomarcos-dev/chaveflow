@@ -11,7 +11,7 @@ export default function ErrorPage({ reset }: { reset: () => void }) {
           contate o administrador.
         </p>
         <button
-          className="rounded-lg bg-teal-600 px-4 py-2 text-white"
+          className="rounded-lg bg-[#1684D8] hover:bg-[#126FB8] px-4 py-2 text-sm font-bold text-white transition"
           onClick={reset}
         >
           Tentar novamente

@@ -2,17 +2,25 @@
 
 @layer base {
   :root {
-    --navy-950: #0a1122;
-    --navy-900: #0f172a;
-    --navy-800: #1e293b;
-    --navy-700: #1e3a8a;
-    --teal-600: #0d9488;
-    --teal-700: #0f766e;
+    --af-navy: #0B3B70;
+    --af-navy-dark: #082B54;
+    --af-blue: #1684D8;
+    --af-blue-hover: #126FB8;
+    --af-blue-light: #EAF3FC;
+    --af-surface: #FFFFFF;
+    --af-bg: #F4F7FA;
+    --af-text: #172B3A;
+    --navy-950: #082B54;
+    --navy-900: #0B3B70;
+    --navy-800: #124B8A;
+    --navy-700: #1684D8;
+    --teal-600: #1684D8;
+    --teal-700: #0B3B70;
   }
 
   body {
-    background-color: #f8fafc;
-    color: #0f172a;
+    background-color: #F4F7FA;
+    color: #172B3A;
     font-family:
       ui-sans-serif,
       system-ui,
@@ -27,7 +35,7 @@
   }
 
   *:focus-visible {
-    outline: 2px solid #0d9488;
+    outline: 2px solid #1684D8;
     outline-offset: 2px;
   }
 
@@ -55,36 +63,36 @@
   input:focus,
   select:focus,
   textarea:focus {
-    border-color: #0d9488;
-    box-shadow: 0 0 0 3px #0d948812;
+    border-color: #1684D8;
+    box-shadow: 0 0 0 3px rgba(22, 132, 216, 0.14);
   }
   ::selection {
-    background: #99f6e4;
-    color: #134e4a;
+    background: #EAF3FC;
+    color: #0B3B70;
   }
 }
 
 @layer components {
   .eyebrow {
-    @apply text-[10px] font-bold uppercase tracking-[0.2em] text-teal-700;
+    @apply text-[11px] font-bold uppercase tracking-[0.16em] text-[#1684D8];
   }
   .page-heading {
-    @apply flex flex-col gap-4 rounded-2xl border border-slate-200 bg-white p-6 shadow-xs sm:flex-row sm:items-center sm:justify-between;
+    @apply flex flex-col gap-4 rounded-2xl border border-slate-200/90 bg-white p-6 shadow-xs sm:flex-row sm:items-center sm:justify-between;
   }
   .page-heading h1 {
-    @apply mt-2 text-3xl font-bold tracking-tight text-slate-900;
+    @apply mt-1 text-2xl sm:text-3xl font-extrabold tracking-tight text-[#172B3A];
   }
   .page-heading p {
-    @apply mt-2 max-w-2xl text-sm leading-relaxed text-slate-500;
+    @apply mt-1 max-w-2xl text-xs sm:text-sm leading-relaxed text-slate-600;
   }
   .empty-state {
-    @apply rounded-2xl border border-dashed border-slate-200 bg-white px-6 py-12 text-center;
+    @apply rounded-2xl border border-dashed border-slate-300 bg-white px-6 py-12 text-center shadow-2xs;
   }
   .empty-state h2 {
-    @apply mt-4 text-lg font-bold text-slate-900;
+    @apply mt-4 text-base sm:text-lg font-bold text-[#172B3A];
   }
   .empty-state p {
-    @apply mx-auto mb-5 mt-2 max-w-md text-sm leading-relaxed text-slate-500;
+    @apply mx-auto mb-5 mt-1.5 max-w-md text-xs sm:text-sm leading-relaxed text-slate-500;
   }
 }
 
