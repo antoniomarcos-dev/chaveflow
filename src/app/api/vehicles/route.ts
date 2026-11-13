@@ -4,15 +4,54 @@ import {
   resolveScannedVehicleCode,
 } from "@/application/vehicle-service";
 import { AuthorizationError } from "@/domain/permissions";
+import { generateVehicleQrLabels } from "@/application/vehicle-qr-service";
 import { assertSameOriginRequest } from "@/lib/request-security";
 import { getServerSessionContext } from "@/lib/server-session";
 import { NextRequest, NextResponse } from "next/server";
-import QRCode from "qrcode";
 import { ZodError } from "zod";
 
 export async function POST(req: NextRequest) {
   try {
     assertSameOriginRequest(req);
+    if (Number(req.headers.get("content-length") || "0") > 4.4 * 1024 * 1024) {
+      return NextResponse.json(
+        { error: "Envie uma foto de até 4 MB." },
+        { status: 413 },
+      );
+    }
+    if (req.headers.get("content-type")?.includes("multipart/form-data")) {
+      const ctx = await getServerSessionContext();
+      if (!ctx)
+        return NextResponse.json(
+          { error: "Sua sessão expirou. Entre novamente para salvar." },
+          { status: 401 },
+        );
+      const form = await req.formData();
+      const entry = form.get("photo");
+      if (entry !== null && !(entry instanceof File))
+        throw new Error("Foto inválida.");
+      const file = entry instanceof File ? entry : null;
+      if (file && file.size > 4 * 1024 * 1024)
+        return NextResponse.json(
+          { error: "Envie uma foto de até 4 MB." },
+          { status: 413 },
+        );
+      const vehicle = await createOrUpdateVehicle({
+        ctx,
+        vehicleId: String(form.get("vehicleId") || "") || undefined,
+        input: JSON.parse(String(form.get("input") || "{}")),
+        removePhoto: form.get("removePhoto") === "true",
+        photo:
+          file && file.size > 0
+            ? {
+                contentBuffer: Buffer.from(await file.arrayBuffer()),
+                originalFilename: file.name,
+                mimeType: file.type,
+              }
+            : undefined,
+      });
+      return NextResponse.json({ ok: true, vehicle });
+    }
     const body = await req.json();
     const action = body.action as string;
 
@@ -25,26 +64,31 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: true, result });
     }
 
-    if (action === "GENERATE_QR_SVG") {
-      const payload = String(body.payload || "cf://v/unknown");
-      const svgString = await QRCode.toString(payload, {
-        type: "svg",
-        margin: 1,
-        width: 200,
-        color: {
-          dark: "#0f172a",
-          light: "#ffffff",
-        },
-      });
-      return NextResponse.json({ ok: true, svg: svgString });
-    }
-
     const ctx = await getServerSessionContext();
     if (!ctx) {
       return NextResponse.json(
         { error: "Sessão expirada ou usuário não autenticado." },
         { status: 401 },
       );
+    }
+
+    if (action === "GENERATE_QR_SVG" || action === "GENERATE_QR_LABELS") {
+      const labels = await generateVehicleQrLabels({
+        ctx,
+        vehicleIds:
+          action === "GENERATE_QR_SVG"
+            ? [String(body.vehicleId || "")]
+            : Array.isArray(body.vehicleIds)
+              ? body.vehicleIds.map(String)
+              : [],
+        origin: req.nextUrl.origin,
+        requireManage: action === "GENERATE_QR_LABELS",
+      });
+      return NextResponse.json({
+        ok: true,
+        labels,
+        ...(action === "GENERATE_QR_SVG" ? labels[0] : {}),
+      });
     }
 
     if (action === "CREATE_OR_UPDATE") {
@@ -61,7 +105,7 @@ export async function POST(req: NextRequest) {
         ctx,
         csvText: String(body.csvText || ""),
         branchId: String(body.branchId || ctx.branch?.id || ""),
-        commit: Boolean(body.commit),
+        commit: body.commit === true,
       });
       return NextResponse.json({ ok: true, report });
     }

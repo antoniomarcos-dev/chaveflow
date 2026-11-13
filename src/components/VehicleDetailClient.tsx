@@ -3,6 +3,7 @@
 import type { VehicleWithDealStatus } from "@/application/vehicle-service";
 import { Branch, Deal } from "@/domain/types";
 import { formatDateBr, formatDateTimeBr } from "@/lib/format";
+import { apiRequest } from "@/lib/api-client";
 import {
   ArrowLeft,
   ArrowRight,
@@ -15,6 +16,8 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
+import { VehicleQrLabel, type GeneratedVehicleQr } from "./VehicleQrLabel";
 import { DealStatusBadge, StockStatusBadge } from "./StatusBadge";
 import { VehicleFormClient } from "./VehicleFormClient";
 
@@ -41,28 +44,41 @@ export function VehicleDetailClient({
   canCreateDeal: boolean;
 }) {
   const [editing, setEditing] = useState(false);
-  const [qrSvg, setQrSvg] = useState<string | null>(null);
+  const [qrLabel, setQrLabel] = useState<GeneratedVehicleQr | null>(null);
+  const [qrError, setQrError] = useState<string | null>(null);
+  const [qrAttempt, setQrAttempt] = useState(0);
+  const searchParams = useSearchParams();
 
   useEffect(() => {
     let active = true;
-    fetch("/api/vehicles", {
+    const controller = new AbortController();
+    setQrError(null);
+    setQrLabel(null);
+    apiRequest<GeneratedVehicleQr>("/api/vehicles", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         action: "GENERATE_QR_SVG",
-        payload: `cf://v/${vehicle.qrToken}`,
+        vehicleId: vehicle.id,
       }),
+      signal: controller.signal,
     })
-      .then((r) => r.json())
       .then((d) => {
-        if (active && d.ok && d.svg) {
-          setQrSvg(d.svg);
-        }
+        if (active) setQrLabel(d);
+      })
+      .catch((reason) => {
+        if (active)
+          setQrError(
+            reason instanceof Error
+              ? reason.message
+              : "Não foi possível gerar o QR Code.",
+          );
       });
     return () => {
       active = false;
+      controller.abort();
     };
-  }, [vehicle.qrToken]);
+  }, [vehicle.id, qrAttempt]);
 
   if (editing) {
     return (
@@ -74,13 +90,30 @@ export function VehicleDetailClient({
         >
           ← Cancelar edição
         </button>
-        <VehicleFormClient branches={branches} existingVehicle={vehicle} />
+        <VehicleFormClient
+          branches={branches}
+          existingVehicle={vehicle}
+          lockedIdentity={Boolean(vehicle.activeDeal)}
+          onSaved={() => setEditing(false)}
+          onCancel={() => setEditing(false)}
+        />
       </div>
     );
   }
 
   return (
     <div className="max-w-5xl mx-auto space-y-6">
+      {searchParams.get("saved") === "1" && (
+        <div
+          role="status"
+          className="no-print rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-900"
+        >
+          <strong>Veículo salvo com sucesso.</strong> Confira a foto e os dados.{" "}
+          {qrLabel
+            ? "A etiqueta QR Code está pronta para imprimir."
+            : "A etiqueta QR Code aparecerá ao lado do cadastro."}
+        </div>
+      )}
       {/* Navegação Superior */}
       <div className="no-print flex flex-wrap items-center justify-between gap-3">
         <Link
@@ -104,6 +137,7 @@ export function VehicleDetailClient({
           )}
           <button
             type="button"
+            disabled={!qrLabel}
             onClick={() => window.print()}
             className="inline-flex items-center gap-1.5 rounded-lg bg-[#0B3B70] hover:bg-[#1684D8] px-3.5 py-2 text-xs font-bold text-white transition"
           >
@@ -115,7 +149,7 @@ export function VehicleDetailClient({
 
       {/* Card Principal do Veículo + Etiqueta QR Code */}
       <div className="grid lg:grid-cols-12 gap-6">
-        <div className="lg:col-span-8 bg-white rounded-2xl border border-slate-200/90 p-6 shadow-xs space-y-5">
+        <div className="no-print lg:col-span-8 bg-white rounded-2xl border border-slate-200/90 p-6 shadow-xs space-y-5">
           <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 pb-4">
             <div className="flex items-center gap-2">
               <span className="font-mono text-xs font-bold bg-[#0B3B70] text-white px-2.5 py-1 rounded">
@@ -197,17 +231,22 @@ export function VehicleDetailClient({
                     </span>
                   </div>
                   <p className="text-xs text-slate-700 mt-0.5">
-                    Garantia do banco: o veículo não pode ter outra negociação
-                    ativa simultânea.
+                    Consulte as próximas etapas e pendências desta negociação.
                   </p>
                 </div>
-                <Link
-                  href={`/app/negociacoes/${vehicle.activeDeal.id}`}
-                  className="inline-flex items-center gap-1.5 rounded-lg bg-[#1684D8] hover:bg-[#126FB8] px-4 py-2.5 text-xs font-bold text-white shrink-0 transition"
-                >
-                  <span>Abrir Passaporte Digital</span>
-                  <ArrowRight className="h-4 w-4" />
-                </Link>
+                {vehicle.canAccessActiveDeal ? (
+                  <Link
+                    href={`/app/negociacoes/${vehicle.activeDeal.id}`}
+                    className="inline-flex items-center gap-1.5 rounded-lg bg-[#1684D8] hover:bg-[#126FB8] px-4 py-2.5 text-xs font-bold text-white shrink-0 transition"
+                  >
+                    <span>Abrir Passaporte Digital</span>
+                    <ArrowRight className="h-4 w-4" />
+                  </Link>
+                ) : (
+                  <p className="text-xs text-slate-600">
+                    Negociação sob responsabilidade de outro vendedor.
+                  </p>
+                )}
               </div>
             ) : (
               <div className="rounded-xl bg-[#F4F7FA] border border-slate-200 p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
@@ -216,10 +255,12 @@ export function VehicleDetailClient({
                     Veículo sem negociação ativa no momento
                   </div>
                   <p className="text-xs text-slate-600 mt-0.5">
-                    Disponível para iniciar um novo Passaporte Digital.
+                    {vehicle.stockStatus === "AVAILABLE"
+                      ? "Disponível para iniciar uma negociação."
+                      : "Consulte a situação no estoque antes de iniciar uma venda."}
                   </p>
                 </div>
-                {canCreateDeal && (
+                {canCreateDeal && vehicle.stockStatus === "AVAILABLE" && (
                   <Link
                     href={`/app/negociacoes/nova?vehicleId=${vehicle.id}`}
                     className="inline-flex items-center gap-1.5 rounded-lg bg-[#1684D8] hover:bg-[#126FB8] px-4 py-2.5 text-xs font-bold text-white shrink-0 transition"
@@ -233,42 +274,36 @@ export function VehicleDetailClient({
           </div>
         </div>
 
-        {/* Etiqueta QR Code Interna para Impressão */}
-        <div className="lg:col-span-4 bg-white rounded-2xl border-2 border-[#0B3B70] p-6 shadow-xs flex flex-col items-center justify-between text-center space-y-3">
-          <div className="space-y-1">
-            <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-widest text-[#0B3B70] bg-[#EAF3FC] px-2.5 py-0.5 rounded border border-[#1684D8]/30">
-              <QrCode className="h-3 w-3 text-[#1684D8]" />
-              Etiqueta Interna AUTOFLOW
-            </span>
-            <h2 className="text-base font-extrabold text-[#172B3A]">
-              {vehicle.internalCode}
-            </h2>
-            <p className="text-xs text-slate-600">
-              {vehicle.brand} {vehicle.model} ({vehicle.color})
-            </p>
-          </div>
-
-          {qrSvg ? (
-            <div
-              className="w-44 h-44 border border-slate-200 rounded-xl p-2"
-              dangerouslySetInnerHTML={{ __html: qrSvg }}
-            />
+        <aside className="qr-print-area lg:col-span-4 space-y-3">
+          {qrLabel ? (
+            <VehicleQrLabel vehicle={vehicle} label={qrLabel} />
           ) : (
-            <div className="w-44 h-44 flex items-center justify-center bg-slate-100 rounded-xl text-xs text-slate-500">
-              Gerando QR Code...
+            <div
+              role="status"
+              className="no-print rounded-xl border border-slate-200 bg-white p-6 text-sm text-slate-600"
+            >
+              {qrError || "Gerando QR Code…"}
             </div>
           )}
-
-          <div className="space-y-1 text-[11px] text-slate-500">
-            <div className="font-mono font-bold text-[#172B3A]">
-              cf://v/{vehicle.qrToken}
-            </div>
-            <p>
-              Identificador opaco seguro. Não contém dados pessoais, documentos
-              ou autorização.
-            </p>
-          </div>
-        </div>
+          {qrError && (
+            <button
+              type="button"
+              onClick={() => setQrAttempt((v) => v + 1)}
+              className="no-print min-h-11 text-sm font-semibold text-[#0B3B70]"
+            >
+              Tentar gerar novamente
+            </button>
+          )}
+          {canManageVehicles && (
+            <Link
+              href={`/app/qr-codes?vehicleId=${vehicle.id}`}
+              className="no-print inline-flex min-h-11 items-center gap-2 text-sm font-semibold text-[#0B3B70]"
+            >
+              <QrCode className="h-4 w-4" />
+              Gerar etiquetas de outros carros
+            </Link>
+          )}
+        </aside>
       </div>
 
       {/* Histórico Permanente de Negociações do Veículo */}

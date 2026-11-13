@@ -1,3 +1,7 @@
+export function normalizeSearch(value: string): string {
+  return value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
+}
+
 export function formatDateTimeBr(isoString: string | null | undefined): string {
   if (!isoString) return "—";
   try {

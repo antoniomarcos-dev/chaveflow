@@ -198,28 +198,47 @@ export const VEHICLE_STOCK_STATUS_LABELS: Record<VehicleStockStatus, string> = {
   BLOCKED: "Bloqueado / Indisponível",
 };
 
-export const VehicleInputSchema = z.object({
-  internalCode: z.string().trim().min(3, "Informe o identificador interno"),
-  vin: z
-    .string()
-    .trim()
-    .toUpperCase()
-    .min(11, "O chassi (VIN) deve ter entre 11 e 17 caracteres")
-    .max(17, "O chassi (VIN) deve ter no máximo 17 caracteres"),
-  brand: z.string().trim().min(2, "Informe a marca"),
-  model: z.string().trim().min(2, "Informe o modelo"),
-  trim: z.string().trim().min(1, "Informe a versão"),
-  manufacturingYear: z.coerce.number().int().min(1990).max(2030),
-  modelYear: z.coerce.number().int().min(1990).max(2031),
-  color: z.string().trim().min(2, "Informe a cor"),
-  plate: z.string().trim().toUpperCase().optional().nullable(),
-  condition: VehicleConditionSchema,
-  branchId: z.string().min(1, "Selecione a unidade"),
-  photos: z.array(z.string()).default([]),
-  stockStatus: VehicleStockStatusSchema.default("AVAILABLE"),
-  entryDate: z.string().min(10, "Informe a data de entrada"),
-  internalNotes: z.string().optional().nullable(),
-});
+export const VehicleInputSchema = z
+  .object({
+    internalCode: z.string().trim().min(3, "Informe o identificador interno"),
+    vin: z
+      .string()
+      .trim()
+      .toUpperCase()
+      .min(11, "O chassi (VIN) deve ter entre 11 e 17 caracteres")
+      .max(17, "O chassi (VIN) deve ter no máximo 17 caracteres"),
+    brand: z.string().trim().min(2, "Informe a marca"),
+    model: z.string().trim().min(2, "Informe o modelo"),
+    trim: z.string().trim().min(1, "Informe a versão"),
+    manufacturingYear: z.coerce
+      .number()
+      .int()
+      .min(1900)
+      .max(new Date().getFullYear() + 1),
+    modelYear: z.coerce
+      .number()
+      .int()
+      .min(1900)
+      .max(new Date().getFullYear() + 2),
+    color: z.string().trim().min(2, "Informe a cor"),
+    plate: z.string().trim().toUpperCase().optional().nullable(),
+    condition: VehicleConditionSchema,
+    branchId: z.string().min(1, "Selecione a unidade"),
+    photos: z.array(z.string()).default([]),
+    stockStatus: VehicleStockStatusSchema.default("AVAILABLE"),
+    entryDate: z.iso.date("Informe uma data de entrada válida"),
+    internalNotes: z.string().optional().nullable(),
+  })
+  .refine(
+    (v) =>
+      v.modelYear >= v.manufacturingYear &&
+      v.modelYear <= v.manufacturingYear + 1,
+    {
+      message:
+        "O ano do modelo deve ser igual ao de fabricação ou ao ano seguinte.",
+      path: ["modelYear"],
+    },
+  );
 
 export interface Vehicle {
   id: string;
@@ -237,6 +256,12 @@ export interface Vehicle {
   plate: string | null;
   condition: VehicleCondition;
   photos: string[];
+  photoFile?: {
+    storageKey: string;
+    mimeType: string;
+    originalFilename: string;
+    sizeBytes: number;
+  } | null;
   stockStatus: VehicleStockStatus;
   entryDate: string;
   internalNotes: string | null;
@@ -693,7 +718,8 @@ export const GuidedDealInputSchema = z
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
           path: ["newCustomer", "documentNumber"],
-          message: "Para pessoa física (PF), informe um CPF válido com 11 dígitos.",
+          message:
+            "Para pessoa física (PF), informe um CPF válido com 11 dígitos.",
         });
       }
       if (data.newCustomer.personType === "PJ" && docDigits.length !== 14) {

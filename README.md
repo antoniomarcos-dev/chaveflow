@@ -60,10 +60,18 @@ As tabelas usam RLS e ficam fora do schema público da Data API. As funções us
 
 ## Verificação
 
+O cadastro de veículos permite enviar, substituir e remover uma foto JPG, PNG ou WEBP de até 4 MB, com prévia. A imagem é convertida para WEBP e armazenada de forma privada na mesma transação do cadastro. O comprador só acessa fotos dos veículos vinculados às suas negociações.
+
+Gestores e administradores têm a aba **Gerar QR Code**, com busca, seleção de até 40 carros, download SVG e impressão de etiquetas A4. Configure `CHAVEFLOW_APP_URL` com o endereço público real antes de imprimir etiquetas para uso pelo celular. O QR abre o leitor e preserva o destino durante o login. A configuração `localhost` funciona apenas no próprio computador.
+
+As melhorias e a aplicação dos 18 princípios de usabilidade estão em [docs/usabilidade.md](docs/usabilidade.md).
+
 ```sh
 npm run lint
 npm test
 npm run build
 ```
+
+Para verificar os fluxos no navegador, execute `npx playwright install chromium` uma vez e depois `npm run test:e2e`. O comando inicia seu próprio servidor na porta 3101 e usa dados isolados, sem acessar o Supabase real. Não é necessário configurar credenciais de produção para esses testes.
 
 A suíte cobre permissões, isolamento, dependências, documentos, liberação, entrega, concorrência, inicialização vazia e segurança de senhas. Dados fictícios usados pelos testes estão isolados em `src/tests/fixtures/` e não são importados pela aplicação.

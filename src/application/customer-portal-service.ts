@@ -290,7 +290,11 @@ export async function getCustomerSafeDealView(params: {
       modelYear: vehicle.modelYear,
       color: vehicle.color,
       condition: vehicle.condition,
-      photos: vehicle.photos,
+      photos: vehicle.photos.map((url) =>
+        accessToken && url.startsWith(`/api/vehicles/${vehicle.id}/photo?`)
+          ? `${url}&accessToken=${encodeURIComponent(accessToken)}`
+          : url,
+      ),
     },
     sellerContact: {
       fullName: seller.fullName,

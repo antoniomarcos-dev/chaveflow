@@ -9,7 +9,7 @@ import {
   VEHICLE_STOCK_STATUS_LABELS,
   VehicleStockStatus,
 } from "@/domain/types";
-import { formatDateBr } from "@/lib/format";
+import { formatDateBr, normalizeSearch } from "@/lib/format";
 import {
   AlertCircle,
   Car,
@@ -49,21 +49,37 @@ export function VehiclesCatalogClient({
   const [csvReport, setCsvReport] = useState<CsvImportResult | null>(null);
   const [csvLoading, setCsvLoading] = useState(false);
   const [csvError, setCsvError] = useState<string | null>(null);
+  const [sort, setSort] = useState("RECENT");
 
-  const filtered = vehicles.filter((v) => {
-    if (branchFilter !== "ALL" && v.branchId !== branchFilter) return false;
-    if (statusFilter !== "ALL" && v.stockStatus !== statusFilter) return false;
-    if (search.trim()) {
-      const q = search.trim().toLowerCase();
-      const hay = `${v.internalCode} ${v.vin} ${v.brand} ${v.model} ${v.trim} ${
-        v.color
-      } ${v.plate || ""}`.toLowerCase();
-      if (!hay.includes(q)) return false;
-    }
-    return true;
-  });
+  const filtered = vehicles
+    .filter((v) => {
+      if (branchFilter !== "ALL" && v.branchId !== branchFilter) return false;
+      if (statusFilter !== "ALL" && v.stockStatus !== statusFilter)
+        return false;
+      if (search.trim()) {
+        const q = normalizeSearch(search);
+        const hay =
+          `${v.internalCode} ${v.vin} ${v.brand} ${v.model} ${v.trim} ${
+            v.color
+          } ${v.plate || ""}`.toLowerCase();
+        if (!normalizeSearch(hay).includes(q)) return false;
+      }
+      return true;
+    })
+    .sort((a, b) =>
+      sort === "MODEL"
+        ? `${a.brand} ${a.model}`.localeCompare(
+            `${b.brand} ${b.model}`,
+            "pt-BR",
+          )
+        : sort === "OLDEST"
+          ? a.entryDate.localeCompare(b.entryDate)
+          : b.createdAt.localeCompare(a.createdAt),
+    );
 
   async function handleCsvAction(commit: boolean) {
+    if (csvLoading || (commit && (!csvReport || csvReport.mode !== "PREVIEW")))
+      return;
     setCsvError(null);
     setCsvLoading(true);
     try {
@@ -86,13 +102,19 @@ export function VehiclesCatalogClient({
           router.refresh();
         }
       }
+    } catch {
+      setCsvError(
+        "Não foi possível conectar ao servidor. Seus dados foram mantidos; tente novamente.",
+      );
     } finally {
       setCsvLoading(false);
     }
   }
 
   const countsByStatus = {
-    ALL: vehicles.filter((v) => branchFilter === "ALL" || v.branchId === branchFilter).length,
+    ALL: vehicles.filter(
+      (v) => branchFilter === "ALL" || v.branchId === branchFilter,
+    ).length,
     AVAILABLE: vehicles.filter(
       (v) =>
         (branchFilter === "ALL" || v.branchId === branchFilter) &&
@@ -127,7 +149,8 @@ export function VehiclesCatalogClient({
             Veículos (Estoque) ({filtered.length})
           </h1>
           <p className="text-xs sm:text-sm text-slate-600 mt-0.5">
-            Gerencie o estoque e as informações permanentes dos veículos; cada negociação possui seu próprio passaporte e histórico.
+            Gerencie o estoque e as informações permanentes dos veículos; cada
+            negociação possui seu próprio passaporte e histórico.
           </p>
         </div>
 
@@ -137,10 +160,17 @@ export function VehiclesCatalogClient({
             className="inline-flex items-center gap-2 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 px-4 py-2.5 text-xs font-bold text-[#172B3A] transition"
           >
             <QrCode className="h-4 w-4 text-[#1684D8]" />
-            <span>Etiquetas QR e Leitor</span>
+            <span>Escanear veículo</span>
           </Link>
           {canManageVehicles && (
             <>
+              <Link
+                href="/app/qr-codes"
+                className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-slate-300 px-4 text-xs font-bold text-[#172B3A]"
+              >
+                <QrCode className="h-4 w-4" />
+                Gerar QR Code
+              </Link>
               <button
                 type="button"
                 onClick={() => setShowCsvPanel((v) => !v)}
@@ -186,19 +216,66 @@ export function VehiclesCatalogClient({
           </div>
 
           {csvError && (
-            <div className="rounded-lg bg-red-50 border border-red-300 p-3 text-xs text-red-900">
+            <div
+              role="alert"
+              className="rounded-lg bg-red-50 border border-red-300 p-3 text-xs text-red-900"
+            >
               {csvError}
             </div>
           )}
 
           <div className="grid sm:grid-cols-12 gap-4">
+            <div className="sm:col-span-12 flex flex-wrap items-center gap-4">
+              <label className="text-sm font-semibold text-[#0B3B70]">
+                Escolher arquivo CSV
+                <input
+                  type="file"
+                  accept=".csv,text/csv"
+                  disabled={csvLoading}
+                  className="mt-2 block max-w-full text-sm"
+                  onChange={async (event) => {
+                    const file = event.target.files?.[0];
+                    if (!file) return;
+                    setCsvReport(null);
+                    setCsvError(null);
+                    try {
+                      if (file.size > 2 * 1024 * 1024)
+                        throw new Error("Escolha um CSV de até 2 MB.");
+                      setCsvText(await file.text());
+                    } catch (reason) {
+                      setCsvError(
+                        reason instanceof Error
+                          ? reason.message
+                          : "Não foi possível ler o arquivo.",
+                      );
+                    }
+                    event.target.value = "";
+                  }}
+                />
+              </label>
+              <a
+                href={`data:text/csv;charset=utf-8,${encodeURIComponent("codigo_interno;chassi;marca;modelo;versao;ano_fab;ano_mod;cor;condicao;placa;data_entrada;observacoes\n")}`}
+                download="modelo-estoque.csv"
+                className="inline-flex min-h-11 items-center text-sm font-semibold text-[#0B3B70]"
+              >
+                Baixar modelo CSV
+              </a>
+            </div>
             <div className="sm:col-span-4">
-              <label className="block text-xs font-semibold text-slate-700">
+              <label
+                htmlFor="csv-branch"
+                className="block text-xs font-semibold text-slate-700"
+              >
                 Unidade de destino
               </label>
               <select
+                id="csv-branch"
+                disabled={csvLoading}
                 value={csvBranchId}
-                onChange={(e) => setCsvBranchId(e.target.value)}
+                onChange={(e) => {
+                  setCsvBranchId(e.target.value);
+                  setCsvReport(null);
+                }}
                 className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-xs font-medium text-[#172B3A]"
               >
                 {branches.map((b) => (
@@ -209,13 +286,21 @@ export function VehiclesCatalogClient({
               </select>
             </div>
             <div className="sm:col-span-12">
-              <label className="block text-xs font-semibold text-slate-700">
+              <label
+                htmlFor="csv-text"
+                className="block text-xs font-semibold text-slate-700"
+              >
                 Linhas do arquivo CSV (separadas por ponto e vírgula)
               </label>
               <textarea
+                id="csv-text"
+                disabled={csvLoading}
                 rows={4}
                 value={csvText}
-                onChange={(e) => setCsvText(e.target.value)}
+                onChange={(e) => {
+                  setCsvText(e.target.value);
+                  setCsvReport(null);
+                }}
                 className="mt-1 w-full rounded-lg border border-slate-300 p-3 text-xs font-mono text-[#172B3A]"
               />
             </div>
@@ -232,7 +317,12 @@ export function VehiclesCatalogClient({
             </button>
             <button
               type="button"
-              disabled={csvLoading || !csvReport || csvReport.validCount === 0}
+              disabled={
+                csvLoading ||
+                !csvReport ||
+                csvReport.mode !== "PREVIEW" ||
+                csvReport.validCount === 0
+              }
               onClick={() => handleCsvAction(true)}
               className="rounded-lg bg-[#1684D8] hover:bg-[#126FB8] px-4 py-2 text-xs font-bold text-white disabled:opacity-40"
             >
@@ -241,6 +331,15 @@ export function VehiclesCatalogClient({
             </button>
           </div>
 
+          {csvReport?.mode === "COMMIT" && (
+            <p
+              role="status"
+              className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm font-semibold text-emerald-900"
+            >
+              Importação concluída: {csvReport.importedCount} veículo(s)
+              cadastrado(s).
+            </p>
+          )}
           {csvReport && (
             <div className="pt-4 border-t border-slate-200 space-y-3">
               <div className="flex flex-wrap items-center gap-4 text-xs font-bold">
@@ -306,6 +405,7 @@ export function VehiclesCatalogClient({
             <Search className="h-4 w-4 text-slate-400 absolute left-3.5 top-3" />
             <input
               type="text"
+              aria-label="Buscar veículos por modelo, placa, chassi, código interno ou cor"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Buscar por modelo, placa, chassi, código interno ou cor..."
@@ -381,6 +481,7 @@ export function VehiclesCatalogClient({
                 key={tab.key}
                 type="button"
                 onClick={() => setStatusFilter(tab.key)}
+                aria-pressed={active}
                 className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold transition ${
                   active
                     ? "bg-[#EAF3FC] text-[#0B3B70] border border-[#1684D8]/30"
@@ -403,13 +504,53 @@ export function VehiclesCatalogClient({
         </div>
       </div>
 
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <p role="status" className="text-sm text-slate-600">
+          Exibindo {filtered.length} de {vehicles.length} veículo(s)
+        </p>
+        <label className="flex items-center gap-2 text-sm text-slate-600">
+          Ordenar por
+          <select
+            value={sort}
+            onChange={(e) => setSort(e.target.value)}
+            className="min-h-11 rounded-lg border border-slate-300 bg-white px-3 text-sm"
+          >
+            <option value="RECENT">Mais recentes</option>
+            <option value="OLDEST">Mais tempo no estoque</option>
+            <option value="MODEL">Marca e modelo</option>
+          </select>
+        </label>
+      </div>
+
       {/* Grade de Veículos */}
       {filtered.length === 0 ? (
         <div className="bg-white rounded-2xl border border-slate-200 p-12 text-center space-y-2">
           <Car className="h-8 w-8 text-slate-400 mx-auto" />
           <p className="text-sm font-bold text-[#172B3A]">
-            Nenhum veículo encontrado com os filtros aplicados
+            {vehicles.length
+              ? "Nenhum veículo corresponde aos filtros"
+              : "Seu estoque começa aqui"}
           </p>
+          {vehicles.length > 0 ? (
+            <button
+              type="button"
+              onClick={() => {
+                setSearch("");
+                setBranchFilter("ALL");
+                setStatusFilter("ALL");
+              }}
+              className="min-h-11 text-sm font-bold text-[#0B3B70]"
+            >
+              Limpar filtros
+            </button>
+          ) : canManageVehicles ? (
+            <Link
+              href="/app/veiculos/novo"
+              className="inline-flex min-h-11 items-center rounded-xl bg-[#1684D8] px-5 text-sm font-bold text-white"
+            >
+              Cadastrar primeiro veículo
+            </Link>
+          ) : null}
           <p className="text-xs text-slate-500">
             Ajuste os termos da busca ou cadastre um novo veículo no estoque.
           </p>
@@ -424,6 +565,7 @@ export function VehiclesCatalogClient({
               <div>
                 <div className="relative h-40 bg-[#0B3B70]">
                   <img
+                    loading="lazy"
                     src={v.photos[0] || "/vehicle-placeholder.svg"}
                     alt={`${v.brand} ${v.model}`}
                     className="w-full h-full object-cover"
@@ -506,7 +648,7 @@ export function VehiclesCatalogClient({
                   <span>Ficha, Histórico & Etiqueta QR</span>
                 </Link>
 
-                {v.activeDeal ? (
+                {v.activeDeal && v.canAccessActiveDeal ? (
                   <Link
                     href={`/app/negociacoes/${v.activeDeal.id}`}
                     className="rounded-lg bg-[#0B3B70] hover:bg-[#1684D8] px-3 py-1.5 text-xs font-bold text-white transition"

@@ -24,28 +24,18 @@ import Link from "next/link";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { StockStatusBadge } from "./StatusBadge";
 
-interface VehicleOption {
-  id: string;
-  internalCode: string;
-  qrToken: string;
-  brand: string;
-  model: string;
-  color: string;
-  vin: string;
-  activeDealNumber: string | null;
-}
-
 export function VehicleQrScannerClient({
   initialCode,
-  labelVehicles,
+  canManageVehicles = false,
 }: {
   initialCode?: string;
-  labelVehicles: VehicleOption[];
+  canManageVehicles?: boolean;
 }) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const rafRef = useRef<number | null>(null);
+  const cameraSessionRef = useRef(0);
   const lastScannedCodeRef = useRef<{ code: string; timestamp: number } | null>(
     null,
   );
@@ -59,10 +49,10 @@ export function VehicleQrScannerClient({
   const [scanResult, setScanResult] = useState<QrScanResolutionResult | null>(
     null,
   );
-  const [showPrintableSheet, setShowPrintableSheet] = useState(false);
-  const [qrSvgMap, setQrSvgMap] = useState<Record<string, string>>({});
+  const resolvingRef = useRef(false);
 
   const stopCamera = useCallback(() => {
+    cameraSessionRef.current++;
     if (rafRef.current !== null) {
       cancelAnimationFrame(rafRef.current);
       rafRef.current = null;
@@ -82,6 +72,7 @@ export function VehicleQrScannerClient({
   // Encerramento garantido da câmera ao desmontar/sair da tela
   useEffect(() => {
     return () => {
+      cameraSessionRef.current++;
       if (rafRef.current !== null) {
         cancelAnimationFrame(rafRef.current);
       }
@@ -93,10 +84,22 @@ export function VehicleQrScannerClient({
     };
   }, []);
 
+  useEffect(() => {
+    if (cameraState !== "ACTIVE" || !videoRef.current || !streamRef.current)
+      return;
+    videoRef.current.srcObject = streamRef.current;
+    videoRef.current.play().catch(() => {
+      stopCamera();
+      setCameraErrorMsg(
+        "Não foi possível iniciar o vídeo. Tente novamente ou use a busca manual.",
+      );
+    });
+  }, [cameraState, stopCamera]);
+
   const resolveCodeOnServer = useCallback(
     async (rawCode: string) => {
       const cleaned = rawCode.trim();
-      if (!cleaned) return;
+      if (!cleaned || resolvingRef.current) return;
 
       // Prevenção de leituras repetidas involuntárias (debounce de 3 segundos para o mesmo código)
       const now = Date.now();
@@ -110,6 +113,9 @@ export function VehicleQrScannerClient({
       lastScannedCodeRef.current = { code: cleaned, timestamp: now };
 
       setLoadingResolve(true);
+      resolvingRef.current = true;
+      setCameraErrorMsg(null);
+      stopCamera();
       try {
         const res = await fetch("/api/vehicles", {
           method: "POST",
@@ -120,11 +126,23 @@ export function VehicleQrScannerClient({
           }),
         });
         const data = await res.json();
+        if (!res.ok || !data.ok)
+          throw new Error(
+            data.error || "Não foi possível identificar o veículo.",
+          );
         if (data.ok && data.result) {
           setScanResult(data.result);
           stopCamera();
         }
+      } catch (reason) {
+        lastScannedCodeRef.current = null;
+        setCameraErrorMsg(
+          reason instanceof Error && reason.message !== "Failed to fetch"
+            ? reason.message
+            : "Falha de conexão. Tente novamente ou use a busca manual.",
+        );
       } finally {
+        resolvingRef.current = false;
         setLoadingResolve(false);
       }
     },
@@ -139,6 +157,8 @@ export function VehicleQrScannerClient({
   }, [initialCode, resolveCodeOnServer]);
 
   async function startCameraAfterUserAction() {
+    stopCamera();
+    const cameraSession = cameraSessionRef.current;
     setCameraErrorMsg(null);
     setScanResult(null);
 
@@ -149,7 +169,7 @@ export function VehicleQrScannerClient({
     ) {
       setCameraState("UNAVAILABLE");
       setCameraErrorMsg(
-        "Câmera indisponível neste dispositivo ou navegador. Utilize a busca manual use o código interno do veículo.",
+        "Câmera indisponível neste dispositivo ou navegador. Utilize a busca manual com o código interno do veículo.",
       );
       return;
     }
@@ -164,14 +184,13 @@ export function VehicleQrScannerClient({
         },
         audio: false,
       });
+      if (cameraSession !== cameraSessionRef.current) {
+        stream.getTracks().forEach((track) => track.stop());
+        return;
+      }
 
       streamRef.current = stream;
       setCameraState("ACTIVE");
-
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        await videoRef.current.play();
-      }
 
       const tick = () => {
         const video = videoRef.current;
@@ -212,6 +231,8 @@ export function VehicleQrScannerClient({
 
       rafRef.current = requestAnimationFrame(tick);
     } catch (err) {
+      if (cameraSession !== cameraSessionRef.current) return;
+      stopCamera();
       const name = err instanceof Error ? err.name : "";
       if (name === "NotAllowedError" || name === "PermissionDeniedError") {
         setCameraState("DENIED");
@@ -221,7 +242,7 @@ export function VehicleQrScannerClient({
       } else {
         setCameraState("UNAVAILABLE");
         setCameraErrorMsg(
-          "Não foi possível acessar a câmera traseira neste dispositivo. Utilize a busca manual o código interno do veículo.",
+          "Não foi possível acessar a câmera neste dispositivo. Utilize a busca manual com o código interno do veículo.",
         );
       }
     }
@@ -230,16 +251,28 @@ export function VehicleQrScannerClient({
   async function handleImageQrUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
+    if (!file.type.startsWith("image/") || file.size > 4 * 1024 * 1024) {
+      setCameraErrorMsg("Escolha uma imagem de QR Code de até 4 MB.");
+      e.target.value = "";
+      return;
+    }
 
     const img = new Image();
     const objectUrl = URL.createObjectURL(file);
+    img.onerror = () => {
+      URL.revokeObjectURL(objectUrl);
+      setCameraErrorMsg(
+        "Não foi possível abrir esta imagem. Escolha outra foto do QR Code.",
+      );
+    };
     img.onload = () => {
       const canvas = document.createElement("canvas");
-      canvas.width = img.width;
-      canvas.height = img.height;
+      const scale = Math.min(1, 1800 / Math.max(img.width, img.height));
+      canvas.width = Math.round(img.width * scale);
+      canvas.height = Math.round(img.height * scale);
       const ctx2d = canvas.getContext("2d");
       if (ctx2d) {
-        ctx2d.drawImage(img, 0, 0);
+        ctx2d.drawImage(img, 0, 0, canvas.width, canvas.height);
         const imageData = ctx2d.getImageData(0, 0, canvas.width, canvas.height);
         const decoded = jsQR(imageData.data, imageData.width, imageData.height);
         if (decoded && decoded.data) {
@@ -253,33 +286,19 @@ export function VehicleQrScannerClient({
       URL.revokeObjectURL(objectUrl);
     };
     img.src = objectUrl;
-  }
-
-  async function togglePrintableLabels() {
-    const next = !showPrintableSheet;
-    setShowPrintableSheet(next);
-    if (next && Object.keys(qrSvgMap).length === 0) {
-      const map: Record<string, string> = {};
-      for (const v of labelVehicles) {
-        const res = await fetch("/api/vehicles", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            action: "GENERATE_QR_SVG",
-            payload: `cf://v/${v.qrToken}`,
-          }),
-        });
-        const data = await res.json();
-        if (data.ok && data.svg) {
-          map[v.id] = data.svg;
-        }
-      }
-      setQrSvgMap(map);
-    }
+    e.target.value = "";
   }
 
   return (
     <div className="max-w-5xl mx-auto space-y-6">
+      {cameraErrorMsg && cameraState === "IDLE" && (
+        <div
+          role="alert"
+          className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-900"
+        >
+          {cameraErrorMsg}
+        </div>
+      )}
       {/* Cabeçalho (4.4 Escaneamento / Identificação do veículo) */}
       <div className="bg-white rounded-2xl border border-slate-200/90 p-6 shadow-xs flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
@@ -291,23 +310,20 @@ export function VehicleQrScannerClient({
             Escaneamento de Veículo
           </h1>
           <p className="text-xs sm:text-sm text-slate-600 mt-0.5">
-            Escaneie o QR Code ou informe o chassi/identificador interno. O QR Code contém apenas um identificador opaco (
-            <code className="font-mono bg-slate-100 px-1.5 py-0.5 rounded">cf://v/...</code>), sem autorizar acesso irrestrito ou liberação.
+            Escaneie a etiqueta do carro ou informe o chassi ou código interno.
+            Você também pode enviar uma imagem do QR Code.
           </p>
         </div>
 
-        <button
-          type="button"
-          onClick={togglePrintableLabels}
-          className="inline-flex items-center gap-2 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 px-4 py-2.5 text-xs font-bold text-[#172B3A] transition shrink-0"
-        >
-          <Printer className="h-4 w-4 text-[#1684D8]" />
-          <span>
-            {showPrintableSheet
-              ? "Ocultar Etiquetas QR"
-              : "Ver / Imprimir Etiquetas QR do Estoque"}
-          </span>
-        </button>
+        {canManageVehicles && (
+          <Link
+            href="/app/qr-codes"
+            className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-slate-300 bg-white px-4 text-sm font-bold text-[#172B3A]"
+          >
+            <Printer className="h-4 w-4" />
+            Gerar QR Code e etiquetas
+          </Link>
+        )}
       </div>
 
       {/* Confirmação Visual do Veículo Identificado */}
@@ -397,7 +413,8 @@ export function VehicleQrScannerClient({
                   Aponte a câmera para o QR Code do veículo
                 </p>
                 <p className="text-xs text-blue-100/80 max-w-sm mx-auto">
-                  O acesso à câmera só é ativado após o seu clique e é encerrado imediatamente ao sair desta tela.
+                  O acesso à câmera só é ativado após o seu clique e é encerrado
+                  imediatamente ao sair desta tela.
                 </p>
               </div>
               <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
@@ -410,14 +427,14 @@ export function VehicleQrScannerClient({
                   <span>Ativar Câmera Traseira</span>
                 </button>
 
-                <label className="cursor-pointer inline-flex items-center gap-2 rounded-xl border border-white/25 bg-white/10 hover:bg-white/15 px-4 py-3 text-xs font-semibold text-white transition">
+                <label className="cursor-pointer inline-flex items-center gap-2 rounded-xl border border-white/25 bg-white/10 hover:bg-white/15 px-4 py-3 text-xs font-semibold text-white transition focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-white">
                   <Upload className="h-4 w-4 text-[#7CC4FA]" />
                   <span>Ler Imagem QR</span>
                   <input
                     type="file"
                     accept="image/*"
                     onChange={handleImageQrUpload}
-                    className="hidden"
+                    className="sr-only"
                   />
                 </label>
               </div>
@@ -487,7 +504,9 @@ export function VehicleQrScannerClient({
           <div className="rounded-xl bg-white/10 border border-white/15 px-3.5 py-2.5 text-[11px] text-blue-100 flex items-center gap-2">
             <ShieldAlert className="h-4 w-4 text-[#7CC4FA] shrink-0" />
             <span>
-              A leitura do QR Code apenas localiza o cadastro e a negociação vinculada; a liberação do veículo permanece condicionada aos requisitos obrigatórios.
+              A leitura do QR Code apenas localiza o cadastro e a negociação
+              vinculada; a liberação do veículo permanece condicionada aos
+              requisitos obrigatórios.
             </span>
           </div>
         </div>
@@ -565,65 +584,6 @@ export function VehicleQrScannerClient({
           </div>
         </div>
       </div>
-
-      {/* Folha de Etiquetas QR Code para Impressão / Teste com Celular */}
-      {showPrintableSheet && (
-        <section className="bg-white rounded-2xl border border-slate-300 p-6 shadow-md space-y-4">
-          <div className="flex items-center justify-between border-b border-slate-200 pb-4">
-            <div>
-              <span className="inline-flex items-center gap-1 text-xs font-bold text-[#0B3B70] bg-[#EAF3FC] px-2.5 py-0.5 rounded border border-[#1684D8]/30">
-                <QrCode className="h-3.5 w-3.5 text-[#1684D8]" />
-                ETIQUETAS INTERNAS DO ESTOQUE
-              </span>
-              <h3 className="text-base font-bold text-[#172B3A] mt-1">
-                Aponte a câmera do celular para qualquer etiqueta ou imprima
-                para o pátio
-              </h3>
-            </div>
-            <button
-              type="button"
-              onClick={() => window.print()}
-              className="no-print inline-flex items-center gap-2 rounded-lg bg-[#0B3B70] hover:bg-[#1684D8] px-3.5 py-2 text-xs font-bold text-white transition"
-            >
-              <Printer className="h-4 w-4" />
-              <span>Imprimir Folha de Etiquetas</span>
-            </button>
-          </div>
-
-          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {labelVehicles.map((v) => (
-              <div
-                key={v.id}
-                className="rounded-xl border-2 border-[#0B3B70] p-4 flex flex-col items-center text-center space-y-2"
-              >
-                <div className="text-[10px] font-bold uppercase tracking-widest text-[#0B3B70]">
-                  AUTOFLOW • ETIQUETA INTERNA DE PÁTIO
-                </div>
-                <div className="text-sm font-extrabold text-[#172B3A]">
-                  {v.internalCode} — {v.brand} {v.model}
-                </div>
-                <div className="text-xs text-slate-600">
-                  Cor: {v.color} • Chassi:{" "}
-                  <code className="font-mono">{v.vin}</code>
-                </div>
-                {qrSvgMap[v.id] ? (
-                  <div
-                    className="w-36 h-36"
-                    dangerouslySetInnerHTML={{ __html: qrSvgMap[v.id] }}
-                  />
-                ) : (
-                  <div className="w-36 h-36 flex items-center justify-center bg-slate-100 text-xs text-slate-500 rounded">
-                    Gerando QR...
-                  </div>
-                )}
-                <div className="text-[10px] font-mono text-slate-500">
-                  cf://v/{v.qrToken}
-                </div>
-              </div>
-            ))}
-          </div>
-        </section>
-      )}
     </div>
   );
 }

@@ -13,8 +13,18 @@ import {
   VehicleInputSchema,
   VehicleStockStatus,
 } from "@/domain/types";
-import { loadDatabaseState, withTransaction } from "@/infrastructure/database";
+import {
+  loadDatabaseState,
+  savePrivateFileBlob,
+  withTransaction,
+} from "@/infrastructure/database";
+import {
+  prepareVehiclePhoto,
+  type VehiclePhotoUpload,
+} from "./vehicle-photo-service";
 import crypto from "crypto";
+import { normalizeSearch } from "@/lib/format";
+import { parseVehicleCsv } from "@/lib/vehicle-csv";
 
 export interface VehicleWithDealStatus extends Vehicle {
   branchName: string;
@@ -23,6 +33,7 @@ export interface VehicleWithDealStatus extends Vehicle {
     "id" | "dealNumber" | "status" | "currentStage" | "buyerType"
   > | null;
   totalDealsCount: number;
+  canAccessActiveDeal: boolean;
 }
 
 export function isDealActiveStatus(status: Deal["status"]): boolean {
@@ -47,7 +58,7 @@ export async function listVehiclesForOrg(params: {
     (v) => v.organizationId === ctx.organization.id,
   );
 
-  const q = (search || "").trim().toLowerCase();
+  const q = normalizeSearch(search || "");
 
   return orgVehicles
     .filter((v) => {
@@ -74,7 +85,7 @@ export async function listVehiclesForOrg(params: {
         ]
           .join(" ")
           .toLowerCase();
-        if (!hay.includes(q)) return false;
+        if (!normalizeSearch(hay).includes(q)) return false;
       }
       return true;
     })
@@ -99,6 +110,11 @@ export async function listVehiclesForOrg(params: {
             }
           : null,
         totalDealsCount: vehicleDeals.length,
+        canAccessActiveDeal: Boolean(
+          activeDeal &&
+            hasPermission(ctx, "deal:view") &&
+            canAccessDealRecord(ctx, activeDeal),
+        ),
       };
     });
 }
@@ -176,6 +192,9 @@ export async function getVehicleDetails(params: {
           }
         : null,
       totalDealsCount: visibleDeals.length,
+      canAccessActiveDeal: Boolean(
+        activeDeal && canAccessDealRecord(ctx, activeDeal),
+      ),
     },
     dealHistory,
   };
@@ -185,6 +204,8 @@ export async function createOrUpdateVehicle(params: {
   ctx: AuthenticatedContext;
   vehicleId?: string;
   input: unknown;
+  photo?: VehiclePhotoUpload;
+  removePhoto?: boolean;
 }): Promise<Vehicle> {
   const { ctx, vehicleId, input } = params;
   assertInternalStaff(ctx);
@@ -195,8 +216,11 @@ export async function createOrUpdateVehicle(params: {
   );
 
   const parsed = VehicleInputSchema.parse(input);
+  if (params.photo && params.removePhoto)
+    throw new Error("Escolha entre substituir ou remover a foto.");
+  const photo = params.photo ? await prepareVehiclePhoto(params.photo) : null;
 
-  return await withTransaction((db) => {
+  return await withTransaction(async (db) => {
     if (
       !db.branches.some(
         (b) =>
@@ -239,6 +263,45 @@ export async function createOrUpdateVehicle(params: {
       const existing = db.vehicles.find((v) => v.id === vehicleId);
       if (!existing) throw new Error("Veículo não encontrado.");
       assertOrganizationAccess(ctx, existing.organizationId);
+      const activeDeal = db.deals.find(
+        (d) =>
+          d.vehicleId === existing.id &&
+          d.organizationId === ctx.organization.id &&
+          isDealActiveStatus(d.status),
+      );
+      if (
+        activeDeal &&
+        (parsed.vin !== existing.vin ||
+          parsed.condition !== existing.condition ||
+          parsed.branchId !== existing.branchId)
+      ) {
+        throw new Error(
+          "Este veículo tem uma negociação ativa. Mantenha o chassi, a condição e a unidade até encerrá-la.",
+        );
+      }
+      if (activeDeal && parsed.stockStatus !== existing.stockStatus) {
+        throw new Error(
+          "A situação deste veículo é controlada pela negociação ativa. Atualize-a pelo passaporte.",
+        );
+      }
+      if (
+        parsed.stockStatus !== existing.stockStatus &&
+        ["RESERVED", "IN_PREPARATION", "SOLD_DELIVERED"].includes(
+          parsed.stockStatus,
+        )
+      ) {
+        throw new Error(
+          "Reserva, preparação e entrega são atualizadas pelo fluxo da negociação.",
+        );
+      }
+      if (
+        existing.stockStatus === "SOLD_DELIVERED" &&
+        parsed.stockStatus !== existing.stockStatus
+      ) {
+        throw new Error(
+          "O veículo já foi entregue. Seu histórico de entrega deve ser preservado.",
+        );
+      }
 
       existing.internalCode = cleanInternalCode;
       existing.vin = cleanVin;
@@ -251,8 +314,24 @@ export async function createOrUpdateVehicle(params: {
       existing.plate = parsed.plate ? parsed.plate.toUpperCase() : null;
       existing.condition = parsed.condition;
       existing.branchId = parsed.branchId;
-      existing.photos =
-        parsed.photos.length > 0 ? parsed.photos : existing.photos;
+      if (photo) {
+        const saved = await savePrivateFileBlob({
+          organizationId: ctx.organization.id,
+          ...photo,
+        });
+        existing.photoFile = {
+          storageKey: saved.storageKey,
+          mimeType: photo.mimeType,
+          originalFilename: photo.originalFilename,
+          sizeBytes: photo.contentBuffer.length,
+        };
+        existing.photos = [
+          `/api/vehicles/${existing.id}/photo?v=${saved.checksumSha256.slice(0, 16)}`,
+        ];
+      } else if (params.removePhoto) {
+        existing.photoFile = null;
+        existing.photos = [];
+      }
       existing.stockStatus = parsed.stockStatus;
       existing.entryDate = parsed.entryDate;
       existing.internalNotes = parsed.internalNotes ?? null;
@@ -278,6 +357,10 @@ export async function createOrUpdateVehicle(params: {
       return existing;
     }
 
+    if (!["AVAILABLE", "BLOCKED"].includes(parsed.stockStatus))
+      throw new Error(
+        "Cadastre o veículo como disponível ou bloqueado. As demais situações são definidas pela negociação.",
+      );
     const newVehicle: Vehicle = {
       id: `veh-${crypto.randomUUID().slice(0, 8)}`,
       organizationId: ctx.organization.id,
@@ -295,14 +378,29 @@ export async function createOrUpdateVehicle(params: {
       color: parsed.color,
       plate: parsed.plate ? parsed.plate.toUpperCase() : null,
       condition: parsed.condition,
-      photos:
-        parsed.photos.length > 0 ? parsed.photos : ["/vehicle-placeholder.svg"],
+      photos: [],
       stockStatus: parsed.stockStatus,
       entryDate: parsed.entryDate,
       internalNotes: parsed.internalNotes ?? null,
       createdAt: nowIso,
       updatedAt: nowIso,
     };
+
+    if (photo) {
+      const saved = await savePrivateFileBlob({
+        organizationId: ctx.organization.id,
+        ...photo,
+      });
+      newVehicle.photoFile = {
+        storageKey: saved.storageKey,
+        mimeType: photo.mimeType,
+        originalFilename: photo.originalFilename,
+        sizeBytes: photo.contentBuffer.length,
+      };
+      newVehicle.photos = [
+        `/api/vehicles/${newVehicle.id}/photo?v=${saved.checksumSha256.slice(0, 16)}`,
+      ];
+    }
 
     db.vehicles.unshift(newVehicle);
 
@@ -371,26 +469,40 @@ export async function processVehicleCsvImport(params: {
   assertInternalStaff(ctx);
   assertPermission(ctx, "vehicle:manage");
 
-  const lines = csvText
-    .split(/\r?\n/)
-    .map((l) => l.trim())
-    .filter((l) => l.length > 0);
+  if (csvText.length > 2 * 1024 * 1024)
+    throw new Error("Divida o CSV em arquivos de até 2 MB.");
+  const lines = parseVehicleCsv(csvText);
 
   if (lines.length === 0) {
     throw new Error("O conteúdo CSV enviado está vazio.");
   }
 
   // Ignora linha de cabeçalho se começar com codigo_interno ou internalCode
-  const startIdx =
-    lines[0].toLowerCase().includes("chassi") ||
-    lines[0].toLowerCase().includes("vin") ||
-    lines[0].toLowerCase().includes("internalcode") ||
-    lines[0].toLowerCase().includes("codigo")
-      ? 1
-      : 0;
+  const startIdx = [
+    "codigo_interno",
+    "internalcode",
+    "codigo interno",
+  ].includes(normalizeSearch(lines[0][0]))
+    ? 1
+    : 0;
 
   const dataLines = lines.slice(startIdx);
+  if (!dataLines.length)
+    throw new Error(
+      "O CSV contém apenas o cabeçalho. Adicione pelo menos um veículo.",
+    );
+  if (dataLines.length > 1000)
+    throw new Error("Importe até 1.000 veículos por arquivo.");
   const db = await loadDatabaseState();
+  if (
+    !db.branches.some(
+      (b) =>
+        b.id === branchId &&
+        b.organizationId === ctx.organization.id &&
+        b.isActive,
+    )
+  )
+    throw new Error("Selecione uma unidade ativa da sua organização.");
   const existingVins = new Set(
     db.vehicles
       .filter((v) => v.organizationId === ctx.organization.id)
@@ -407,9 +519,9 @@ export async function processVehicleCsvImport(params: {
   const rows: CsvVehicleRowReport[] = [];
 
   for (let i = 0; i < dataLines.length; i++) {
-    const rawLine = dataLines[i];
+    const cols = dataLines[i];
+    const rawLine = cols.join(";");
     const rowNumber = startIdx + i + 1;
-    const cols = rawLine.split(/[;,]/).map((c) => c.trim());
 
     // Formato esperado: codigo_interno;chassi;marca;modelo;versao;ano_fab;ano_mod;cor;condicao;placa;data_entrada;observacoes
     if (cols.length < 9) {
@@ -464,6 +576,8 @@ export async function processVehicleCsvImport(params: {
 
     const zodRes = VehicleInputSchema.safeParse(candidate);
     const rowErrors: string[] = [];
+    if (!["NOVO", "NEW", "USADO", "USED"].includes(condRaw.toUpperCase()))
+      rowErrors.push("Condição inválida: use NOVO ou USADO.");
 
     if (!zodRes.success) {
       for (const issue of zodRes.error.issues) {
@@ -524,6 +638,32 @@ export async function processVehicleCsvImport(params: {
 
   if (commit && validRows.length > 0) {
     await withTransaction((txDb) => {
+      if (
+        !txDb.branches.some(
+          (b) =>
+            b.id === branchId &&
+            b.organizationId === ctx.organization.id &&
+            b.isActive,
+        )
+      )
+        throw new Error(
+          "A unidade não está mais disponível. Gere uma nova prévia.",
+        );
+      const orgVehicles = txDb.vehicles.filter(
+        (v) => v.organizationId === ctx.organization.id,
+      );
+      for (const row of validRows) {
+        if (
+          orgVehicles.some(
+            (v) =>
+              v.vin.toUpperCase() === row.parsedVehicle!.vin ||
+              v.internalCode.toUpperCase() === row.parsedVehicle!.internalCode,
+          )
+        )
+          throw new Error(
+            "O estoque mudou desde a prévia. Gere uma nova prévia antes de importar para evitar duplicidades.",
+          );
+      }
       const nowIso = new Date().toISOString();
       for (const vr of validRows) {
         const pv = vr.parsedVehicle!;

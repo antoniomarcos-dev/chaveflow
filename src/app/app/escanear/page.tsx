@@ -1,6 +1,6 @@
-import { listVehiclesForOrg } from "@/application/vehicle-service";
 import { VehicleQrScannerClient } from "@/components/VehicleQrScannerClient";
-import { requireInternalSession } from "@/lib/server-session";
+import { getServerSessionContext } from "@/lib/server-session";
+import { redirect } from "next/navigation";
 
 export default async function EscanearVeiculoPage({
   searchParams,
@@ -8,24 +8,14 @@ export default async function EscanearVeiculoPage({
   searchParams: Promise<{ code?: string }>;
 }) {
   const sp = await searchParams;
-  const ctx = await requireInternalSession();
-  const vehicles = await listVehiclesForOrg({ ctx });
-
-  const labelVehicles = vehicles.map((v) => ({
-    id: v.id,
-    internalCode: v.internalCode,
-    qrToken: v.qrToken,
-    brand: v.brand,
-    model: v.model,
-    color: v.color,
-    vin: v.vin,
-    activeDealNumber: v.activeDeal?.dealNumber ?? null,
-  }));
+  const ctx = await getServerSessionContext();
+  if (!ctx) redirect(`/login?redirect=${encodeURIComponent(`/app/escanear${sp.code ? `?code=${encodeURIComponent(sp.code)}` : ""}`)}`);
+  if (ctx.profile.isCustomerOnly) redirect("/cliente");
 
   return (
     <VehicleQrScannerClient
       initialCode={sp.code}
-      labelVehicles={labelVehicles}
+      canManageVehicles={ctx.roles.includes("ADMIN") || ctx.roles.includes("MANAGER")}
     />
   );
 }

@@ -76,6 +76,12 @@
   .eyebrow {
     @apply text-[11px] font-bold uppercase tracking-[0.16em] text-[#1684D8];
   }
+  .form-control {
+    @apply min-h-11 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-base text-slate-900 disabled:bg-slate-100 disabled:text-slate-500 sm:text-sm;
+  }
+  .form-control[aria-invalid="true"] {
+    @apply border-red-500 bg-red-50;
+  }
   .page-heading {
     @apply flex flex-col gap-4 rounded-2xl border border-slate-200/90 bg-white p-6 shadow-xs sm:flex-row sm:items-center sm:justify-between;
   }
@@ -114,10 +120,28 @@
 }
 
 @media print {
+  @page { size: A4; margin: 12mm; }
+  body:has(.qr-print-area) div:has(.qr-print-area),
+  body:has(.qr-print-area) main:has(.qr-print-area),
+  body:has(.qr-print-area) section:has(.qr-print-area) { background: transparent !important; min-height: auto !important; }
+  aside.qr-print-area { width: 90mm; grid-column: 1 / -1; }
+  .qr-label-grid { display: grid !important; grid-template-columns: repeat(2, minmax(0, 1fr)) !important; gap: 5mm !important; }
+  .qr-label { break-inside: avoid; page-break-inside: avoid; border-radius: 3mm; padding: 4mm; box-shadow: none !important; }
+  .qr-image { width: 42mm !important; height: 42mm !important; }
+  main:has(.qr-print-area) { max-width: none !important; padding: 0 !important; }
   .no-print {
     display: none !important;
   }
   body {
     background-color: #ffffff !important;
   }
+}
+
+@media (pointer: coarse) {
+  button, select, a[role="button"] { min-height: 44px; }
+  input:not([type="checkbox"]):not([type="radio"]), select, textarea { font-size: 16px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; scroll-behavior: auto !important; }
 }

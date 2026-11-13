@@ -1,6 +1,7 @@
 import { listVehiclesForOrg } from "@/application/vehicle-service";
 import { GuidedDealWizardClient } from "@/components/GuidedDealWizardClient";
-import { canAccessDealRecord, isVehicleSellable } from "@/domain/permissions";
+import { canAccessDealRecord, isVehicleSellable, hasPermission } from "@/domain/permissions";
+import { redirect } from "next/navigation";
 import { loadDatabaseState } from "@/infrastructure/database";
 import { requireInternalSession } from "@/lib/server-session";
 
@@ -11,6 +12,7 @@ export default async function NovaNegociacaoPage({
 }) {
   const sp = await searchParams;
   const ctx = await requireInternalSession();
+  if (!hasPermission(ctx, "deal:create")) redirect("/app/negociacoes");
   const db = await loadDatabaseState();
 
   const candidateDraft = sp.draftId

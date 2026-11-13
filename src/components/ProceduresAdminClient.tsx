@@ -110,6 +110,8 @@ export function ProceduresAdminClient({
       } else {
         setFeedback(data.error || "Erro ao salvar procedimento.");
       }
+    } catch {
+      setFeedback("Não foi possível salvar o procedimento. Confira sua conexão e tente novamente. Seu texto foi mantido.");
     } finally {
       setLoading(false);
     }
@@ -132,7 +134,11 @@ export function ProceduresAdminClient({
           "Versão promovida de Rascunho para Publicado! Agora alimenta as orientações oficiais.",
         );
         router.refresh();
+      } else {
+        setFeedback(data.error || "Não foi possível publicar a versão. Tente novamente.");
       }
+    } catch {
+      setFeedback("Falha de conexão ao publicar. Tente novamente.");
     } finally {
       setLoading(false);
     }

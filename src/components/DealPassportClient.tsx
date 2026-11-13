@@ -303,6 +303,9 @@ export function DealPassportClient({
       });
       router.refresh();
       return true;
+    } catch {
+      setFeedbackBanner({ type: "ERROR", title: "Falha de conexão", message: "Não foi possível concluir a ação. Seus dados foram mantidos. Verifique sua conexão e tente novamente." });
+      return false;
     } finally {
       setActionLoading(false);
     }
@@ -378,7 +381,9 @@ export function DealPassportClient({
       const data = await res.json();
       if (data.ok && data.response) {
         setAssistantReply(data.response);
-      }
+      } else throw new Error(data.error || "Não foi possível consultar o assistente.");
+    } catch {
+      setFeedbackBanner({ type: "ERROR", title: "Consulta indisponível", message: "Não foi possível consultar as orientações. Verifique sua conexão e tente novamente." });
     } finally {
       setAssistantLoading(false);
     }

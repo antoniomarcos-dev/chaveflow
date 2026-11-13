@@ -57,16 +57,16 @@ export function AppShell({
   const [notifOpen, setNotifOpen] = useState(false);
   const menuButtonRef = useRef<HTMLButtonElement | null>(null);
   const closeDrawerButtonRef = useRef<HTMLButtonElement | null>(null);
+  const drawerRef = useRef<HTMLDivElement | null>(null);
+  const notificationRef = useRef<HTMLDivElement | null>(null);
+  const notificationButtonRef = useRef<HTMLButtonElement | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [shellBusy, setShellBusy] = useState(false);
 
   const unreadCount = notifications.filter((n) => !n.isRead).length;
   const isAdmin = roles.includes("ADMIN");
   const isManager = isAdmin || roles.includes("MANAGER");
-  const canAccessSettingsOrProcedures =
-    isAdmin ||
-    isManager ||
-    roles.includes("DOCUMENTATION") ||
-    roles.includes("FINANCE") ||
-    roles.includes("RELEASE_OFFICER");
+  const canAccessSettingsOrProcedures = isManager;
   const userInitials = getInitials(user.fullName);
 
   useEffect(() => {
@@ -79,6 +79,7 @@ export function AppShell({
         }
         if (notifOpen) {
           setNotifOpen(false);
+          notificationButtonRef.current?.focus();
         }
       }
     }
@@ -89,29 +90,77 @@ export function AppShell({
   useEffect(() => {
     if (mobileMenuOpen) {
       closeDrawerButtonRef.current?.focus();
+      const previous = document.body.style.overflow;
+      document.body.style.overflow = "hidden";
+      return () => {
+        document.body.style.overflow = previous;
+      };
     }
   }, [mobileMenuOpen]);
 
+  useEffect(() => {
+    const desktop = window.matchMedia("(min-width: 1024px)");
+    const closeMobileMenu = () => {
+      if (desktop.matches) setMobileMenuOpen(false);
+    };
+    desktop.addEventListener("change", closeMobileMenu);
+    return () => desktop.removeEventListener("change", closeMobileMenu);
+  }, []);
+
+  useEffect(() => {
+    if (!notifOpen) return;
+    const close = (event: PointerEvent) => {
+      if (!notificationRef.current?.contains(event.target as Node))
+        setNotifOpen(false);
+    };
+    document.addEventListener("pointerdown", close);
+    return () => document.removeEventListener("pointerdown", close);
+  }, [notifOpen]);
+
   async function handleLogout() {
-    await fetch("/api/auth", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action: "LOGOUT" }),
-    });
-    router.push("/");
-    router.refresh();
+    if (shellBusy) return;
+    setShellBusy(true);
+    setActionError(null);
+    try {
+      const response = await fetch("/api/auth", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "LOGOUT" }),
+      });
+      if (!response.ok) throw new Error("Falha ao sair.");
+      router.push("/");
+      router.refresh();
+    } catch {
+      setActionError(
+        "Não foi possível sair da conta. Verifique sua conexão e tente novamente.",
+      );
+    } finally {
+      setShellBusy(false);
+    }
   }
 
   async function handleMarkAllRead() {
-    await fetch("/api/admin", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        action: "MARK_NOTIFICATION_READ",
-        markAll: true,
-      }),
-    });
-    router.refresh();
+    if (shellBusy) return;
+    setShellBusy(true);
+    setActionError(null);
+    try {
+      const response = await fetch("/api/admin", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "MARK_NOTIFICATION_READ",
+          markAll: true,
+        }),
+      });
+      if (!response.ok) throw new Error("Falha ao atualizar notificações.");
+      router.refresh();
+    } catch {
+      setActionError(
+        "Não foi possível atualizar as notificações. Tente novamente.",
+      );
+    } finally {
+      setShellBusy(false);
+    }
   }
 
   const navItems = [
@@ -138,6 +187,14 @@ export function AppShell({
       exact: false,
       matchPrefixes: ["/app/veiculos"],
       visible: true,
+    },
+    {
+      href: "/app/qr-codes",
+      label: "Gerar QR Code",
+      Icon: QrCode,
+      exact: false,
+      matchPrefixes: ["/app/qr-codes"],
+      visible: isManager,
     },
     {
       href: "/app/pendencias",
@@ -187,6 +244,12 @@ export function AppShell({
 
   return (
     <div className="min-h-screen flex flex-col bg-[#F4F7FA] text-[#172B3A]">
+      <a
+        href="#main-content"
+        className="no-print sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[100] focus:rounded-lg focus:bg-white focus:p-4 focus:font-bold"
+      >
+        Pular para o conteúdo
+      </a>
       <div className="flex-1 flex">
         {/* Navegação Lateral Desktop — Azul Principal #0B3B70 */}
         <aside
@@ -259,7 +322,7 @@ export function AppShell({
                 title={`${organizationName} — ${branchName}`}
               >
                 <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-[#082B54] border border-white/12 text-[10px] font-bold text-[#EAF3FC]">
-                  BYD
+                  {getInitials(organizationName)}
                 </span>
               </div>
             )}
@@ -278,6 +341,7 @@ export function AppShell({
                   key={item.href}
                   href={item.href}
                   title={item.label}
+                  aria-label={item.label}
                   aria-current={isActive ? "page" : undefined}
                   className={`flex items-center gap-3 rounded-xl px-3.5 py-2.5 text-sm font-medium transition ${
                     sidebarCollapsed ? "justify-center" : ""
@@ -325,6 +389,7 @@ export function AppShell({
               <button
                 type="button"
                 onClick={handleLogout}
+                disabled={shellBusy}
                 title="Sair da conta"
                 aria-label="Sair da conta"
                 className="rounded-lg p-2 text-[#EAF3FC]/75 hover:bg-white/10 hover:text-white transition shrink-0"
@@ -373,12 +438,15 @@ export function AppShell({
               </Link>
 
               {/* Notificações Internas */}
-              <div className="relative">
+              <div ref={notificationRef} className="relative">
                 <button
                   type="button"
                   onClick={() => setNotifOpen((v) => !v)}
                   className="relative rounded-xl border border-slate-200 bg-white p-2 text-[#172B3A] hover:bg-slate-50 transition"
                   aria-label="Abrir notificações internas"
+                  ref={notificationButtonRef}
+                  aria-expanded={notifOpen}
+                  aria-controls="notifications-panel"
                 >
                   <Bell className="h-5 w-5" />
                   {unreadCount > 0 && (
@@ -389,7 +457,10 @@ export function AppShell({
                 </button>
 
                 {notifOpen && (
-                  <div className="absolute right-0 mt-2 w-80 sm:w-96 rounded-2xl bg-white shadow-xl border border-slate-200 z-50 overflow-hidden">
+                  <div
+                    id="notifications-panel"
+                    className="absolute right-0 mt-2 w-[min(24rem,calc(100vw-2rem))] rounded-2xl bg-white shadow-xl border border-slate-200 z-50 overflow-hidden"
+                  >
                     <div className="flex items-center justify-between px-4 py-3 bg-[#0B3B70] text-white">
                       <span className="text-xs font-bold uppercase tracking-wider">
                         Notificações ({unreadCount} não lidas)
@@ -398,6 +469,7 @@ export function AppShell({
                         <button
                           type="button"
                           onClick={handleMarkAllRead}
+                          disabled={shellBusy}
                           className="text-xs text-[#EAF3FC] hover:underline font-semibold"
                         >
                           Marcar todas como lidas
@@ -474,7 +546,30 @@ export function AppShell({
                   menuButtonRef.current?.focus();
                 }}
               />
-              <div className="relative w-72 max-w-full bg-[#0B3B70] text-white flex flex-col z-10">
+              <div
+                ref={drawerRef}
+                onKeyDown={(event) => {
+                  if (event.key !== "Tab") return;
+                  const items =
+                    drawerRef.current?.querySelectorAll<HTMLElement>(
+                      "a[href], button:not(:disabled)",
+                    );
+                  if (!items?.length) return;
+                  const first = items[0],
+                    last = items[items.length - 1];
+                  if (event.shiftKey && document.activeElement === first) {
+                    event.preventDefault();
+                    last.focus();
+                  } else if (
+                    !event.shiftKey &&
+                    document.activeElement === last
+                  ) {
+                    event.preventDefault();
+                    first.focus();
+                  }
+                }}
+                className="relative w-72 max-w-full bg-[#0B3B70] text-white flex flex-col z-10"
+              >
                 <div className="p-4 border-b border-white/12 flex items-center justify-between">
                   <div className="flex items-center gap-2.5">
                     <span className="h-8 w-8 rounded-lg bg-[#1684D8] flex items-center justify-center text-white font-black text-xs">
@@ -554,6 +649,7 @@ export function AppShell({
                   <button
                     type="button"
                     onClick={handleLogout}
+                    disabled={shellBusy}
                     className="w-full flex items-center justify-center gap-2 rounded-xl bg-white/10 hover:bg-white/15 px-3 py-2 text-xs font-bold text-white"
                   >
                     <LogOut className="h-4 w-4" />
@@ -565,7 +661,19 @@ export function AppShell({
           )}
 
           {/* Conteúdo Principal */}
-          <main className="flex-1 p-4 sm:p-6 lg:p-8 max-w-[1600px] w-full mx-auto">
+          <main
+            id="main-content"
+            tabIndex={-1}
+            className="flex-1 p-4 sm:p-6 lg:p-8 max-w-[1600px] w-full mx-auto"
+          >
+            {actionError && (
+              <p
+                role="alert"
+                className="no-print mb-4 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-900"
+              >
+                {actionError}
+              </p>
+            )}
             {children}
           </main>
         </div>
