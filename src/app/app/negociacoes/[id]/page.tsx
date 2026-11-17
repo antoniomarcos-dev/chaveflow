@@ -1,3 +1,4 @@
+import { readSearchParams, sectionHref, type PageSearchParams } from "@/lib/navigation";
 import { getDealPassportView } from "@/application/deal-service";
 import { DealPassportClient } from "@/components/DealPassportClient";
 import { loadDatabaseState } from "@/infrastructure/database";
@@ -9,15 +10,10 @@ export default async function DealPassportPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{
-    tab?: string;
-    taskCode?: string;
-    docId?: string;
-    from?: string;
-  }>;
+  searchParams: PageSearchParams;
 }) {
   const { id } = await params;
-  const sp = await searchParams;
+  const sp = await readSearchParams(searchParams);
   const ctx = await requireInternalSession();
 
   try {
@@ -62,9 +58,7 @@ export default async function DealPassportPage({
         initialTab={initialTab}
         initialTaskCode={sp.taskCode}
         initialDocId={sp.docId}
-        backHref={
-          sp.from && sp.from.startsWith("/app") ? sp.from : "/app/negociacoes"
-        }
+        backHref={sectionHref(sp.from, "/app") ?? "/app/negociacoes"}
       />
     );
   } catch {

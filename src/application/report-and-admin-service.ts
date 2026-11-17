@@ -621,10 +621,13 @@ export async function listProceduresForOrg(ctx: AuthenticatedContext) {
       }));
     const publishedVersion =
       procVersions.find((v) => v.id === proc.activeVersionId) ?? null;
+    const responsibleArea = publishedVersion?.responsibleArea ?? proc.responsibleArea;
 
     return {
       ...proc,
-      areaLabel: AREA_LABELS[proc.responsibleArea],
+      title: publishedVersion?.title ?? proc.title,
+      responsibleArea,
+      areaLabel: AREA_LABELS[responsibleArea],
       publishedVersion,
       allVersions: procVersions,
     };
@@ -663,6 +666,9 @@ export async function createOrPublishProcedureVersion(params: {
             p.organizationId === ctx.organization.id,
         );
 
+    if (params.procedureId && !proc)
+      throw new Error("Procedimento não encontrado.");
+
     if (!proc) {
       proc = {
         id: `proc-${crypto.randomUUID().slice(0, 8)}`,
@@ -676,8 +682,10 @@ export async function createOrPublishProcedureVersion(params: {
       };
       db.procedures.push(proc);
     } else {
-      proc.title = params.title.trim();
-      proc.responsibleArea = params.responsibleArea;
+      if (params.publishImmediately || !proc.activeVersionId) {
+        proc.title = params.title.trim();
+        proc.responsibleArea = params.responsibleArea;
+      }
       proc.updatedAt = nowIso;
     }
 
@@ -769,6 +777,8 @@ export async function publishExistingDraftProcedureVersion(params: {
       (pv) => pv.id === versionId && pv.organizationId === ctx.organization.id,
     );
     if (!ver) throw new Error("Versão de procedimento não encontrada.");
+    if (ver.status !== "DRAFT")
+      throw new Error("Selecione uma versão em rascunho para publicar.");
 
     const proc = db.procedures.find((p) => p.id === ver.procedureId);
     if (!proc) throw new Error("Procedimento não encontrado.");
@@ -784,6 +794,7 @@ export async function publishExistingDraftProcedureVersion(params: {
     ver.publishedAt = nowIso;
     proc.activeVersionId = ver.id;
     proc.title = ver.title;
+    proc.responsibleArea = ver.responsibleArea;
     proc.updatedAt = nowIso;
 
     db.auditEvents.unshift({

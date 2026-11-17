@@ -1,8 +1,8 @@
 import { test, expect, type Page } from "@playwright/test";
 import sharp from "sharp";
 
-async function login(page: Page, email = "gestor@pinauto.demo") {
-  await page.goto("/login");
+async function login(page: Page, email = "gestor@pinauto.demo", path = "/login") {
+  await page.goto(path);
   await page.locator('input[type="email"]').fill(email);
   await page
     .locator('input[type="password"]')
@@ -12,6 +12,80 @@ async function login(page: Page, email = "gestor@pinauto.demo") {
     email.includes("cliente.demo") ? /\/cliente$/ : /\/app$/,
   );
 }
+
+test("a tela inicial explica o sistema e parâmetros repetidos preservam a navegação", async ({ page }) => {
+  await page.goto("/");
+  await expect(page.getByText("Sobre o funcionamento do AUTOFLOW")).toBeVisible();
+  await expect(page.getByText(/Cada negociação tem um/)).toBeVisible();
+  await page.goto("/redefinir-senha?token=primeiro&token=segundo");
+  await expect(page.getByRole("heading", { name: "Definir senha de acesso" })).toBeVisible();
+
+  await login(page, "vendedor@pinauto.demo", "/login?redirect=/app/veiculos&redirect=/app/clientes");
+  await page.goto("/app/clientes?q=primeiro&q=segundo");
+  await expect(page.getByRole("heading", { name: /Clientes e Acessos/ })).toBeVisible();
+  await expect(page.getByRole("textbox", { name: /Buscar cliente/ })).toHaveValue("");
+  await page.goto("/app/negociacoes?status=ENTREGUE&status=RASCUNHO");
+  await expect(page.getByRole("heading", { name: "Negociações", exact: true })).toBeVisible();
+  await page.goto("/app/relatorios");
+  await expect(page).toHaveURL(/\/app$/);
+
+  await page.context().clearCookies();
+  await login(page);
+  await page.goto("/app/relatorios?periodDays=fora&statusFilter=invalido");
+  await expect(page.getByLabel("Período", { exact: true })).toHaveValue("30");
+  await expect(page.getByLabel("Situação da Negociação")).toHaveValue("ALL");
+});
+
+test("API valida parâmetros e publica rascunho de procedimento com os dados da versão", async ({ page }) => {
+  await login(page, "admin@pinauto.demo");
+  for (const route of ["auth", "admin", "deals", "vehicles"]) {
+    const response = await page.request.post(`/api/${route}`, {
+      headers: { "Content-Type": "application/json" },
+      data: "null",
+    });
+    expect(response.status(), route).toBe(400);
+    expect(await response.json()).toEqual({ error: "Envie um objeto JSON válido." });
+  }
+
+  const input = {
+    action: "CREATE_OR_PUBLISH_PROCEDURE",
+    code: "AUDITORIA-E2E",
+    title: "Conferência E2E",
+    responsibleArea: "OPERATIONS",
+    content: "Procedimento fictício para validar a publicação.",
+    publishImmediately: true,
+  };
+  const malformed = await page.request.post("/api/admin", {
+    data: { ...input, sections: [null] },
+  });
+  expect(malformed.status()).toBe(400);
+
+  const created = await page.request.post("/api/admin", { data: input });
+  expect(created.status()).toBe(200);
+  const { procedure } = await created.json();
+  const draft = await page.request.post("/api/admin", {
+    data: {
+      ...input,
+      procedureId: procedure.id,
+      title: "Conferência revisada E2E",
+      responsibleArea: "DOCUMENTATION",
+      publishImmediately: false,
+    },
+  });
+  expect(draft.status()).toBe(200);
+  const draftResult = await draft.json();
+  expect(draftResult.procedure).toMatchObject({ title: input.title, responsibleArea: input.responsibleArea });
+  expect(draftResult.version.status).toBe("DRAFT");
+
+  const publish = { action: "PUBLISH_DRAFT_PROCEDURE", versionId: draftResult.version.id };
+  const published = await page.request.post("/api/admin", { data: publish });
+  expect(published.status()).toBe(200);
+  expect((await published.json()).version.status).toBe("PUBLISHED");
+  expect((await page.request.post("/api/admin", { data: publish })).status()).toBe(400);
+
+  await page.goto("/app/procedimentos");
+  await expect(page.getByText("Conferência revisada E2E", { exact: true }).first()).toBeVisible();
+});
 
 test("gestor cadastra, edita e remove foto; gera QR legível e imprime somente etiquetas", async ({
   page,

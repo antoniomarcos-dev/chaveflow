@@ -1,3 +1,4 @@
+import { readSearchParams, type PageSearchParams } from "@/lib/navigation";
 import { listDealsForOrg } from "@/application/deal-service";
 import {
   DealsListClient,
@@ -30,18 +31,13 @@ function normalizeInitialStatusFilter(
 export default async function NegociacoesListPage({
   searchParams,
 }: {
-  searchParams: Promise<{
-    q?: string;
-    status?: string;
-    filtro?: string;
-    responsavel?: string;
-  }>;
+  searchParams: PageSearchParams;
 }) {
   const ctx = await requireInternalSession();
   const deals = await listDealsForOrg({ ctx });
   const db = await loadDatabaseState();
   const canCreate = hasPermission(ctx, "deal:create");
-  const sp = await searchParams;
+  const sp = await readSearchParams(searchParams);
 
   const enrichedDeals: EnrichedDealListItem[] = deals.map((item) => {
     const dealTasks = db.taskInstances.filter(

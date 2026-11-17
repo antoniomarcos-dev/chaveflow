@@ -62,9 +62,7 @@ export function ProceduresAdminClient({
   const [content, setContent] = useState("");
   const [secNum, setSecNum] = useState("1.1");
   const [secHeading, setSecHeading] = useState("");
-  const [secBody, setSecBody] = useState(
-    "Conferir presença do carregador portátil e registrar número de série antes da autorização de liberação.",
-  );
+  const [secBody, setSecBody] = useState("");
   const [publishImmediately, setPublishImmediately] = useState(true);
   const [loading, setLoading] = useState(false);
   const [feedback, setFeedback] = useState<{
@@ -92,13 +90,13 @@ export function ProceduresAdminClient({
           title,
           responsibleArea,
           content,
-          sections: [
-            {
-              sectionNumber: secNum,
-              heading: secHeading,
-              body: secBody,
-            },
-          ],
+          sections: secHeading.trim() || secBody.trim()
+            ? [{
+                sectionNumber: secNum.trim() || "1.1",
+                heading: secHeading.trim() || "Diretrizes Operacionais",
+                body: secBody.trim(),
+              }]
+            : [],
           publishImmediately,
         }),
       });

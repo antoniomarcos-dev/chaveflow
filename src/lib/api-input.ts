@@ -9,24 +9,28 @@ export class RequestPayloadError extends Error {
   }
 }
 
-export async function readJsonBody<T>(
+export async function readJsonBody(
   request: NextRequest,
   maxBytes = 256 * 1024,
-): Promise<T> {
+): Promise<Record<string, unknown>> {
   const contentLength = Number(request.headers.get("content-length") || "0");
   if (contentLength > maxBytes) {
     throw new RequestPayloadError();
   }
+  let body: unknown;
   try {
     const text = await request.text();
     if (Buffer.byteLength(text, "utf8") > maxBytes) {
       throw new RequestPayloadError();
     }
-    return JSON.parse(text) as T;
+    body = JSON.parse(text);
   } catch (error) {
     if (error instanceof RequestPayloadError) throw error;
     throw new Error("JSON inválido.");
   }
+  if (!body || typeof body !== "object" || Array.isArray(body))
+    throw new Error("Envie um objeto JSON válido.");
+  return body as Record<string, unknown>;
 }
 
 export function strictBoolean(value: unknown, fallback = false): boolean {

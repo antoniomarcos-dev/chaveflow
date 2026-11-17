@@ -12,8 +12,9 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { demoCredentials } from "@/lib/demo-credentials";
+import { sectionHref } from "@/lib/navigation";
 
 export function LoginFormClient({
   redirectTo,
@@ -22,6 +23,7 @@ export function LoginFormClient({
   authenticatedUserName,
   showDemoCredentials,
   demoUrl,
+  showOverview = false,
 }: {
   redirectTo?: string;
   area?: string;
@@ -29,8 +31,10 @@ export function LoginFormClient({
   authenticatedUserName?: string | null;
   showDemoCredentials?: boolean;
   demoUrl?: string | null;
+  showOverview?: boolean;
 }) {
   const router = useRouter();
+  const submitButton = useRef<HTMLButtonElement>(null);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -60,17 +64,8 @@ export function LoginFormClient({
       if (!res.ok || !data.ok) {
         throw new Error(data.error || "Não foi possível entrar.");
       }
-      const safeRedirect =
-        redirectTo && redirectTo.startsWith("/") && !redirectTo.startsWith("//")
-          ? redirectTo
-          : null;
-      const target =
-        data.redirectTo === "/cliente"
-          ? safeRedirect && safeRedirect.startsWith("/cliente")
-            ? safeRedirect
-            : "/cliente"
-          : safeRedirect || data.redirectTo || "/app";
-      router.push(target);
+      const destination = data.redirectTo === "/cliente" ? "/cliente" : "/app";
+      router.push(sectionHref(redirectTo, destination) ?? destination);
       router.refresh();
     } catch (err) {
       setError(
@@ -109,7 +104,7 @@ export function LoginFormClient({
         </span>
       </header>
 
-      <section className="mx-auto my-6 w-full max-w-md">
+      <section className={`mx-auto my-6 w-full ${showOverview ? "max-w-4xl lg:grid lg:grid-cols-2 lg:items-start lg:gap-6" : "max-w-md"}`}>
         <div className="rounded-2xl border border-slate-200 bg-white p-6 sm:p-8 shadow-sm">
           {areaLabel && (
             <span className="inline-block rounded-md bg-[#EAF3FC] px-2.5 py-0.5 text-[11px] font-bold uppercase tracking-wider text-[#0B3B70] mb-2">
@@ -172,7 +167,7 @@ export function LoginFormClient({
                 id="login-email"
                 name="email"
                 type="email"
-                autoComplete="email"
+                autoComplete="username"
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
@@ -232,6 +227,7 @@ export function LoginFormClient({
             </div>
 
             <button
+              ref={submitButton}
               type="submit"
               disabled={loading}
               aria-busy={loading}
@@ -258,7 +254,7 @@ export function LoginFormClient({
                     Credenciais para avaliação da banca
                   </h2>
                   <p className="mt-1 text-[11px] leading-relaxed text-slate-600">
-                    Escolha um perfil para preencher os dados de acesso.
+                    Escolha um perfil e depois selecione Entrar.
                   </p>
                 </div>
               </div>
@@ -267,10 +263,12 @@ export function LoginFormClient({
                   <button
                     key={account.email}
                     type="button"
+                    aria-pressed={email === account.email && password === account.password}
                     onClick={() => {
                       setEmail(account.email);
                       setPassword(account.password);
                       setError(null);
+                      submitButton.current?.focus();
                     }}
                     className="rounded-lg border border-white/80 bg-white/80 px-3 py-2.5 text-left hover:border-[#126FB8] focus-visible:outline-2 focus-visible:outline-[#126FB8]"
                   >
@@ -310,29 +308,29 @@ export function LoginFormClient({
           </div>
         </div>
 
-        <details className="mt-4 rounded-xl border border-slate-200 bg-white px-4 py-3 text-xs text-slate-600">
-          <summary className="flex cursor-pointer list-none items-center justify-between font-semibold text-[#0B3B70]">
+        <details open={showOverview || undefined} className={`group mt-4 rounded-2xl border border-slate-200 bg-white p-5 text-sm text-slate-600 ${showOverview ? "lg:mt-0 lg:p-6" : ""}`}>
+          <summary className="flex min-h-8 cursor-pointer list-none items-center justify-between gap-2 font-semibold text-[#0B3B70]">
             <span className="inline-flex items-center gap-1.5">
               <ShieldCheck className="h-4 w-4 text-[#126FB8]" />
               Sobre o funcionamento do AUTOFLOW
             </span>
-            <ChevronDown className="h-4 w-4 text-slate-400" />
+            <ChevronDown aria-hidden="true" className="h-4 w-4 shrink-0 text-slate-500 group-open:rotate-180" />
           </summary>
           <div className="mt-3 space-y-2 border-t border-slate-100 pt-3 leading-relaxed">
             <p>
-              O <strong>AUTOFLOW</strong> conecta vendas, documentação,
-              financeiro, faturamento, preparação física (PDI), liberação e
-              entrega em um único Passaporte Digital por veículo.
+              Cada negociação tem um <strong>Passaporte Digital</strong> com
+              tarefas, documentos e aprovações, da venda à entrega. A equipe
+              acompanha o faturamento, a inspeção pré-entrega (PDI) e as
+              pendências que precisam ser resolvidas antes da liberação.
             </p>
             <p>
-              <strong>Equipe interna:</strong> acesse pelo seu e-mail corporativo
-              para visualizar sua fila de trabalho ou escanear o QR Code do
-              veículo no pátio.
+              <strong>Equipe interna.</strong> Consulte sua fila de trabalho e
+              leia a etiqueta QR do veículo para localizar o cadastro no pátio.
             </p>
             <p>
-              <strong>Comprador:</strong> acompanhe as etapas da compra e envie
-              documentos solicitados pelo link individual ou conta ativada pelo
-              vendedor.
+              <strong>Comprador.</strong> Acompanhe a compra e envie os
+              documentos solicitados pelo portal, usando sua conta ou o
+              convite individual fornecido pelo vendedor.
             </p>
           </div>
         </details>

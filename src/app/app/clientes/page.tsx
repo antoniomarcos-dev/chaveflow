@@ -1,3 +1,4 @@
+import { readSearchParams, type PageSearchParams } from "@/lib/navigation";
 import { CustomerAccessButton } from "@/components/CustomerAccessButton";
 import { loadDatabaseState } from "@/infrastructure/database";
 import { requireInternalSession } from "@/lib/server-session";
@@ -8,13 +9,13 @@ import { redirect } from "next/navigation";
 export default async function CustomersPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string }>;
+  searchParams: PageSearchParams;
 }) {
   const ctx = await requireInternalSession();
   if (!ctx.roles.some((r) => ["ADMIN", "MANAGER", "SELLER"].includes(r)))
     redirect("/app");
   const db = await loadDatabaseState(),
-    { q = "" } = await searchParams;
+    { q = "" } = await readSearchParams(searchParams);
   const canManageAll = ctx.roles.some((r) => r === "ADMIN" || r === "MANAGER");
   const deals = db.deals.filter(
     (d) =>

@@ -1,3 +1,4 @@
+import { readSearchParams, type PageSearchParams } from "@/lib/navigation";
 import { getCustomerSafeDealView } from "@/application/customer-portal-service";
 import { CustomerPortalViewClient } from "@/components/CustomerPortalViewClient";
 import { AuthorizationError } from "@/domain/permissions";
@@ -11,10 +12,10 @@ export default async function CustomerDealDetailPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ token?: string }>;
+  searchParams: PageSearchParams;
 }) {
   const { id } = await params;
-  const sp = await searchParams;
+  const sp = await readSearchParams(searchParams);
   const ctx = await getServerSessionContext();
   if (sp.token) {
     redirect(`/cliente/convite/${encodeURIComponent(sp.token)}?dealId=${encodeURIComponent(id)}`);

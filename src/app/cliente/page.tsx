@@ -1,3 +1,4 @@
+import { readSearchParams, type PageSearchParams } from "@/lib/navigation";
 import {
   listDealsForAuthenticatedCustomer,
 } from "@/application/customer-portal-service";
@@ -11,9 +12,9 @@ import { redirect } from "next/navigation";
 export default async function CustomerPortalIndexPage({
   searchParams,
 }: {
-  searchParams: Promise<{ token?: string; dealId?: string }>;
+  searchParams: PageSearchParams;
 }) {
-  const sp = await searchParams;
+  const sp = await readSearchParams(searchParams);
   const ctx = await getServerSessionContext();
 
   // Legacy links are exchanged for an HttpOnly cookie before rendering.

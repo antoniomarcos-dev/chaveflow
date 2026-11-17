@@ -1,3 +1,4 @@
+import { readSearchParams, type PageSearchParams } from "@/lib/navigation";
 import { listVehiclesForOrg } from "@/application/vehicle-service";
 import { VehicleQrManagerClient } from "@/components/VehicleQrManagerClient";
 import { hasPermission } from "@/domain/permissions";
@@ -8,14 +9,14 @@ import { redirect } from "next/navigation";
 export default async function QrCodesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ vehicleId?: string }>;
+  searchParams: PageSearchParams;
 }) {
   const ctx = await requireInternalSession();
   if (!hasPermission(ctx, "vehicle:manage")) redirect("/app/veiculos");
   const [vehicles, db, params] = await Promise.all([
     listVehiclesForOrg({ ctx }),
     loadDatabaseState(),
-    searchParams,
+    readSearchParams(searchParams),
   ]);
   return (
     <VehicleQrManagerClient

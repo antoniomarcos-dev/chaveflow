@@ -1,3 +1,4 @@
+import { readSearchParams, type PageSearchParams } from "@/lib/navigation";
 import { VehicleQrScannerClient } from "@/components/VehicleQrScannerClient";
 import { getServerSessionContext } from "@/lib/server-session";
 import { redirect } from "next/navigation";
@@ -5,9 +6,9 @@ import { redirect } from "next/navigation";
 export default async function EscanearVeiculoPage({
   searchParams,
 }: {
-  searchParams: Promise<{ code?: string }>;
+  searchParams: PageSearchParams;
 }) {
-  const sp = await searchParams;
+  const sp = await readSearchParams(searchParams);
   const ctx = await getServerSessionContext();
   if (!ctx) redirect(`/login?redirect=${encodeURIComponent(`/app/escanear${sp.code ? `?code=${encodeURIComponent(sp.code)}` : ""}`)}`);
   if (ctx.profile.isCustomerOnly) redirect("/cliente");

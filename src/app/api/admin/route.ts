@@ -12,6 +12,21 @@ import { readJsonBody, strictBoolean, RequestPayloadError } from "@/lib/api-inpu
 import { ResponsibleAreaSchema } from "@/domain/types";
 import { SupabaseInfrastructureError } from "@/infrastructure/supabase";
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
+
+const procedureInputSchema = z.object({
+  procedureId: z.string().trim().min(1).nullish(),
+  code: z.string().trim().min(1, "Informe o código do procedimento."),
+  title: z.string().trim().min(1, "Informe o título do procedimento."),
+  responsibleArea: ResponsibleAreaSchema.default("DOCUMENTATION"),
+  content: z.string().trim().min(1, "Informe o escopo do procedimento."),
+  sections: z.array(z.object({
+    sectionNumber: z.string().trim().min(1, "Informe o número da seção."),
+    heading: z.string().trim().min(1, "Informe o título da seção."),
+    body: z.string().trim().min(1, "Informe o conteúdo da seção."),
+  })).default([]),
+  publishImmediately: z.boolean().default(false),
+});
 
 export async function POST(req: NextRequest) {
   try {
@@ -24,8 +39,8 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const body = await readJsonBody<Record<string, unknown>>(req);
-    const action = body.action as string;
+    const body = await readJsonBody(req);
+    const { action } = body;
 
     if (action === "MARK_NOTIFICATION_READ") {
       await markNotificationAsRead({
@@ -39,17 +54,16 @@ export async function POST(req: NextRequest) {
     }
 
     if (action === "CREATE_OR_PUBLISH_PROCEDURE") {
+      const input = procedureInputSchema.safeParse(body);
+      if (!input.success)
+        return NextResponse.json(
+          { error: input.error.issues[0]?.message ?? "Procedimento inválido." },
+          { status: 400 },
+        );
       const res = await createOrPublishProcedureVersion({
         ctx,
-        procedureId: body.procedureId ? String(body.procedureId) : undefined,
-        code: String(body.code || ""),
-        title: String(body.title || ""),
-        responsibleArea: ResponsibleAreaSchema.parse(
-          body.responsibleArea || "DOCUMENTATION",
-        ),
-        content: String(body.content || ""),
-        sections: Array.isArray(body.sections) ? body.sections : [],
-        publishImmediately: strictBoolean(body.publishImmediately),
+        ...input.data,
+        procedureId: input.data.procedureId ?? undefined,
       });
       return NextResponse.json({ ok: true, ...res });
     }
@@ -66,7 +80,7 @@ export async function POST(req: NextRequest) {
       const tpl = await updateTaskTemplateSlaAndDefaultAssignee({
         ctx,
         taskTemplateId: String(body.taskTemplateId || ""),
-        slaHours: Number(body.slaHours),
+        slaHours: typeof body.slaHours === "number" ? body.slaHours : NaN,
         defaultAssigneeId: body.defaultAssigneeId
           ? String(body.defaultAssigneeId)
           : null,

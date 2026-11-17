@@ -32,14 +32,20 @@ export async function inspectPasswordResetToken(
   };
 }
 
-export async function sendPasswordReset(email: string) {
+export function getPasswordRecoveryConfig() {
   const apiKey = process.env.RESEND_API_KEY;
   const from = process.env.CHAVEFLOW_EMAIL_FROM;
   const baseUrl = process.env.CHAVEFLOW_APP_URL;
-  if (!apiKey || !from || !baseUrl)
+  return apiKey && from && baseUrl ? { apiKey, from, baseUrl } : null;
+}
+
+export async function sendPasswordReset(email: string) {
+  const config = getPasswordRecoveryConfig();
+  if (!config)
     throw new Error(
       "O envio de e-mail não está configurado. Contate o administrador.",
     );
+  const { apiKey, from, baseUrl } = config;
   const token = crypto.randomBytes(32).toString("hex");
   const hash = crypto.createHash("sha256").update(token).digest("hex");
   const target = await withTransaction((db) => {

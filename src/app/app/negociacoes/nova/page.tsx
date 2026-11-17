@@ -1,3 +1,4 @@
+import { readSearchParams, type PageSearchParams } from "@/lib/navigation";
 import { listVehiclesForOrg } from "@/application/vehicle-service";
 import { GuidedDealWizardClient } from "@/components/GuidedDealWizardClient";
 import { canAccessDealRecord, isVehicleSellable, hasPermission } from "@/domain/permissions";
@@ -8,9 +9,9 @@ import { requireInternalSession } from "@/lib/server-session";
 export default async function NovaNegociacaoPage({
   searchParams,
 }: {
-  searchParams: Promise<{ vehicleId?: string; draftId?: string }>;
+  searchParams: PageSearchParams;
 }) {
-  const sp = await searchParams;
+  const sp = await readSearchParams(searchParams);
   const ctx = await requireInternalSession();
   if (!hasPermission(ctx, "deal:create")) redirect("/app/negociacoes");
   const db = await loadDatabaseState();

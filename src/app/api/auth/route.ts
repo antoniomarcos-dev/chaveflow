@@ -8,6 +8,7 @@ import {
   SESSION_COOKIE_NAME,
 } from "@/application/auth-service";
 import {
+  getPasswordRecoveryConfig,
   resetPassword,
   sendPasswordReset,
 } from "@/application/password-reset-service";
@@ -26,13 +27,18 @@ import { NextRequest, NextResponse } from "next/server";
 export async function POST(req: NextRequest) {
   try {
     assertSameOriginRequest(req);
-    const body = await readJsonBody<Record<string, unknown>>(req);
+    const body = await readJsonBody(req);
     const action = typeof body.action === "string" ? body.action : "";
     const inDemo = Boolean(await getDemoOrigin());
     if (inDemo && action === "RECOVER_PASSWORD")
       return NextResponse.json(
         { error: "Use as credenciais de demonstração exibidas na página de acesso." },
         { status: 403 },
+      );
+    if (action === "RECOVER_PASSWORD" && !getPasswordRecoveryConfig())
+      return NextResponse.json(
+        { error: "Solicite um novo link de acesso à sua concessionária." },
+        { status: 503 },
       );
     if (["LOGIN", "RECOVER_PASSWORD", "RESET_PASSWORD"].includes(action)) {
       const ip =

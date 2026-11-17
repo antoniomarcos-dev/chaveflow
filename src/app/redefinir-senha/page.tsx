@@ -1,12 +1,13 @@
+import { readSearchParams, type PageSearchParams } from "@/lib/navigation";
 import { inspectPasswordResetToken } from "@/application/password-reset-service";
 import { ResetPasswordClient } from "@/components/ResetPasswordClient";
 
 export default async function ResetPasswordPage({
   searchParams,
 }: {
-  searchParams: Promise<{ token?: string }>;
+  searchParams: PageSearchParams;
 }) {
-  const { token } = await searchParams;
+  const { token } = await readSearchParams(searchParams);
   const cleanToken = token || "";
   const inspection = await inspectPasswordResetToken(cleanToken);
   return (

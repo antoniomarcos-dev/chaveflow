@@ -54,8 +54,8 @@ export async function POST(req: NextRequest) {
       });
       return NextResponse.json({ ok: true, vehicle });
     }
-    const body = await readJsonBody<Record<string, unknown>>(req);
-    const action = body.action as string;
+    const body = await readJsonBody(req);
+    const { action } = body;
 
     if (action === "RESOLVE_QR_SCAN") {
       const ctx = await getServerSessionContext();

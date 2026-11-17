@@ -155,8 +155,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: true, ...res });
     }
 
-    const body = await readJsonBody<Record<string, unknown>>(req);
-    const action = body.action as string;
+    const body = await readJsonBody(req);
+    const { action } = body;
 
     if (!ctx) {
       return NextResponse.json(

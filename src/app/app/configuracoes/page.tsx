@@ -1,3 +1,4 @@
+import { readSearchParams, type PageSearchParams } from "@/lib/navigation";
 import { listProceduresForOrg } from "@/application/report-and-admin-service";
 import { OrganizationSettingsClient } from "@/components/OrganizationSettingsClient";
 import { hasPermission } from "@/domain/permissions";
@@ -8,10 +9,10 @@ import { redirect } from "next/navigation";
 export default async function ConfiguracoesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ tab?: string }>;
+  searchParams: PageSearchParams;
 }) {
   const ctx = await requireInternalSession();
-  const sp = await searchParams;
+  const sp = await readSearchParams(searchParams);
 
   const canManageUsers = hasPermission(ctx, "user:manage");
   const canManageProcedures = hasPermission(ctx, "procedure:manage");
