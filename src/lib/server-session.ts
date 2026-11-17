@@ -4,7 +4,7 @@ import {
   verifySessionToken,
 } from "@/application/auth-service";
 import { AuthenticatedContext } from "@/domain/types";
-import { getDemoOrigin } from "@/lib/demo-request";
+import { getDemoOrigin } from "@/lib/demo-config";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 
@@ -22,7 +22,7 @@ export async function getServerSessionContext(): Promise<AuthenticatedContext | 
     return null;
   }
 
-  const verified = verifySessionToken(rawToken, Boolean(await getDemoOrigin()));
+  const verified = verifySessionToken(rawToken, Boolean(getDemoOrigin()));
   if (!verified.valid || !verified.profileId) {
     return null;
   }

@@ -22,7 +22,6 @@ export function LoginFormClient({
   authenticatedDashboardUrl,
   authenticatedUserName,
   showDemoCredentials,
-  demoUrl,
   showOverview = false,
 }: {
   redirectTo?: string;
@@ -30,7 +29,6 @@ export function LoginFormClient({
   authenticatedDashboardUrl?: string | null;
   authenticatedUserName?: string | null;
   showDemoCredentials?: boolean;
-  demoUrl?: string | null;
   showOverview?: boolean;
 }) {
   const router = useRouter();
@@ -239,7 +237,7 @@ export function LoginFormClient({
             </button>
           </form>
 
-          {showDemoCredentials ? (
+          {showDemoCredentials && (
             <section
               aria-labelledby="demo-credentials-title"
               className="mt-5 rounded-xl border border-[#126FB8]/25 bg-[#EAF3FC] p-4"
@@ -286,14 +284,6 @@ export function LoginFormClient({
                 ))}
               </div>
             </section>
-          ) : demoUrl && (
-            <a
-              href={new URL("/login", demoUrl).href}
-              className="mt-5 flex items-center justify-between gap-2 rounded-xl border border-[#126FB8]/25 bg-[#EAF3FC] p-4 text-sm font-semibold text-[#0B3B70] hover:underline"
-            >
-              Abrir demonstração para a banca
-              <ArrowRight className="h-4 w-4" />
-            </a>
           )}
 
           <div className="mt-6 border-t border-slate-200 pt-4 space-y-2">

@@ -28,6 +28,7 @@ export default defineConfig({
       CHAVEFLOW_SESSION_SECRET:
         "isolated-browser-test-secret-1234567890-abcdefghijklmnopqrstuvwxyz",
       CHAVEFLOW_APP_URL: "http://127.0.0.1:3101",
+      CHAVEFLOW_DEMO_URL: "http://127.0.0.1:3101",
     },
   },
 });

@@ -1,5 +1,5 @@
 import { LoginFormClient } from "@/components/LoginFormClient";
-import { getDemoOrigin, getDemoUrl } from "@/lib/demo-request";
+import { getDemoOrigin } from "@/lib/demo-config";
 import { readSearchParams, type PageSearchParams } from "@/lib/navigation";
 
 export default async function LoginPage({
@@ -7,17 +7,14 @@ export default async function LoginPage({
 }: {
   searchParams: PageSearchParams;
 }) {
-  const [sp, demoOrigin] = await Promise.all([
-    readSearchParams(searchParams),
-    getDemoOrigin(),
-  ]);
+  const sp = await readSearchParams(searchParams);
+  const inDemo = Boolean(getDemoOrigin());
   return (
     <LoginFormClient
       redirectTo={sp.redirect || sp.next}
       area={sp.area}
-      showDemoCredentials={Boolean(demoOrigin)}
-      demoUrl={getDemoUrl()}
-      showOverview={Boolean(demoOrigin) && !sp.redirect && !sp.next}
+      showDemoCredentials={inDemo}
+      showOverview={inDemo && !sp.redirect && !sp.next}
     />
   );
 }

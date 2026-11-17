@@ -1,8 +1,21 @@
 import type { NextConfig } from "next";
+import { getDemoOrigin } from "./src/lib/demo-config";
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
+  async redirects() {
+    const origin = getDemoOrigin();
+    const formerDemoHost = "chaveflow-demo.vercel.app";
+    if (!origin || new URL(origin).hostname === formerDemoHost) return [];
+
+    return [{
+      source: "/:path*",
+      has: [{ type: "host", value: formerDemoHost.replaceAll(".", "\\.") }],
+      destination: `${origin}/:path*`,
+      permanent: false,
+    }];
+  },
   async headers() {
     return [
       {

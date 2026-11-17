@@ -20,7 +20,7 @@ import {
 import { getServerSessionContext } from "@/lib/server-session";
 import { parseLiteral, readJsonBody, RequestPayloadError } from "@/lib/api-input";
 import { CUSTOMER_ACCESS_COOKIE } from "@/lib/customer-access";
-import { getDemoOrigin } from "@/lib/demo-request";
+import { getDemoOrigin } from "@/lib/demo-config";
 import { SupabaseInfrastructureError } from "@/infrastructure/supabase";
 import { RoleCodeSchema } from "@/domain/types";
 import { NextRequest, NextResponse } from "next/server";
@@ -29,7 +29,7 @@ export async function POST(req: NextRequest) {
     assertSameOriginRequest(req);
     const body = await readJsonBody(req);
     const action = typeof body.action === "string" ? body.action : "";
-    const inDemo = Boolean(await getDemoOrigin());
+    const inDemo = Boolean(getDemoOrigin());
     if (inDemo && action === "RECOVER_PASSWORD")
       return NextResponse.json(
         { error: "Use as credenciais de demonstração exibidas na página de acesso." },

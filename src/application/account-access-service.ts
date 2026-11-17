@@ -7,7 +7,7 @@ import type { AuthenticatedContext } from "@/domain/types";
 import { withTransaction } from "@/infrastructure/database";
 import type { DatabaseState } from "@/infrastructure/database-state";
 import { demoCredentials } from "@/lib/demo-credentials";
-import { getDemoOrigin } from "@/lib/demo-request";
+import { getDemoOrigin } from "@/lib/demo-config";
 import { hashPassword } from "@/lib/passwords";
 import crypto from "node:crypto";
 
@@ -36,7 +36,7 @@ export async function createCustomerAccountAccess({
 }) {
   assertInternalStaff(ctx);
   assertPermission(ctx, "deal:create");
-  const inDemo = Boolean(await getDemoOrigin());
+  const inDemo = Boolean(getDemoOrigin());
   return withTransaction((db) => {
     const deal = db.deals.find(
       (d) =>
@@ -152,7 +152,7 @@ export async function manageCollaboratorAccess({
   assertPermission(ctx, "user:manage");
   if (profileId === ctx.profile.id)
     throw new Error("Use a recuperação de senha para sua própria conta.");
-  const inDemo = Boolean(await getDemoOrigin());
+  const inDemo = Boolean(getDemoOrigin());
   return withTransaction((db) => {
     const member = db.memberships.find(
       (m) =>

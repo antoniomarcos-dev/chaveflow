@@ -33,9 +33,9 @@ globalThis.fetch = async (input, options) => {
   }
   const body = JSON.parse(String(options?.body || "{}"));
   switch (url.pathname.split("/").pop()) {
-    case "chaveflow_read_state":
+    case "chaveflow_demo_read_state":
       return Response.json({ state, revision: String(revision) });
-    case "chaveflow_commit_state_v2": {
+    case "chaveflow_demo_commit_state_v2": {
       if (body.p_expected_revision !== String(revision))
         return Response.json(false);
       state = structuredClone(body.p_state);
@@ -46,9 +46,9 @@ globalThis.fetch = async (input, options) => {
         files.delete(storageKey);
       return Response.json(true);
     }
-    case "chaveflow_read_file":
+    case "chaveflow_demo_read_file":
       return Response.json(files.get(body.p_storage_key) ?? null);
-    case "chaveflow_rate_limit":
+    case "chaveflow_demo_rate_limit":
       return Response.json(1);
     default:
       return Response.json(

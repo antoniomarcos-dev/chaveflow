@@ -17,6 +17,11 @@ test("a tela inicial explica o sistema e parâmetros repetidos preservam a naveg
   await page.goto("/");
   await expect(page.getByText("Sobre o funcionamento do AUTOFLOW")).toBeVisible();
   await expect(page.getByText(/Cada negociação tem um/)).toBeVisible();
+  await page.getByRole("button", { name: /^Administrador admin@pinauto\.demo/ }).click();
+  await expect(page.getByLabel("E-mail", { exact: true })).toHaveValue("admin@pinauto.demo");
+  await page.getByRole("button", { name: "Entrar", exact: true }).click();
+  await expect(page).toHaveURL("http://127.0.0.1:3101/app");
+  await page.context().clearCookies();
   await page.goto("/redefinir-senha?token=primeiro&token=segundo");
   await expect(page.getByRole("heading", { name: "Definir senha de acesso" })).toBeVisible();
 

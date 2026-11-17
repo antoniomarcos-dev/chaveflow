@@ -1,4 +1,4 @@
-import { getDemoOrigin } from "@/lib/demo-request";
+import { getDemoOrigin } from "@/lib/demo-config";
 import type { DatabaseState } from "./database-state";
 
 export class SupabaseInfrastructureError extends Error {
@@ -43,7 +43,7 @@ export async function supabaseRpc<T>(
       "SUPABASE_URL deve ser a URL HTTPS do projeto.",
     );
   // Bootstrap commands run outside an HTTP request and name their RPC explicitly.
-  const useDemo = !name.endsWith("_initialize") && (await getDemoOrigin());
+  const useDemo = !name.endsWith("_initialize") && Boolean(getDemoOrigin());
   const rpcName = useDemo ? name.replace(/^chaveflow_/, "chaveflow_demo_") : name;
   endpoint.pathname = `/rest/v1/rpc/${rpcName}`;
   const headers: Record<string, string> = {

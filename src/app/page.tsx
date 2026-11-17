@@ -1,5 +1,5 @@
 import { LoginFormClient } from "@/components/LoginFormClient";
-import { getDemoOrigin, getDemoUrl } from "@/lib/demo-request";
+import { getDemoOrigin } from "@/lib/demo-config";
 import { readSearchParams, type PageSearchParams } from "@/lib/navigation";
 import { getServerSessionContext } from "@/lib/server-session";
 
@@ -8,10 +8,9 @@ export default async function HomePage({
 }: {
   searchParams?: PageSearchParams;
 }) {
-  const [ctx, sp, demoOrigin] = await Promise.all([
+  const [ctx, sp] = await Promise.all([
     getServerSessionContext(),
     readSearchParams(searchParams),
-    getDemoOrigin(),
   ]);
   const dashboard = ctx
     ? ctx.profile.isCustomerOnly
@@ -25,8 +24,7 @@ export default async function HomePage({
       area={sp.area}
       authenticatedDashboardUrl={dashboard}
       authenticatedUserName={ctx?.profile.fullName ?? null}
-      showDemoCredentials={Boolean(demoOrigin)}
-      demoUrl={getDemoUrl()}
+      showDemoCredentials={Boolean(getDemoOrigin())}
       showOverview
     />
   );

@@ -42,8 +42,8 @@ Notificações de tarefas e negociações ficam na central interna. Não há env
 ## Demonstração para a banca
 
 1. Aplique as migrações do Supabase em ordem e execute `npm run db:demo:setup`. O comando carrega os dados fictícios e os documentos de exemplo no schema privado da demonstração. Reexecutá-lo preserva o estado existente.
-2. Adicione um domínio dedicado à demonstração na Vercel e defina `CHAVEFLOW_DEMO_URL` para a origem HTTPS desse domínio. A página de acesso do domínio demonstrativo oferece os quatro perfis. A página de acesso do endereço operacional exibe um link para a demonstração.
-3. Use a página `/login` do domínio demonstrativo no QR code da apresentação. Os perfis compartilhados mantêm as mesmas credenciais durante a avaliação. Os links de ativação continuam disponíveis para novos perfis e o envio de recuperação por e-mail fica desabilitado nesse domínio.
+2. Defina `CHAVEFLOW_DEMO_URL` para a origem HTTPS principal da publicação. Com esse parâmetro, a aplicação inteira usa a base demonstrativa e a tela inicial oferece os quatro perfis da banca.
+3. Use a URL principal no QR code da apresentação. Links antigos do subdomínio demonstrativo do ChaveFlow redirecionam para o endereço principal. Os links individuais de ativação continuam disponíveis para novos perfis demonstrativos.
 
 ## Publicação na Vercel
 

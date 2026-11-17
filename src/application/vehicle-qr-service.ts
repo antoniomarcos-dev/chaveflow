@@ -2,7 +2,7 @@ import QRCode from "qrcode";
 import { assertInternalStaff, assertPermission } from "@/domain/permissions";
 import type { AuthenticatedContext } from "@/domain/types";
 import { loadDatabaseState } from "@/infrastructure/database";
-import { getDemoOrigin } from "@/lib/demo-request";
+import { getDemoOrigin } from "@/lib/demo-config";
 
 export async function generateVehicleQrLabels(params: {
   ctx: AuthenticatedContext;
@@ -16,7 +16,7 @@ export async function generateVehicleQrLabels(params: {
   const ids = [...new Set(params.vehicleIds)];
   if (!ids.length || ids.length > 40)
     throw new Error("Selecione de 1 a 40 veículos por impressão.");
-  const demoOrigin = await getDemoOrigin();
+  const demoOrigin = getDemoOrigin();
   const base = new URL(demoOrigin || process.env.CHAVEFLOW_APP_URL || params.origin);
   if (
     !["http:", "https:"].includes(base.protocol) ||
