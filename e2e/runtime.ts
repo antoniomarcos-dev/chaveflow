@@ -35,7 +35,7 @@ globalThis.fetch = async (input, options) => {
   switch (url.pathname.split("/").pop()) {
     case "chaveflow_read_state":
       return Response.json({ state, revision: String(revision) });
-    case "chaveflow_commit_state": {
+    case "chaveflow_commit_state_v2": {
       if (body.p_expected_revision !== String(revision))
         return Response.json(false);
       state = structuredClone(body.p_state);

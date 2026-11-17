@@ -11,7 +11,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
-    "db:setup": "tsx scripts/setup-database.ts"
+    "db:setup": "tsx scripts/setup-database.ts",
+    "db:demo:setup": "tsx scripts/setup-demo.ts"
   },
   "dependencies": {
     "@next/env": "^16.4.6",

@@ -1,4 +1,5 @@
 import { LoginFormClient } from "@/components/LoginFormClient";
+import { getDemoOrigin, getDemoUrl } from "@/lib/demo-request";
 
 export default async function LoginPage({
   searchParams,
@@ -10,6 +11,8 @@ export default async function LoginPage({
     <LoginFormClient
       redirectTo={sp.redirect || sp.next}
       area={sp.area}
+      showDemoCredentials={Boolean(await getDemoOrigin())}
+      demoUrl={getDemoUrl()}
     />
   );
 }

@@ -13,17 +13,22 @@ import {
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { demoCredentials } from "@/lib/demo-credentials";
 
 export function LoginFormClient({
   redirectTo,
   area,
   authenticatedDashboardUrl,
   authenticatedUserName,
+  showDemoCredentials,
+  demoUrl,
 }: {
   redirectTo?: string;
   area?: string;
   authenticatedDashboardUrl?: string | null;
   authenticatedUserName?: string | null;
+  showDemoCredentials?: boolean;
+  demoUrl?: string | null;
 }) {
   const router = useRouter();
   const [email, setEmail] = useState("");
@@ -184,12 +189,14 @@ export function LoginFormClient({
                 >
                   Senha
                 </label>
-                <Link
-                  href="/recuperar-senha"
-                  className="text-xs font-semibold text-[#0B3B70] hover:text-[#126FB8] hover:underline"
-                >
-                  Recuperar senha
-                </Link>
+                {!showDemoCredentials && (
+                  <Link
+                    href="/recuperar-senha"
+                    className="text-xs font-semibold text-[#0B3B70] hover:text-[#126FB8] hover:underline"
+                  >
+                    Recuperar senha
+                  </Link>
+                )}
               </div>
               <div className="relative mt-1.5">
                 <input
@@ -236,49 +243,60 @@ export function LoginFormClient({
             </button>
           </form>
 
-          <section
-            aria-labelledby="demo-credentials-title"
-            className="mt-5 rounded-xl border border-[#126FB8]/25 bg-[#EAF3FC] p-4"
-          >
-            <div className="flex items-start gap-2">
-              <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-[#126FB8]" />
-              <div className="min-w-0">
-                <h2
-                  id="demo-credentials-title"
-                  className="text-xs font-extrabold uppercase tracking-wide text-[#0B3B70]"
-                >
-                  Credenciais para avaliação da banca
-                </h2>
-                <p className="mt-1 text-[11px] leading-relaxed text-slate-600">
-                  Acessos demonstrativos exclusivos para esta apresentação.
-                </p>
-              </div>
-            </div>
-            <div className="mt-3 grid gap-2 sm:grid-cols-2">
-              {[
-                ["Administrador", "admin@pinauto.demo", "Autoflow123!"],
-                ["Gestor", "gestor@pinauto.demo", "Autoflow123!"],
-                ["Vendedor", "vendedor@pinauto.demo", "Autoflow123!"],
-                ["Cliente", "helena.martins@cliente.demo", "Cliente1234!"],
-              ].map(([profile, email, demoPassword]) => (
-                <div
-                  key={email}
-                  className="rounded-lg border border-white/80 bg-white/80 px-3 py-2.5"
-                >
-                  <p className="text-[11px] font-bold text-[#172B3A]">{profile}</p>
-                  <p className="mt-1 break-all font-mono text-[11px] text-[#0B3B70]">
-                    {email}
-                  </p>
-                  <p className="mt-0.5 text-[11px] text-slate-600">
-                    Senha:{" "}
-                    <span className="font-mono font-semibold text-[#172B3A]">
-                      {demoPassword}
-                    </span>
+          {showDemoCredentials ? (
+            <section
+              aria-labelledby="demo-credentials-title"
+              className="mt-5 rounded-xl border border-[#126FB8]/25 bg-[#EAF3FC] p-4"
+            >
+              <div className="flex items-start gap-2">
+                <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-[#126FB8]" />
+                <div className="min-w-0">
+                  <h2
+                    id="demo-credentials-title"
+                    className="text-xs font-extrabold uppercase tracking-wide text-[#0B3B70]"
+                  >
+                    Credenciais para avaliação da banca
+                  </h2>
+                  <p className="mt-1 text-[11px] leading-relaxed text-slate-600">
+                    Escolha um perfil para preencher os dados de acesso.
                   </p>
                 </div>
-              ))}
-            </div>
-          </section>
+              </div>
+              <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                {demoCredentials.map((account) => (
+                  <button
+                    key={account.email}
+                    type="button"
+                    onClick={() => {
+                      setEmail(account.email);
+                      setPassword(account.password);
+                      setError(null);
+                    }}
+                    className="rounded-lg border border-white/80 bg-white/80 px-3 py-2.5 text-left hover:border-[#126FB8] focus-visible:outline-2 focus-visible:outline-[#126FB8]"
+                  >
+                    <p className="text-[11px] font-bold text-[#172B3A]">{account.label}</p>
+                    <p className="mt-1 break-all font-mono text-[11px] text-[#0B3B70]">
+                      {account.email}
+                    </p>
+                    <p className="mt-0.5 text-[11px] text-slate-600">
+                      Senha:{" "}
+                      <span className="font-mono font-semibold text-[#172B3A]">
+                        {account.password}
+                      </span>
+                    </p>
+                  </button>
+                ))}
+              </div>
+            </section>
+          ) : demoUrl && (
+            <a
+              href={new URL("/login", demoUrl).href}
+              className="mt-5 flex items-center justify-between gap-2 rounded-xl border border-[#126FB8]/25 bg-[#EAF3FC] p-4 text-sm font-semibold text-[#0B3B70] hover:underline"
+            >
+              Abrir demonstração para a banca
+              <ArrowRight className="h-4 w-4" />
+            </a>
+          )}
 
           <div className="mt-6 border-t border-slate-200 pt-4 space-y-2">
             <div className="flex items-start gap-2 text-xs leading-relaxed text-slate-600">

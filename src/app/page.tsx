@@ -1,4 +1,5 @@
 import { LoginFormClient } from "@/components/LoginFormClient";
+import { getDemoOrigin, getDemoUrl } from "@/lib/demo-request";
 import { getServerSessionContext } from "@/lib/server-session";
 
 export default async function HomePage({
@@ -20,6 +21,8 @@ export default async function HomePage({
       area={sp?.area}
       authenticatedDashboardUrl={dashboard}
       authenticatedUserName={ctx?.profile.fullName ?? null}
+      showDemoCredentials={Boolean(await getDemoOrigin())}
+      demoUrl={getDemoUrl()}
     />
   );
 }

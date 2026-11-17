@@ -6,6 +6,8 @@ import {
 import type { AuthenticatedContext } from "@/domain/types";
 import { withTransaction } from "@/infrastructure/database";
 import type { DatabaseState } from "@/infrastructure/database-state";
+import { demoCredentials } from "@/lib/demo-credentials";
+import { getDemoOrigin } from "@/lib/demo-request";
 import { hashPassword } from "@/lib/passwords";
 import crypto from "node:crypto";
 
@@ -34,6 +36,7 @@ export async function createCustomerAccountAccess({
 }) {
   assertInternalStaff(ctx);
   assertPermission(ctx, "deal:create");
+  const inDemo = Boolean(await getDemoOrigin());
   return withTransaction((db) => {
     const deal = db.deals.find(
       (d) =>
@@ -66,6 +69,8 @@ export async function createCustomerAccountAccess({
     let profile = customer.profileId
       ? db.profiles.find((p) => p.id === customer.profileId)
       : db.profiles.find((p) => p.email.toLowerCase() === email);
+    if (inDemo && demoCredentials.some((demo) => demo.email === email))
+      throw new Error("Esta conta já pode entrar com as credenciais da demonstração.");
     const now = new Date().toISOString();
     if (profile) {
       const member = db.memberships.find(
@@ -147,6 +152,7 @@ export async function manageCollaboratorAccess({
   assertPermission(ctx, "user:manage");
   if (profileId === ctx.profile.id)
     throw new Error("Use a recuperação de senha para sua própria conta.");
+  const inDemo = Boolean(await getDemoOrigin());
   return withTransaction((db) => {
     const member = db.memberships.find(
       (m) =>
@@ -161,6 +167,8 @@ export async function manageCollaboratorAccess({
         "NOT_FOUND",
         404,
       );
+    if (inDemo && demoCredentials.some((demo) => demo.email === profile.email))
+      throw new Error("As credenciais deste perfil são compartilhadas com a banca.");
     if (action === "DISABLE") member.isActive = false;
     if (action === "ENABLE") member.isActive = true;
     if (action === "REISSUE" && !member.isActive)

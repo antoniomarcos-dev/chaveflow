@@ -16,17 +16,18 @@ export const SESSION_COOKIE_NAME = "chaveflow_session";
 export function createSessionToken(
   profileId: string,
   organizationId: string,
+  inDemo = false,
 ): string {
   const issuedAt = Date.now();
   const payload = `${profileId}|${organizationId}|${issuedAt}`;
   const sig = crypto
     .createHmac("sha256", getSigningSecret())
-    .update(payload)
+    .update(inDemo ? `demo|${payload}` : payload)
     .digest("hex");
   return Buffer.from(`${payload}|${sig}`, "utf-8").toString("base64url");
 }
 
-export function verifySessionToken(token: string): {
+export function verifySessionToken(token: string, inDemo = false): {
   valid: boolean;
   profileId?: string;
   organizationId?: string;
@@ -40,7 +41,7 @@ export function verifySessionToken(token: string): {
     const payload = `${profileId}|${organizationId}|${issuedAt}`;
     const expected = crypto
       .createHmac("sha256", getSigningSecret())
-      .update(payload)
+      .update(inDemo ? `demo|${payload}` : payload)
       .digest("hex");
     if (
       !/^[a-f0-9]{64}$/.test(sig) ||
@@ -111,6 +112,7 @@ export async function buildAuthenticatedContext(
 export async function authenticateWithCredentials(params: {
   email: string;
   password?: string;
+  inDemo?: boolean;
 }): Promise<{
   context: AuthenticatedContext;
   sessionToken: string;
@@ -149,6 +151,7 @@ export async function authenticateWithCredentials(params: {
   const sessionToken = createSessionToken(
     context.profile.id,
     context.organization.id,
+    params.inDemo,
   );
 
   return { context, sessionToken };

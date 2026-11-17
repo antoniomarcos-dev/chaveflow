@@ -49,20 +49,14 @@ begin
 end;
 $$;
 
-drop function if exists public.chaveflow_commit_state(text, jsonb, jsonb);
 create or replace function public.chaveflow_commit_state(
-  p_expected_revision text,
-  p_state jsonb,
-  p_files jsonb default '[]'::jsonb,
-  p_deleted_storage_keys jsonb default '[]'::jsonb
+  p_expected_revision text, p_state jsonb, p_files jsonb default '[]'::jsonb
 )
 returns boolean language plpgsql security invoker set search_path = ''
 as $$
-declare affected integer; file_record jsonb; deleted_key text;
+declare affected integer; file_record jsonb;
 begin
-  if jsonb_typeof(p_state) is distinct from 'object'
-    or jsonb_typeof(p_files) is distinct from 'array'
-    or jsonb_typeof(p_deleted_storage_keys) is distinct from 'array' then
+  if jsonb_typeof(p_state) is distinct from 'object' or jsonb_typeof(p_files) is distinct from 'array' then
     raise exception 'Invalid transaction';
   end if;
   update chaveflow_private.state set data = p_state, revision = revision + 1
@@ -72,9 +66,6 @@ begin
   for file_record in select value from jsonb_array_elements(p_files) loop
     insert into chaveflow_private.files(storage_key, content)
       values (file_record->>'storage_key', decode(file_record->>'content_base64', 'base64'));
-  end loop;
-  for deleted_key in select jsonb_array_elements_text(p_deleted_storage_keys) loop
-    delete from chaveflow_private.files where storage_key = deleted_key;
   end loop;
   return true;
 end;
@@ -102,11 +93,11 @@ $$;
 
 revoke execute on function public.chaveflow_read_state() from public, anon, authenticated;
 revoke execute on function public.chaveflow_initialize(jsonb) from public, anon, authenticated;
-revoke execute on function public.chaveflow_commit_state(text,jsonb,jsonb,jsonb) from public, anon, authenticated;
+revoke execute on function public.chaveflow_commit_state(text,jsonb,jsonb) from public, anon, authenticated;
 revoke execute on function public.chaveflow_read_file(text) from public, anon, authenticated;
 revoke execute on function public.chaveflow_rate_limit(text) from public, anon, authenticated;
 grant execute on function public.chaveflow_read_state() to service_role;
 grant execute on function public.chaveflow_initialize(jsonb) to service_role;
-grant execute on function public.chaveflow_commit_state(text,jsonb,jsonb,jsonb) to service_role;
+grant execute on function public.chaveflow_commit_state(text,jsonb,jsonb) to service_role;
 grant execute on function public.chaveflow_read_file(text) to service_role;
 grant execute on function public.chaveflow_rate_limit(text) to service_role;

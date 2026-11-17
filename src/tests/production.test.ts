@@ -83,6 +83,15 @@ describe("Inicialização e segurança de produção", () => {
     );
   });
 
+  it("rejeita sessões usadas no ambiente errado", () => {
+    const demo = createSessionToken("user-demo", "org-demo", true);
+    const regular = createSessionToken("user-real", "org-real");
+
+    expect(verifySessionToken(demo, true).valid).toBe(true);
+    expect(verifySessionToken(demo).valid).toBe(false);
+    expect(verifySessionToken(regular, true).valid).toBe(false);
+  });
+
   it("exige um segredo forte fora do ambiente de testes", () => {
     vi.stubEnv("NODE_ENV", "production");
     vi.stubEnv("CHAVEFLOW_SESSION_SECRET", "");

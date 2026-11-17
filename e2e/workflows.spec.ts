@@ -107,7 +107,9 @@ test("gestor cadastra, edita e remove foto; gera QR legível e imprime somente e
   ).toContainText("Dolphin Teste");
   await page.goto(detailUrl);
   await page.getByRole("button", { name: "Editar Cadastro" }).click();
+  page.once("dialog", (dialog) => dialog.accept());
   await page.getByRole("button", { name: "Remover foto" }).click();
+  await expect(page.getByRole("button", { name: "Desfazer remoção" })).toBeVisible();
   await page
     .getByRole("button", { name: "Salvar alterações", exact: true })
     .click();

@@ -31,7 +31,6 @@ Links de recuperação por e-mail expiram em uma hora e só podem ser usados uma
 ## Acessos de vendedores e clientes
 
 - A página inicial `/` reúne administração, equipe de vendas e área do cliente. Todos entram com e-mail e senha em `/login`; o perfil real da conta determina o painel e as permissões.
-- No runtime isolado dos testes de navegador, os perfis internos demonstrativos usam a senha simples `Autoflow123!`: `admin@pinauto.demo`, `gestor@pinauto.demo` e `vendedor@pinauto.demo`. O perfil de cliente da demo usa `helena.martins@cliente.demo` com a senha `Cliente1234!` e acessa somente o portal do comprador, incluindo a negociação demonstrativa vinculada. Essas senhas existem somente nos dados de teste e nunca devem ser usadas em produção.
 - Em **Administração e auditoria**, o administrador cadastra vendedores ou outros colaboradores e seleciona as funções. O sistema gera um link individual para a pessoa definir sua senha. É possível reemitir o link, desativar ou reativar o acesso. A própria conta administrativa não pode ser desativada por essa tela.
 - Em **Clientes e acessos**, o vendedor vê os compradores das suas negociações e gera o acesso do cliente. A mesma ação está disponível no passaporte da negociação. Um vendedor não pode criar administradores ou preparar acessos de negociações de outro vendedor.
 - O cliente define sua senha pelo link e entra pela página inicial. O portal mostra somente compras vinculadas ao seu perfil e os documentos compartilhados com ele.
@@ -39,6 +38,12 @@ Links de recuperação por e-mail expiram em uma hora e só podem ser usados uma
 - Convites do portal do comprador são convertidos imediatamente em cookie HttpOnly; o token não é mantido em URLs de páginas, uploads ou fotos.
 
 Notificações de tarefas e negociações ficam na central interna. Não há envio de WhatsApp nem serviço de OCR. O assistente contextual consulta os dados autorizados e os procedimentos publicados, sem depender de API de IA.
+
+## Demonstração para a banca
+
+1. Aplique as migrações do Supabase em ordem e execute `npm run db:demo:setup`. O comando carrega os dados fictícios e os documentos de exemplo no schema privado da demonstração. Reexecutá-lo preserva o estado existente.
+2. Adicione um domínio dedicado à demonstração na Vercel e defina `CHAVEFLOW_DEMO_URL` para a origem HTTPS desse domínio. A página de acesso do domínio demonstrativo oferece os quatro perfis. A página de acesso do endereço operacional exibe um link para a demonstração.
+3. Use a página `/login` do domínio demonstrativo no QR code da apresentação. Os perfis compartilhados mantêm as mesmas credenciais durante a avaliação. Os links de ativação continuam disponíveis para novos perfis e o envio de recuperação por e-mail fica desabilitado nesse domínio.
 
 ## Publicação na Vercel
 

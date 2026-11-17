@@ -19,6 +19,7 @@ import {
 import { getServerSessionContext } from "@/lib/server-session";
 import { parseLiteral, readJsonBody, RequestPayloadError } from "@/lib/api-input";
 import { CUSTOMER_ACCESS_COOKIE } from "@/lib/customer-access";
+import { getDemoOrigin } from "@/lib/demo-request";
 import { SupabaseInfrastructureError } from "@/infrastructure/supabase";
 import { RoleCodeSchema } from "@/domain/types";
 import { NextRequest, NextResponse } from "next/server";
@@ -27,13 +28,19 @@ export async function POST(req: NextRequest) {
     assertSameOriginRequest(req);
     const body = await readJsonBody<Record<string, unknown>>(req);
     const action = typeof body.action === "string" ? body.action : "";
+    const inDemo = Boolean(await getDemoOrigin());
+    if (inDemo && action === "RECOVER_PASSWORD")
+      return NextResponse.json(
+        { error: "Use as credenciais de demonstração exibidas na página de acesso." },
+        { status: 403 },
+      );
     if (["LOGIN", "RECOVER_PASSWORD", "RESET_PASSWORD"].includes(action)) {
       const ip =
         req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
       await enforceRateLimit(`auth:${ip}`, 30);
       if (action === "LOGIN") {
         await enforceRateLimit(
-          `login:${String(body.email || "").trim().toLowerCase()}`,
+          `login:${inDemo ? `${ip}:` : ""}${String(body.email || "").trim().toLowerCase()}`,
           10,
         );
       }
@@ -49,6 +56,7 @@ export async function POST(req: NextRequest) {
       const { context, sessionToken } = await authenticateWithCredentials({
         email: String(body.email || ""),
         password: String(body.password || ""),
+        inDemo,
       });
       const res = NextResponse.json({
         ok: true,
