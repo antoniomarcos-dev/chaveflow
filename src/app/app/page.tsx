@@ -153,7 +153,7 @@ export default async function OperationalHomePage() {
           <div className="flex items-center gap-2.5">
             <Link
               href="/app/negociacoes/nova"
-              className="inline-flex items-center gap-2 rounded-xl bg-[#1684D8] hover:bg-[#0B3B70] px-4 py-2.5 text-xs sm:text-sm font-bold text-white shadow-xs transition"
+              className="inline-flex items-center gap-2 rounded-xl bg-[#126FB8] hover:bg-[#0B3B70] px-4 py-2.5 text-xs sm:text-sm font-bold text-white shadow-xs transition"
             >
               <Plus className="h-4 w-4" />
               <span>Nova negociação</span>
@@ -166,10 +166,10 @@ export default async function OperationalHomePage() {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5">
         <Link
           href="/app/negociacoes?status=EM_ANDAMENTO"
-          className="bg-white rounded-2xl border border-slate-200 p-4 shadow-2xs hover:border-[#1684D8] transition flex items-center gap-3.5"
+          className="bg-white rounded-2xl border border-slate-200 p-4 shadow-2xs hover:border-[#126FB8] transition flex items-center gap-3.5"
         >
           <div className="h-10 w-10 rounded-xl bg-[#EAF3FC] text-[#0B3B70] flex items-center justify-center shrink-0">
-            <FileSpreadsheet className="h-5 w-5 text-[#1684D8]" />
+            <FileSpreadsheet className="h-5 w-5 text-[#126FB8]" />
           </div>
           <div className="min-w-0">
             <div className="text-2xl font-extrabold text-[#172B3A] leading-none">
@@ -200,10 +200,10 @@ export default async function OperationalHomePage() {
 
         <Link
           href="/app/negociacoes?status=PRONTA_AUTORIZACAO"
-          className="bg-white rounded-2xl border border-slate-200 p-4 shadow-2xs hover:border-[#1684D8] transition flex items-center gap-3.5"
+          className="bg-white rounded-2xl border border-slate-200 p-4 shadow-2xs hover:border-[#126FB8] transition flex items-center gap-3.5"
         >
-          <div className="h-10 w-10 rounded-xl bg-[#EAF3FC] text-[#0B3B70] border border-[#1684D8]/30 flex items-center justify-center shrink-0">
-            <ClipboardCheck className="h-5 w-5 text-[#1684D8]" />
+          <div className="h-10 w-10 rounded-xl bg-[#EAF3FC] text-[#0B3B70] border border-[#126FB8]/30 flex items-center justify-center shrink-0">
+            <ClipboardCheck className="h-5 w-5 text-[#126FB8]" />
           </div>
           <div className="min-w-0">
             <div className="text-2xl font-extrabold text-[#0B3B70] leading-none">
@@ -238,7 +238,7 @@ export default async function OperationalHomePage() {
         <div className="bg-white rounded-2xl border border-slate-200 px-5 py-3.5 shadow-2xs flex flex-wrap items-center justify-between gap-3">
           <div className="flex flex-wrap items-center gap-4 text-xs">
             <span className="font-bold text-[#0B3B70] inline-flex items-center gap-1.5">
-              <BarChart3 className="h-4 w-4 text-[#1684D8]" />
+              <BarChart3 className="h-4 w-4 text-[#126FB8]" />
               Panorama da equipe:
             </span>
             <span className="text-slate-700">
@@ -291,13 +291,13 @@ export default async function OperationalHomePage() {
           <div className="flex items-center gap-4 text-xs font-bold">
             <Link
               href="/app/pendencias"
-              className="text-[#0B3B70] hover:text-[#1684D8] hover:underline"
+              className="text-[#0B3B70] hover:text-[#126FB8] hover:underline"
             >
               Abrir pendências
             </Link>
             <Link
               href="/app/negociacoes"
-              className="text-[#1684D8] hover:underline inline-flex items-center gap-1"
+              className="text-[#126FB8] hover:underline inline-flex items-center gap-1"
             >
               <span>Todas as negociações ({deals.length})</span>
               <ArrowRight className="h-3.5 w-3.5" />
@@ -377,7 +377,7 @@ export default async function OperationalHomePage() {
                             {nextAction.headline}
                           </div>
                           {nextAction.hasDirectAction && (
-                            <span className="inline-block mt-0.5 text-[11px] font-semibold text-[#1684D8]">
+                            <span className="inline-block mt-0.5 text-[11px] font-semibold text-[#126FB8]">
                               Disponível para você agora
                             </span>
                           )}
@@ -398,8 +398,8 @@ export default async function OperationalHomePage() {
                             href={directHref}
                             className={`inline-flex items-center gap-1.5 rounded-xl px-3.5 py-2 text-xs font-bold text-white transition ${
                               nextAction.hasDirectAction
-                                ? "bg-[#1684D8] hover:bg-[#0B3B70]"
-                                : "bg-[#0B3B70] hover:bg-[#1684D8]"
+                                ? "bg-[#126FB8] hover:bg-[#0B3B70]"
+                                : "bg-[#0B3B70] hover:bg-[#124B8A]"
                             }`}
                           >
                             <span>
@@ -456,7 +456,7 @@ export default async function OperationalHomePage() {
                     <div className="flex justify-end pt-1">
                       <Link
                         href={directHref}
-                        className="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 rounded-xl bg-[#1684D8] px-4 py-2.5 text-xs font-bold text-white"
+                        className="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 rounded-xl bg-[#126FB8] px-4 py-2.5 text-xs font-bold text-white"
                       >
                         <span>
                           {nextAction.hasDirectAction

@@ -9,6 +9,7 @@ import {
   readPrivateFileBlob,
   validateServerUploadFile,
 } from "@/infrastructure/database";
+import { getCustomerAccessToken } from "@/lib/customer-access";
 
 export interface VehiclePhotoUpload {
   contentBuffer: Buffer;
@@ -55,7 +56,8 @@ export async function getVehiclePhoto(
   vehicleId: string,
   accessToken?: string,
 ) {
-  if (!ctx && !accessToken)
+  const resolvedAccessToken = accessToken ?? (await getCustomerAccessToken());
+  if (!ctx && !resolvedAccessToken)
     throw new AuthorizationError(
       "Entre na sua conta para acessar a foto.",
       "UNAUTHENTICATED",
@@ -64,9 +66,9 @@ export async function getVehiclePhoto(
   const db = await loadDatabaseState();
   const vehicle = db.vehicles.find((v) => v.id === vehicleId);
   if (!vehicle) return null;
-  if (accessToken) {
+  if (resolvedAccessToken) {
     const grant = db.customerAccessGrants.find(
-      (g) => g.accessToken === accessToken,
+      (g) => g.accessToken === resolvedAccessToken,
     );
     const expiresAt = grant ? Date.parse(grant.expiresAt) : NaN;
     const deal =

@@ -131,7 +131,7 @@ export function VehicleDetailClient({
               onClick={() => setEditing(true)}
               className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 px-3.5 py-2 text-xs font-bold text-[#172B3A]"
             >
-              <Edit3 className="h-3.5 w-3.5 text-[#1684D8]" />
+              <Edit3 className="h-3.5 w-3.5 text-[#126FB8]" />
               <span>Editar Cadastro</span>
             </button>
           )}
@@ -139,7 +139,7 @@ export function VehicleDetailClient({
             type="button"
             disabled={!qrLabel}
             onClick={() => window.print()}
-            className="inline-flex items-center gap-1.5 rounded-lg bg-[#0B3B70] hover:bg-[#1684D8] px-3.5 py-2 text-xs font-bold text-white transition"
+            className="inline-flex items-center gap-1.5 rounded-lg bg-[#0B3B70] hover:bg-[#124B8A] px-3.5 py-2 text-xs font-bold text-white transition"
           >
             <Printer className="h-3.5 w-3.5 text-[#7CC4FA]" />
             <span>Imprimir Etiqueta QR Code</span>
@@ -155,7 +155,7 @@ export function VehicleDetailClient({
               <span className="font-mono text-xs font-bold bg-[#0B3B70] text-white px-2.5 py-1 rounded">
                 {vehicle.internalCode}
               </span>
-              <span className="text-xs font-bold bg-[#EAF3FC] text-[#0B3B70] border border-[#1684D8]/30 px-2.5 py-1 rounded">
+              <span className="text-xs font-bold bg-[#EAF3FC] text-[#0B3B70] border border-[#126FB8]/30 px-2.5 py-1 rounded">
                 {vehicle.condition === "NEW"
                   ? "Novo / 0km"
                   : "Usado / Seminovo"}
@@ -169,6 +169,11 @@ export function VehicleDetailClient({
               <img
                 src={vehicle.photos[0] || "/vehicle-placeholder.svg"}
                 alt={`${vehicle.brand} ${vehicle.model}`}
+                loading="eager"
+                decoding="async"
+                onError={(event) => {
+                  event.currentTarget.src = "/vehicle-placeholder.svg";
+                }}
                 className="w-full rounded-xl border border-slate-200"
               />
             </div>
@@ -221,10 +226,10 @@ export function VehicleDetailClient({
           {/* Vínculo de Negociação Ativa */}
           <div className="no-print pt-3 border-t border-slate-200">
             {vehicle.activeDeal ? (
-              <div className="rounded-xl bg-[#EAF3FC] border border-[#1684D8]/30 p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              <div className="rounded-xl bg-[#EAF3FC] border border-[#126FB8]/30 p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                 <div>
                   <div className="text-xs font-bold text-[#0B3B70] flex items-center gap-1.5">
-                    <FileSpreadsheet className="h-4 w-4 text-[#1684D8]" />
+                    <FileSpreadsheet className="h-4 w-4 text-[#126FB8]" />
                     <span>
                       Negociação Ativa Vinculada:{" "}
                       {vehicle.activeDeal.dealNumber}
@@ -237,7 +242,7 @@ export function VehicleDetailClient({
                 {vehicle.canAccessActiveDeal ? (
                   <Link
                     href={`/app/negociacoes/${vehicle.activeDeal.id}`}
-                    className="inline-flex items-center gap-1.5 rounded-lg bg-[#1684D8] hover:bg-[#126FB8] px-4 py-2.5 text-xs font-bold text-white shrink-0 transition"
+                    className="inline-flex items-center gap-1.5 rounded-lg bg-[#126FB8] hover:bg-[#0B3B70] px-4 py-2.5 text-xs font-bold text-white shrink-0 transition"
                   >
                     <span>Abrir Passaporte Digital</span>
                     <ArrowRight className="h-4 w-4" />
@@ -263,7 +268,7 @@ export function VehicleDetailClient({
                 {canCreateDeal && vehicle.stockStatus === "AVAILABLE" && (
                   <Link
                     href={`/app/negociacoes/nova?vehicleId=${vehicle.id}`}
-                    className="inline-flex items-center gap-1.5 rounded-lg bg-[#1684D8] hover:bg-[#126FB8] px-4 py-2.5 text-xs font-bold text-white shrink-0 transition"
+                    className="inline-flex items-center gap-1.5 rounded-lg bg-[#126FB8] hover:bg-[#0B3B70] px-4 py-2.5 text-xs font-bold text-white shrink-0 transition"
                   >
                     <PlusCircle className="h-4 w-4" />
                     <span>Iniciar Abertura Guiada</span>
@@ -309,7 +314,7 @@ export function VehicleDetailClient({
       {/* Histórico Permanente de Negociações do Veículo */}
       <section className="no-print bg-white rounded-2xl border border-slate-200/90 p-6 shadow-xs space-y-4">
         <div className="flex items-center gap-2">
-          <History className="h-5 w-5 text-[#1684D8]" />
+          <History className="h-5 w-5 text-[#126FB8]" />
           <div>
             <h2 className="text-base font-bold text-[#172B3A]">
               Histórico de Negociações deste Veículo ({dealHistory.length})
@@ -351,7 +356,7 @@ export function VehicleDetailClient({
 
                 <Link
                   href={`/app/negociacoes/${dh.id}`}
-                  className="inline-flex items-center gap-1.5 rounded-lg bg-[#0B3B70] hover:bg-[#1684D8] px-3.5 py-2 text-xs font-bold text-white transition"
+                  className="inline-flex items-center gap-1.5 rounded-lg bg-[#0B3B70] hover:bg-[#124B8A] px-3.5 py-2 text-xs font-bold text-white transition"
                 >
                   <span>Consultar Passaporte</span>
                   <ArrowRight className="h-3.5 w-3.5 text-[#7CC4FA]" />

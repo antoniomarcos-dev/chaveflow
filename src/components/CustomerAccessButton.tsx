@@ -53,12 +53,12 @@ export function CustomerAccessButton({
             setLoading(false);
           }
         }}
-        className={`inline-flex items-center gap-2 rounded-xl border border-[#1684D8]/30 bg-[#EAF3FC] font-bold text-[#0B3B70] transition hover:bg-[#1684D8] hover:text-white disabled:opacity-50 ${
+        className={`inline-flex items-center gap-2 rounded-xl border border-[#126FB8]/30 bg-[#EAF3FC] font-bold text-[#0B3B70] transition hover:bg-[#0B3B70] hover:text-white disabled:opacity-50 ${
           compact ? "px-3 py-1.5 text-xs" : "px-4 py-2.5 text-sm"
         }`}
       >
         {isAccountActive ? (
-          <UserCheck className="h-4 w-4 text-[#1684D8]" />
+          <UserCheck className="h-4 w-4 text-[#126FB8]" />
         ) : (
           <UserPlus className="h-4 w-4" />
         )}

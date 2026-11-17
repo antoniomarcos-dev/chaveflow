@@ -10,6 +10,7 @@ import {
   WorkflowStageCode,
 } from "@/domain/types";
 import { loadDatabaseState, withTransaction } from "@/infrastructure/database";
+import { getCustomerAccessToken } from "@/lib/customer-access";
 
 export interface CustomerSafeDealView {
   dealId: string;
@@ -110,7 +111,8 @@ export async function getCustomerSafeDealView(params: {
   dealId?: string;
   accessToken?: string;
 }): Promise<CustomerSafeDealView> {
-  const { ctx, dealId, accessToken } = params;
+  const { ctx, dealId } = params;
+  const accessToken = params.accessToken ?? (await getCustomerAccessToken());
   const db = await loadDatabaseState();
 
   let targetDealId = dealId;
@@ -290,11 +292,7 @@ export async function getCustomerSafeDealView(params: {
       modelYear: vehicle.modelYear,
       color: vehicle.color,
       condition: vehicle.condition,
-      photos: vehicle.photos.map((url) =>
-        accessToken && url.startsWith(`/api/vehicles/${vehicle.id}/photo?`)
-          ? `${url}&accessToken=${encodeURIComponent(accessToken)}`
-          : url,
-      ),
+      photos: vehicle.photos,
     },
     sellerContact: {
       fullName: seller.fullName,

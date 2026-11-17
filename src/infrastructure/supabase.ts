@@ -1,5 +1,14 @@
 import type { DatabaseState } from "./database-state";
 
+export class SupabaseInfrastructureError extends Error {
+  readonly statusCode = 503;
+
+  constructor(message: string) {
+    super(message);
+    this.name = "SupabaseInfrastructureError";
+  }
+}
+
 export interface PendingPrivateFile {
   storage_key: string;
   content_base64: string;
@@ -10,14 +19,14 @@ export async function supabaseRpc<T>(
   parameters: Record<string, unknown> = {},
 ): Promise<T> {
   if (typeof window !== "undefined")
-    throw new Error(
+    throw new SupabaseInfrastructureError(
       "A conexão administrativa deve ser usada somente no servidor.",
     );
   const url = process.env.SUPABASE_URL;
   const key =
     process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!url || !key)
-    throw new Error(
+    throw new SupabaseInfrastructureError(
       "Configure SUPABASE_URL e SUPABASE_SECRET_KEY no ambiente do servidor.",
     );
   const endpoint = new URL(url);
@@ -29,7 +38,9 @@ export async function supabaseRpc<T>(
     endpoint.search ||
     endpoint.hash
   )
-    throw new Error("SUPABASE_URL deve ser a URL HTTPS do projeto.");
+    throw new SupabaseInfrastructureError(
+      "SUPABASE_URL deve ser a URL HTTPS do projeto.",
+    );
   endpoint.pathname = `/rest/v1/rpc/${name}`;
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
@@ -47,20 +58,20 @@ export async function supabaseRpc<T>(
       signal: AbortSignal.timeout(30000),
     });
   } catch {
-    throw new Error(
+    throw new SupabaseInfrastructureError(
       "Não foi possível conectar ao Supabase por HTTPS. Verifique a conexão e o estado do projeto.",
     );
   }
   if (!response.ok) {
     if (response.status === 401 || response.status === 403)
-      throw new Error(
+      throw new SupabaseInfrastructureError(
         "Acesso ao Supabase recusado. Verifique a chave secreta do servidor e as permissões da migração.",
       );
     if (response.status === 404)
-      throw new Error(
+      throw new SupabaseInfrastructureError(
         "Estrutura do banco ausente. Aplique a migração do ChaveFlow no Supabase.",
       );
-    throw new Error(
+    throw new SupabaseInfrastructureError(
       `O Supabase não conseguiu concluir a operação (HTTP ${response.status}).`,
     );
   }
@@ -76,21 +87,25 @@ export async function readSupabaseState(): Promise<{
     revision: string;
   } | null>("chaveflow_read_state");
   if (!snapshot)
-    throw new Error("Banco não inicializado. Execute npm run db:setup.");
+    throw new SupabaseInfrastructureError(
+      "Banco não inicializado. Execute npm run db:setup.",
+    );
   return snapshot;
 }
 
 export async function commitSupabaseState(
   snapshot: { state: DatabaseState; revision: string },
   files: PendingPrivateFile[],
+  deletedFileKeys: string[] = [],
 ) {
   const saved = await supabaseRpc<boolean>("chaveflow_commit_state", {
     p_expected_revision: snapshot.revision,
     p_state: snapshot.state,
     p_files: files,
+    p_deleted_storage_keys: deletedFileKeys,
   });
   if (!saved)
-    throw new Error(
+    throw new SupabaseInfrastructureError(
       "Os dados foram alterados por outro usuário. Atualize a página e tente novamente.",
     );
 }

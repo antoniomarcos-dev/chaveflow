@@ -19,8 +19,11 @@ import { AuthenticatedContext } from "@/domain/types";
 import { loadDatabaseState } from "@/infrastructure/database";
 import { assertSameOriginRequest } from "@/lib/request-security";
 import { getServerSessionContext } from "@/lib/server-session";
+import { getCustomerAccessToken } from "@/lib/customer-access";
 import { NextRequest, NextResponse } from "next/server";
 import { ZodError } from "zod";
+import { parseLiteral, readJsonBody, RequestPayloadError, strictBoolean } from "@/lib/api-input";
+import { SupabaseInfrastructureError } from "@/infrastructure/supabase";
 
 async function resolveCustomerTokenContext(
   accessToken: string,
@@ -115,7 +118,7 @@ export async function POST(req: NextRequest) {
       const documentId = String(formData.get("documentId") || "");
       const uploadNotes = String(formData.get("uploadNotes") || "");
       const replacementReason = String(formData.get("replacementReason") || "");
-      const accessToken = String(formData.get("accessToken") || "");
+      const accessToken = (await getCustomerAccessToken()) || "";
       const file = formData.get("file");
 
       if (accessToken) {
@@ -152,7 +155,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: true, ...res });
     }
 
-    const body = await req.json();
+    const body = await readJsonBody<Record<string, unknown>>(req);
     const action = body.action as string;
 
     if (!ctx) {
@@ -178,7 +181,11 @@ export async function POST(req: NextRequest) {
         ctx,
         dealId: String(body.dealId || ""),
         taskCode: String(body.taskCode || ""),
-        action: body.taskAction,
+        action: parseLiteral(
+          body.taskAction,
+          ["CLAIM", "START", "COMPLETE_OPERATIONAL", "ASSIGN"] as const,
+          "Ação de tarefa inválida.",
+        ),
         targetAssigneeId: body.targetAssigneeId
           ? String(body.targetAssigneeId)
           : undefined,
@@ -194,11 +201,23 @@ export async function POST(req: NextRequest) {
         title: String(body.title || ""),
         category: String(body.category || "COMPLEMENTARY"),
         whyRequired: String(body.whyRequired || ""),
-        responsibleArea: body.responsibleArea || "DOCUMENTATION",
+        responsibleArea: parseLiteral(
+          body.responsibleArea || "DOCUMENTATION",
+          [
+            "COMMERCIAL",
+            "FINANCE",
+            "DOCUMENTATION",
+            "BILLING",
+            "OPERATIONS",
+            "RELEASE",
+            "MANAGEMENT",
+          ] as const,
+          "Área responsável inválida.",
+        ),
         taskCode: body.taskCode ? String(body.taskCode) : null,
-        blocksBilling: Boolean(body.blocksBilling),
-        blocksDelivery: Boolean(body.blocksDelivery),
-        isCustomerVisible: Boolean(body.isCustomerVisible),
+        blocksBilling: strictBoolean(body.blocksBilling),
+        blocksDelivery: strictBoolean(body.blocksDelivery),
+        isCustomerVisible: strictBoolean(body.isCustomerVisible),
       });
       return NextResponse.json({ ok: true, document: doc });
     }
@@ -208,7 +227,11 @@ export async function POST(req: NextRequest) {
         ctx,
         dealId: String(body.dealId || ""),
         documentId: String(body.documentId || ""),
-        decision: body.decision,
+        decision: parseLiteral(
+          body.decision,
+          ["APPROVED", "REJECTED", "CORRECTION_REQUESTED"] as const,
+          "Decisão documental inválida.",
+        ),
         justification: body.justification
           ? String(body.justification)
           : undefined,
@@ -227,7 +250,11 @@ export async function POST(req: NextRequest) {
         ctx,
         dealId: String(body.dealId || ""),
         taskCode: String(body.taskCode || ""),
-        decision: body.decision,
+        decision: parseLiteral(
+          body.decision,
+          ["APPROVED", "REJECTED", "CORRECTION_REQUESTED"] as const,
+          "Decisão de aprovação inválida.",
+        ),
         justification: String(body.justification || ""),
         evidenceDocumentIds: Array.isArray(body.evidenceDocumentIds)
           ? body.evidenceDocumentIds
@@ -351,6 +378,13 @@ export async function POST(req: NextRequest) {
     }
     const msg =
       err instanceof Error ? err.message : "Erro ao processar operação.";
+    if (err instanceof RequestPayloadError)
+      return NextResponse.json({ error: err.message }, { status: err.statusCode });
+    if (err instanceof SupabaseInfrastructureError)
+      return NextResponse.json(
+        { error: "Serviço temporariamente indisponível." },
+        { status: err.statusCode },
+      );
     return NextResponse.json({ error: msg }, { status: 400 });
   }
 }

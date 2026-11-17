@@ -36,7 +36,7 @@ export function DealStatusBadge({ status }: { status: DealStatus }) {
     ACTIVE: {
       bg: "bg-[#EAF3FC]",
       text: "text-[#0B3B70]",
-      border: "border-[#1684D8]/35",
+      border: "border-[#126FB8]/35",
       Icon: PlayCircle,
     },
     ELIGIBLE_FOR_AUTHORIZATION: {
@@ -92,13 +92,13 @@ export function TaskStateBadge({ state }: { state: TaskState }) {
     AVAILABLE: {
       bg: "bg-[#EAF3FC]",
       text: "text-[#0B3B70]",
-      border: "border-[#1684D8]/35",
+      border: "border-[#126FB8]/35",
       Icon: PlayCircle,
     },
     IN_PROGRESS: {
       bg: "bg-[#EAF3FC]",
       text: "text-[#0B3B70]",
-      border: "border-[#1684D8]/40",
+      border: "border-[#126FB8]/40",
       Icon: Clock,
     },
     WAITING_INFO: {
@@ -110,7 +110,7 @@ export function TaskStateBadge({ state }: { state: TaskState }) {
     IN_REVIEW: {
       bg: "bg-[#EAF3FC]",
       text: "text-[#0B3B70]",
-      border: "border-[#1684D8]/40",
+      border: "border-[#126FB8]/40",
       Icon: FileCheck2,
     },
     COMPLETED: {
@@ -160,7 +160,7 @@ export function DocumentStatusBadge({ status }: { status: DocumentStatus }) {
     UPLOADED_PENDING_REVIEW: {
       bg: "bg-[#EAF3FC]",
       text: "text-[#0B3B70]",
-      border: "border-[#1684D8]/40",
+      border: "border-[#126FB8]/40",
       Icon: FileCheck2,
     },
     APPROVED: {
@@ -216,7 +216,7 @@ export function StockStatusBadge({ status }: { status: VehicleStockStatus }) {
     RESERVED: {
       bg: "bg-[#EAF3FC]",
       text: "text-[#0B3B70]",
-      border: "border-[#1684D8]/40",
+      border: "border-[#126FB8]/40",
       Icon: Lock,
     },
     IN_PREPARATION: {

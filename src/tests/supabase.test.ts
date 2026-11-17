@@ -46,7 +46,12 @@ describe("Persistência Supabase por HTTPS", () => {
       .mockResolvedValueOnce(Response.json(true));
     vi.stubGlobal("fetch", fetch);
     await withTransaction(async (db) => {
-      db.idempotencyKeys.push("saved");
+      db.idempotencyKeys.push({
+        key: "saved",
+        organizationId: "org",
+        dealId: "deal",
+        createdAt: new Date().toISOString(),
+      });
       await savePrivateFileBlob({
         organizationId: "org",
         contentBuffer: Buffer.from("private file"),
@@ -58,7 +63,7 @@ describe("Persistência Supabase por HTTPS", () => {
     const payload = JSON.parse(options.body);
     expect(String(url)).toContain("chaveflow_commit_state");
     expect(payload.p_expected_revision).toBe("3");
-    expect(payload.p_state.idempotencyKeys).toEqual(["saved"]);
+    expect(payload.p_state.idempotencyKeys[0].key).toBe("saved");
     expect(
       Buffer.from(payload.p_files[0].content_base64, "base64").toString(),
     ).toBe("private file");
@@ -73,7 +78,12 @@ describe("Persistência Supabase por HTTPS", () => {
     vi.stubGlobal("fetch", fetch);
     await expect(
       withTransaction(async (db) => {
-        db.idempotencyKeys.push("must rollback");
+        db.idempotencyKeys.push({
+          key: "must rollback",
+          organizationId: "org",
+          dealId: "deal",
+          createdAt: new Date().toISOString(),
+        });
         await savePrivateFileBlob({
           organizationId: "org",
           contentBuffer: Buffer.from("not saved"),
@@ -95,7 +105,12 @@ describe("Persistência Supabase por HTTPS", () => {
     vi.stubGlobal("fetch", fetch);
     await expect(
       withTransaction((db) => {
-        db.idempotencyKeys.push("conflict");
+        db.idempotencyKeys.push({
+          key: "conflict",
+          organizationId: "org",
+          dealId: "deal",
+          createdAt: new Date().toISOString(),
+        });
       }),
     ).rejects.toThrow(/outro usuário/);
     expect(fetch).toHaveBeenCalledTimes(2);

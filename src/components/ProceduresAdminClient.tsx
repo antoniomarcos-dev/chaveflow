@@ -9,6 +9,7 @@ import {
 } from "@/domain/types";
 import { formatDateTimeBr } from "@/lib/format";
 import { BookOpen, CheckCircle2, FilePlus, ShieldAlert } from "lucide-react";
+import { ActionFeedback } from "./ActionFeedback";
 import { useRouter } from "next/navigation";
 import React, { useState } from "react";
 
@@ -66,7 +67,10 @@ export function ProceduresAdminClient({
   );
   const [publishImmediately, setPublishImmediately] = useState(true);
   const [loading, setLoading] = useState(false);
-  const [feedback, setFeedback] = useState<string | null>(null);
+  const [feedback, setFeedback] = useState<{
+    type: "success" | "error";
+    text: string;
+  } | null>(null);
   const [areaFilter, setAreaFilter] = useState<ResponsibleArea | "ALL">("ALL");
 
   const filteredProcedures =
@@ -101,17 +105,24 @@ export function ProceduresAdminClient({
       const data = await res.json();
       if (res.ok && data.ok) {
         setShowNewForm(false);
-        setFeedback(
-          publishImmediately
+        setFeedback({
+          type: "success",
+          text: publishImmediately
             ? "Nova versão de procedimento publicada e ativa para orientações oficiais!"
             : "Rascunho de procedimento salvo (não alimenta orientações oficiais até ser publicado).",
-        );
+        });
         router.refresh();
       } else {
-        setFeedback(data.error || "Erro ao salvar procedimento.");
+        setFeedback({
+          type: "error",
+          text: data.error || "Erro ao salvar procedimento.",
+        });
       }
     } catch {
-      setFeedback("Não foi possível salvar o procedimento. Confira sua conexão e tente novamente. Seu texto foi mantido.");
+      setFeedback({
+        type: "error",
+        text: "Não foi possível salvar o procedimento. Confira sua conexão e tente novamente. Seu texto foi mantido.",
+      });
     } finally {
       setLoading(false);
     }
@@ -130,15 +141,24 @@ export function ProceduresAdminClient({
       });
       const data = await res.json();
       if (res.ok && data.ok) {
-        setFeedback(
-          "Versão promovida de Rascunho para Publicado! Agora alimenta as orientações oficiais.",
-        );
+        setFeedback({
+          type: "success",
+          text: "Versão promovida de Rascunho para Publicado! Agora alimenta as orientações oficiais.",
+        });
         router.refresh();
       } else {
-        setFeedback(data.error || "Não foi possível publicar a versão. Tente novamente.");
+        setFeedback({
+          type: "error",
+          text:
+            data.error ||
+            "Não foi possível publicar a versão. Tente novamente.",
+        });
       }
     } catch {
-      setFeedback("Falha de conexão ao publicar. Tente novamente.");
+      setFeedback({
+        type: "error",
+        text: "Falha de conexão ao publicar. Tente novamente.",
+      });
     } finally {
       setLoading(false);
     }
@@ -149,8 +169,8 @@ export function ProceduresAdminClient({
       {/* Cabeçalho (4.12 Procedimentos e regras) */}
       <div className="bg-white rounded-2xl border border-slate-200/90 p-6 shadow-xs flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <span className="inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-[#0B3B70] bg-[#EAF3FC] border border-[#1684D8]/30 px-2.5 py-0.5 rounded">
-            <ShieldAlert className="h-3.5 w-3.5 text-[#1684D8]" />
+          <span className="inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-[#0B3B70] bg-[#EAF3FC] border border-[#126FB8]/30 px-2.5 py-0.5 rounded">
+            <ShieldAlert className="h-3.5 w-3.5 text-[#126FB8]" />
             <span>Procedimentos e Regras Confirmadas da Organização</span>
           </span>
           <h1 className="text-2xl font-extrabold text-[#172B3A] mt-2">
@@ -165,7 +185,7 @@ export function ProceduresAdminClient({
           <button
             type="button"
             onClick={() => setShowNewForm((v) => !v)}
-            className="inline-flex items-center gap-2 rounded-xl bg-[#1684D8] hover:bg-[#126FB8] px-4 py-2.5 text-xs sm:text-sm font-bold text-white shadow-xs transition shrink-0"
+            className="inline-flex items-center gap-2 rounded-xl bg-[#126FB8] hover:bg-[#0B3B70] px-4 py-2.5 text-xs sm:text-sm font-bold text-white shadow-xs transition shrink-0"
           >
             <FilePlus className="h-4 w-4" />
             <span>Novo procedimento</span>
@@ -174,16 +194,19 @@ export function ProceduresAdminClient({
       </div>
 
       {feedback && (
-        <div className="rounded-xl bg-emerald-50 border border-emerald-300 p-4 text-xs text-emerald-950 font-semibold">
-          {feedback}
-        </div>
+        <ActionFeedback
+          type={feedback.type}
+          onDismiss={() => setFeedback(null)}
+        >
+          {feedback.text}
+        </ActionFeedback>
       )}
 
       {/* Formulário de Criação/Publicação de Procedimento */}
       {showNewForm && canManageProcedures && (
         <form
           onSubmit={handleSaveProcedure}
-          className="bg-white rounded-2xl border-2 border-[#1684D8] p-6 shadow-md space-y-4 text-xs"
+          className="bg-white rounded-2xl border-2 border-[#126FB8] p-6 shadow-md space-y-4 text-xs"
         >
           <h2 className="text-base font-bold text-[#172B3A]">
             Criar ou Versionar Procedimento Operacional
@@ -298,7 +321,7 @@ export function ProceduresAdminClient({
             <button
               type="submit"
               disabled={loading}
-              className="rounded-lg bg-[#1684D8] hover:bg-[#126FB8] px-5 py-2 font-bold text-white transition"
+              className="rounded-lg bg-[#126FB8] hover:bg-[#0B3B70] px-5 py-2 font-bold text-white transition"
             >
               {publishImmediately
                 ? "Salvar e Publicar Versão"
@@ -312,7 +335,7 @@ export function ProceduresAdminClient({
       <section className="space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <h2 className="text-base font-bold text-[#172B3A] flex items-center gap-2">
-            <BookOpen className="h-5 w-5 text-[#1684D8]" />
+            <BookOpen className="h-5 w-5 text-[#126FB8]" />
             <span>Procedimentos da Concessionária ({filteredProcedures.length})</span>
           </h2>
 
@@ -323,7 +346,7 @@ export function ProceduresAdminClient({
               onClick={() => setAreaFilter("ALL")}
               className={`rounded-lg px-2.5 py-1.5 text-xs font-bold transition ${
                 areaFilter === "ALL"
-                  ? "bg-[#1684D8] text-white"
+                  ? "bg-[#126FB8] text-white"
                   : "bg-white border border-slate-200 text-slate-600 hover:bg-slate-50"
               }`}
             >
@@ -336,7 +359,7 @@ export function ProceduresAdminClient({
                 onClick={() => setAreaFilter(ar)}
                 className={`rounded-lg px-2.5 py-1.5 text-xs font-bold transition ${
                   areaFilter === ar
-                    ? "bg-[#1684D8] text-white"
+                    ? "bg-[#126FB8] text-white"
                     : "bg-white border border-slate-200 text-slate-600 hover:bg-slate-50"
                 }`}
               >
@@ -358,7 +381,7 @@ export function ProceduresAdminClient({
                     <span className="font-mono text-xs font-bold bg-[#0B3B70] text-white px-2.5 py-0.5 rounded">
                       {proc.code}
                     </span>
-                    <span className="text-xs font-bold bg-[#EAF3FC] text-[#0B3B70] border border-[#1684D8]/30 px-2.5 py-0.5 rounded">
+                    <span className="text-xs font-bold bg-[#EAF3FC] text-[#0B3B70] border border-[#126FB8]/30 px-2.5 py-0.5 rounded">
                       Responsável: {proc.areaLabel}
                     </span>
                   </div>
@@ -384,7 +407,7 @@ export function ProceduresAdminClient({
 
               {proc.publishedVersion && (
                 <div className="space-y-2 text-xs">
-                  <div className="rounded-xl bg-[#EAF3FC]/50 border border-[#1684D8]/20 p-3 text-[#172B3A]">
+                  <div className="rounded-xl bg-[#EAF3FC]/50 border border-[#126FB8]/20 p-3 text-[#172B3A]">
                     <span className="font-bold text-[#0B3B70] block mb-0.5">
                       Finalidade e Condição de Aplicação:
                     </span>
@@ -451,7 +474,7 @@ export function ProceduresAdminClient({
                           type="button"
                           disabled={loading}
                           onClick={() => handlePublishDraft(ver.id)}
-                          className="rounded-lg bg-[#1684D8] hover:bg-[#126FB8] px-3 py-1.5 text-xs font-bold text-white transition"
+                          className="rounded-lg bg-[#126FB8] hover:bg-[#0B3B70] px-3 py-1.5 text-xs font-bold text-white transition"
                         >
                           Publicar esta Versão (v{ver.versionNumber})
                         </button>

@@ -1,13 +1,12 @@
 import {
-  getCustomerSafeDealView,
   listDealsForAuthenticatedCustomer,
 } from "@/application/customer-portal-service";
 import { CustomerPortalHome } from "@/components/CustomerPortalHome";
-import { CustomerPortalViewClient } from "@/components/CustomerPortalViewClient";
 import { AuthorizationError } from "@/domain/permissions";
 import { getServerSessionContext } from "@/lib/server-session";
 import { ShieldAlert } from "lucide-react";
 import Link from "next/link";
+import { redirect } from "next/navigation";
 
 export default async function CustomerPortalIndexPage({
   searchParams,
@@ -17,22 +16,33 @@ export default async function CustomerPortalIndexPage({
   const sp = await searchParams;
   const ctx = await getServerSessionContext();
 
-  // Caso 1: Token individual de convite na URL (?token=...)
+  // Legacy links are exchanged for an HttpOnly cookie before rendering.
   if (sp.token) {
-    try {
-      const view = await getCustomerSafeDealView({
-        ctx,
-        accessToken: sp.token,
-        dealId: sp.dealId,
-      });
-      return <CustomerPortalViewClient view={view} accessToken={sp.token} />;
-    } catch (err) {
-      const isAuthErr = err instanceof AuthorizationError;
-      const message =
-        err instanceof Error
-          ? err.message
-          : "Acesso não autorizado ao Portal do Comprador.";
-      const code = isAuthErr ? err.code : "ACCESS_DENIED";
+    redirect(
+      `/cliente/convite/${encodeURIComponent(sp.token)}${
+        sp.dealId ? `?dealId=${encodeURIComponent(sp.dealId)}` : ""
+      }`,
+    );
+  }
+
+  // Caso 1: sessão autenticada do cliente
+  try {
+    const customerDeals = ctx
+      ? await listDealsForAuthenticatedCustomer(ctx)
+      : [];
+    return (
+      <CustomerPortalHome
+        name={ctx?.profile.isCustomerOnly ? ctx.profile.fullName : undefined}
+        deals={customerDeals}
+      />
+    );
+  } catch (err) {
+    const isAuthErr = err instanceof AuthorizationError;
+    const message =
+      err instanceof Error
+        ? err.message
+        : "Acesso não autorizado ao Portal do Comprador.";
+    const code = isAuthErr ? err.code : "ACCESS_DENIED";
 
       return (
         <div className="min-h-screen bg-slate-950 text-white flex flex-col justify-center items-center p-6">
@@ -81,15 +91,5 @@ export default async function CustomerPortalIndexPage({
           </div>
         </div>
       );
-    }
   }
-
-  // Caso 2: Cliente autenticado por sessão
-  const customerDeals = ctx ? await listDealsForAuthenticatedCustomer(ctx) : [];
-  return (
-    <CustomerPortalHome
-      name={ctx?.profile.isCustomerOnly ? ctx.profile.fullName : undefined}
-      deals={customerDeals}
-    />
-  );
 }

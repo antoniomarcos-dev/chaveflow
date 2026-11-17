@@ -9,6 +9,8 @@ import { assertSameOriginRequest } from "@/lib/request-security";
 import { getServerSessionContext } from "@/lib/server-session";
 import { NextRequest, NextResponse } from "next/server";
 import { ZodError } from "zod";
+import { readJsonBody, RequestPayloadError } from "@/lib/api-input";
+import { SupabaseInfrastructureError } from "@/infrastructure/supabase";
 
 export async function POST(req: NextRequest) {
   try {
@@ -52,7 +54,7 @@ export async function POST(req: NextRequest) {
       });
       return NextResponse.json({ ok: true, vehicle });
     }
-    const body = await req.json();
+    const body = await readJsonBody<Record<string, unknown>>(req);
     const action = body.action as string;
 
     if (action === "RESOLVE_QR_SCAN") {
@@ -129,6 +131,13 @@ export async function POST(req: NextRequest) {
     }
     const msg =
       err instanceof Error ? err.message : "Erro ao processar veículo.";
+    if (err instanceof RequestPayloadError)
+      return NextResponse.json({ error: err.message }, { status: err.statusCode });
+    if (err instanceof SupabaseInfrastructureError)
+      return NextResponse.json(
+        { error: "Serviço temporariamente indisponível." },
+        { status: err.statusCode },
+      );
     return NextResponse.json({ error: msg }, { status: 400 });
   }
 }

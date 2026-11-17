@@ -16,7 +16,7 @@ export function AccountNavigation({
     <div className="flex flex-wrap items-center gap-4 text-xs font-semibold">
       <Link
         href="/"
-        className="inline-flex items-center gap-1.5 text-slate-500 hover:text-[#1684D8]"
+        className="inline-flex items-center gap-1.5 text-slate-500 hover:text-[#126FB8]"
       >
         <ArrowLeft className="h-3.5 w-3.5" />
         Início
@@ -41,7 +41,7 @@ export function AccountNavigation({
               setBusy(false);
             }
           }}
-          className="inline-flex items-center gap-1.5 text-slate-500 hover:text-[#1684D8]"
+          className="inline-flex items-center gap-1.5 text-slate-500 hover:text-[#126FB8]"
         >
           <LogOut className="h-3.5 w-3.5" />
           {busy ? "Saindo…" : "Sair da conta"}
@@ -49,7 +49,7 @@ export function AccountNavigation({
       ) : (
         <Link
           href="/login?area=cliente"
-          className="rounded-lg bg-[#EAF3FC] border border-[#1684D8]/30 px-3 py-2 text-[#0B3B70] font-bold hover:bg-[#1684D8] hover:text-white transition"
+          className="rounded-lg bg-[#EAF3FC] border border-[#126FB8]/30 px-3 py-2 text-[#0B3B70] font-bold hover:bg-[#0B3B70] hover:text-white transition"
         >
           Entrar na minha conta
         </Link>

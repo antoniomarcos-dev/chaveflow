@@ -161,7 +161,7 @@ export function ManagerialDashboardClient({
             title: "Prontas para Autorização",
             value: kpis.eligibleForAuthorizationCount,
             unit: "veículos",
-            accent: "text-[#1684D8]",
+            accent: "text-[#126FB8]",
           },
           {
             key: "deliveryAuthorizedCount",
@@ -203,7 +203,7 @@ export function ManagerialDashboardClient({
             title: "Conferência Documental",
             value: kpis.waitingDocumentAnalysisCount,
             unit: "negociações",
-            accent: "text-[#1684D8]",
+            accent: "text-[#126FB8]",
           },
         ].map((item) => (
           <div
@@ -236,7 +236,7 @@ export function ManagerialDashboardClient({
         <section className="bg-white rounded-2xl border border-slate-200/90 p-5 shadow-xs space-y-4">
           <div>
             <h2 className="text-base font-bold text-[#172B3A] flex items-center gap-2">
-              <BarChart3 className="h-5 w-5 text-[#1684D8]" />
+              <BarChart3 className="h-5 w-5 text-[#126FB8]" />
               <span>Processos por Etapa do Fluxo</span>
             </h2>
             <p className="text-xs text-slate-500">
@@ -255,7 +255,7 @@ export function ManagerialDashboardClient({
                   </div>
                   <div className="h-2.5 w-full rounded-full bg-slate-100 overflow-hidden">
                     <div
-                      className="h-full bg-[#1684D8] rounded-full transition-all"
+                      className="h-full bg-[#126FB8] rounded-full transition-all"
                       style={{
                         width: `${st.count > 0 ? Math.max(8, pct) : 0}%`,
                       }}
@@ -305,7 +305,7 @@ export function ManagerialDashboardClient({
 
       {/* Gráficos 3 e 4: Tempo Mediano Venda -> Entrega & Tempo em Cada Etapa */}
       <div className="grid lg:grid-cols-12 gap-6">
-        <section className="lg:col-span-5 bg-[#0B3B70] text-white rounded-2xl p-6 border border-[#1684D8]/30 flex flex-col justify-between space-y-4">
+        <section className="lg:col-span-5 bg-[#0B3B70] text-white rounded-2xl p-6 border border-[#126FB8]/30 flex flex-col justify-between space-y-4">
           <div className="space-y-2">
             <span className="text-xs font-bold uppercase tracking-wider text-[#7CC4FA]">
               Tempo do Ciclo Operacional
@@ -349,7 +349,7 @@ export function ManagerialDashboardClient({
         <section className="lg:col-span-7 bg-white rounded-2xl border border-slate-200/90 p-5 shadow-xs space-y-4">
           <div>
             <h2 className="text-base font-bold text-[#172B3A] flex items-center gap-2">
-              <Clock className="h-5 w-5 text-[#1684D8]" />
+              <Clock className="h-5 w-5 text-[#126FB8]" />
               <span>Tempo Médio de Execução das Tarefas por Etapa (Horas)</span>
             </h2>
             <p className="text-xs text-slate-500">
@@ -366,7 +366,7 @@ export function ManagerialDashboardClient({
               >
                 <span className="font-bold text-[#172B3A]">{hs.stageName}</span>
                 {hs.avgHours !== null ? (
-                  <span className="font-mono font-bold text-[#0B3B70] bg-[#EAF3FC] border border-[#1684D8]/30 px-2.5 py-0.5 rounded">
+                  <span className="font-mono font-bold text-[#0B3B70] bg-[#EAF3FC] border border-[#126FB8]/30 px-2.5 py-0.5 rounded">
                     {hs.avgHours}h ({hs.sampleSize} concluída(s))
                   </span>
                 ) : (
@@ -385,7 +385,7 @@ export function ManagerialDashboardClient({
         <section className="bg-white rounded-2xl border border-slate-200/90 p-5 shadow-xs space-y-4">
           <div>
             <h2 className="text-base font-bold text-[#172B3A] flex items-center gap-2">
-              <RefreshCcw className="h-5 w-5 text-[#1684D8]" />
+              <RefreshCcw className="h-5 w-5 text-[#126FB8]" />
               <span>Retrabalho por Negociação</span>
             </h2>
             <p className="text-xs text-slate-500">
@@ -435,7 +435,7 @@ export function ManagerialDashboardClient({
         <section className="bg-white rounded-2xl border border-slate-200/90 p-5 shadow-xs space-y-4">
           <div>
             <h2 className="text-base font-bold text-[#172B3A] flex items-center gap-2">
-              <Users className="h-5 w-5 text-[#1684D8]" />
+              <Users className="h-5 w-5 text-[#126FB8]" />
               <span>Carga de Trabalho por Área e Responsável</span>
             </h2>
             <p className="text-xs text-slate-500">

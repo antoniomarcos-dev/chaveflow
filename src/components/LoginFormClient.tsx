@@ -7,6 +7,7 @@ import {
   EyeOff,
   KeyRound,
   Lock,
+  Loader2,
   ShieldCheck,
 } from "lucide-react";
 import Link from "next/link";
@@ -90,15 +91,15 @@ export function LoginFormClient({
           </span>
           <div>
             <span className="block text-lg font-extrabold tracking-tight text-[#0B3B70]">
-              <span className="text-[#1684D8] mr-1">//</span>AUTO
-              <span className="text-[#1684D8]">FLOW</span>
+              <span className="text-[#126FB8] mr-1">//</span>AUTO
+              <span className="text-[#126FB8]">FLOW</span>
             </span>
             <span className="block text-[11px] font-medium text-slate-600">
               Sua operação conectada do início ao fim.
             </span>
           </div>
         </Link>
-        <span className="inline-flex items-center rounded-lg bg-[#EAF3FC] border border-[#1684D8]/30 px-3 py-1 text-xs font-bold text-[#0B3B70]">
+        <span className="inline-flex items-center rounded-lg bg-[#EAF3FC] border border-[#126FB8]/30 px-3 py-1 text-xs font-bold text-[#0B3B70]">
           Pinauto BYD — Ceres/GO
         </span>
       </header>
@@ -119,7 +120,7 @@ export function LoginFormClient({
           </p>
 
           {authenticatedDashboardUrl && (
-            <div className="mt-4 rounded-xl border border-[#1684D8]/30 bg-[#EAF3FC] p-3.5 flex items-center justify-between gap-3">
+            <div className="mt-4 rounded-xl border border-[#126FB8]/30 bg-[#EAF3FC] p-3.5 flex items-center justify-between gap-3">
               <div className="text-xs text-[#0B3B70]">
                 <p className="font-bold">Sessão ativa localizada</p>
                 {authenticatedUserName && (
@@ -130,7 +131,7 @@ export function LoginFormClient({
               </div>
               <Link
                 href={authenticatedDashboardUrl}
-                className="shrink-0 inline-flex items-center gap-1.5 rounded-lg bg-[#0B3B70] px-3.5 py-2 text-xs font-bold text-white hover:bg-[#1684D8] transition"
+                className="shrink-0 inline-flex items-center gap-1.5 rounded-lg bg-[#0B3B70] px-3.5 py-2 text-xs font-bold text-white hover:bg-[#0B3B70] transition"
               >
                 Continuar
                 <ArrowRight className="h-3.5 w-3.5" />
@@ -171,7 +172,7 @@ export function LoginFormClient({
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="voce@pinauto.com.br"
-                className="mt-1.5 block w-full rounded-xl border border-slate-300 bg-white px-3.5 py-3 text-sm text-[#172B3A] focus:border-[#1684D8]"
+                className="mt-1.5 block w-full rounded-xl border border-slate-300 bg-white px-3.5 py-3 text-sm text-[#172B3A] focus:border-[#126FB8]"
               />
             </div>
 
@@ -185,7 +186,7 @@ export function LoginFormClient({
                 </label>
                 <Link
                   href="/recuperar-senha"
-                  className="text-xs font-semibold text-[#0B3B70] hover:text-[#1684D8] hover:underline"
+                  className="text-xs font-semibold text-[#0B3B70] hover:text-[#126FB8] hover:underline"
                 >
                   Recuperar senha
                 </Link>
@@ -200,7 +201,7 @@ export function LoginFormClient({
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="Digite sua senha"
-                  className="block w-full rounded-xl border border-slate-300 bg-white px-3.5 py-3 pr-24 text-sm text-[#172B3A] focus:border-[#1684D8]"
+                  className="block w-full rounded-xl border border-slate-300 bg-white px-3.5 py-3 pr-24 text-sm text-[#172B3A] focus:border-[#126FB8]"
                 />
                 <button
                   type="button"
@@ -226,12 +227,58 @@ export function LoginFormClient({
             <button
               type="submit"
               disabled={loading}
-              className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#1684D8] px-4 py-3.5 text-sm font-bold text-white shadow-sm transition hover:bg-[#0B3B70] disabled:opacity-50"
+              aria-busy={loading}
+              className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#126FB8] px-4 py-3.5 text-sm font-bold text-white shadow-sm transition hover:bg-[#0B3B70] disabled:opacity-50"
             >
+              {loading && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />}
               <span>{loading ? "Entrando no sistema…" : "Entrar"}</span>
               <ArrowRight className="h-4 w-4" />
             </button>
           </form>
+
+          <section
+            aria-labelledby="demo-credentials-title"
+            className="mt-5 rounded-xl border border-[#126FB8]/25 bg-[#EAF3FC] p-4"
+          >
+            <div className="flex items-start gap-2">
+              <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-[#126FB8]" />
+              <div className="min-w-0">
+                <h2
+                  id="demo-credentials-title"
+                  className="text-xs font-extrabold uppercase tracking-wide text-[#0B3B70]"
+                >
+                  Credenciais para avaliação da banca
+                </h2>
+                <p className="mt-1 text-[11px] leading-relaxed text-slate-600">
+                  Acessos demonstrativos exclusivos para esta apresentação.
+                </p>
+              </div>
+            </div>
+            <div className="mt-3 grid gap-2 sm:grid-cols-2">
+              {[
+                ["Administrador", "admin@pinauto.demo", "Autoflow123!"],
+                ["Gestor", "gestor@pinauto.demo", "Autoflow123!"],
+                ["Vendedor", "vendedor@pinauto.demo", "Autoflow123!"],
+                ["Cliente", "helena.martins@cliente.demo", "Cliente1234!"],
+              ].map(([profile, email, demoPassword]) => (
+                <div
+                  key={email}
+                  className="rounded-lg border border-white/80 bg-white/80 px-3 py-2.5"
+                >
+                  <p className="text-[11px] font-bold text-[#172B3A]">{profile}</p>
+                  <p className="mt-1 break-all font-mono text-[11px] text-[#0B3B70]">
+                    {email}
+                  </p>
+                  <p className="mt-0.5 text-[11px] text-slate-600">
+                    Senha:{" "}
+                    <span className="font-mono font-semibold text-[#172B3A]">
+                      {demoPassword}
+                    </span>
+                  </p>
+                </div>
+              ))}
+            </div>
+          </section>
 
           <div className="mt-6 border-t border-slate-200 pt-4 space-y-2">
             <div className="flex items-start gap-2 text-xs leading-relaxed text-slate-600">
@@ -248,7 +295,7 @@ export function LoginFormClient({
         <details className="mt-4 rounded-xl border border-slate-200 bg-white px-4 py-3 text-xs text-slate-600">
           <summary className="flex cursor-pointer list-none items-center justify-between font-semibold text-[#0B3B70]">
             <span className="inline-flex items-center gap-1.5">
-              <ShieldCheck className="h-4 w-4 text-[#1684D8]" />
+              <ShieldCheck className="h-4 w-4 text-[#126FB8]" />
               Sobre o funcionamento do AUTOFLOW
             </span>
             <ChevronDown className="h-4 w-4 text-slate-400" />

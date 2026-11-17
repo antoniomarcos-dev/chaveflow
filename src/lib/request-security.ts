@@ -8,7 +8,23 @@ export function assertSameOriginRequest(request: NextRequest) {
   const allowedOrigins = new Set([new URL(request.url).origin]);
   if (process.env.CHAVEFLOW_APP_URL)
     allowedOrigins.add(new URL(process.env.CHAVEFLOW_APP_URL).origin);
-  if (origin && !allowedOrigins.has(origin))
+  const referer = request.headers.get("referer");
+  let refererOrigin: string | null = null;
+  if (referer) {
+    try {
+      refererOrigin = new URL(referer).origin;
+    } catch {
+      throw new AuthorizationError(
+        "Referência da solicitação inválida.",
+        "INVALID_ORIGIN",
+        403,
+      );
+    }
+  }
+  if (
+    (origin && !allowedOrigins.has(origin)) ||
+    (refererOrigin && !allowedOrigins.has(refererOrigin))
+  )
     throw new AuthorizationError(
       "Origem da solicitação não permitida.",
       "INVALID_ORIGIN",

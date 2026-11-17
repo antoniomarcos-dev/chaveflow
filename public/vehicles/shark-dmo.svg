@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 360" role="img" aria-labelledby="title desc">
+  <title id="title">BYD Shark DMO</title><desc id="desc">Ilustração de uma picape azul.</desc>
+  <rect width="640" height="360" rx="28" fill="#EAF3FC"/>
+  <path d="M72 235h39l30-60c9-20 29-34 51-34h197l57 31 37 63h66c12 0 21 9 21 21v19H72v-19c0-12 9-21 21-21Z" fill="#0B3B70"/>
+  <path d="M215 153h165l43 27H192l15-25c2-1 5-2 8-2Z" fill="#7CC4FA"/>
+  <path d="M421 181h72l21 32h-71Z" fill="#126FB8"/>
+  <circle cx="174" cy="276" r="31" fill="#172B3A"/><circle cx="174" cy="276" r="13" fill="#EAF3FC"/>
+  <circle cx="476" cy="276" r="31" fill="#172B3A"/><circle cx="476" cy="276" r="13" fill="#EAF3FC"/>
+  <text x="320" y="326" text-anchor="middle" font-family="Arial,sans-serif" font-size="24" font-weight="700" fill="#0B3B70">SHARK DMO</text>
+</svg>

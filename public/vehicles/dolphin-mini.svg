@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 360" role="img" aria-labelledby="title desc">
+  <title id="title">BYD Dolphin Mini</title><desc id="desc">Ilustração de um hatch compacto azul.</desc>
+  <rect width="640" height="360" rx="28" fill="#EAF3FC"/>
+  <path d="M118 237h35l24-53c9-20 27-32 49-32h142c25 0 46 12 59 32l34 53h44c12 0 21 9 21 21v17H97v-17c0-12 9-21 21-21Z" fill="#126FB8"/>
+  <path d="M220 166h137c12 0 23 6 30 16l12 18H196l11-23c3-7 7-11 13-11Z" fill="#7CC4FA"/>
+  <circle cx="190" cy="275" r="29" fill="#172B3A"/><circle cx="190" cy="275" r="12" fill="#EAF3FC"/>
+  <circle cx="450" cy="275" r="29" fill="#172B3A"/><circle cx="450" cy="275" r="12" fill="#EAF3FC"/>
+  <text x="320" y="326" text-anchor="middle" font-family="Arial,sans-serif" font-size="24" font-weight="700" fill="#0B3B70">DOLPHIN MINI</text>
+</svg>

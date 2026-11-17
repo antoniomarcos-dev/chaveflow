@@ -15,6 +15,7 @@ import {
 } from "@/domain/types";
 import {
   loadDatabaseState,
+  deletePrivateFileBlob,
   savePrivateFileBlob,
   withTransaction,
 } from "@/infrastructure/database";
@@ -314,6 +315,7 @@ export async function createOrUpdateVehicle(params: {
       existing.plate = parsed.plate ? parsed.plate.toUpperCase() : null;
       existing.condition = parsed.condition;
       existing.branchId = parsed.branchId;
+      const previousPhotoKey = existing.photoFile?.storageKey;
       if (photo) {
         const saved = await savePrivateFileBlob({
           organizationId: ctx.organization.id,
@@ -328,7 +330,11 @@ export async function createOrUpdateVehicle(params: {
         existing.photos = [
           `/api/vehicles/${existing.id}/photo?v=${saved.checksumSha256.slice(0, 16)}`,
         ];
+        if (previousPhotoKey) deletePrivateFileBlob(previousPhotoKey);
       } else if (params.removePhoto) {
+        if (existing.photoFile) {
+          deletePrivateFileBlob(existing.photoFile.storageKey);
+        }
         existing.photoFile = null;
         existing.photos = [];
       }

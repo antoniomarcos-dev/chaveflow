@@ -147,7 +147,7 @@ export function VehicleQrManagerClient({
           </p>
           <Link
             href="/app/veiculos/novo"
-            className="inline-flex min-h-11 items-center rounded-xl bg-[#1684D8] px-5 text-sm font-bold text-white"
+            className="inline-flex min-h-11 items-center rounded-xl bg-[#126FB8] px-5 text-sm font-bold text-white"
           >
             Cadastrar veículo
           </Link>
@@ -239,13 +239,13 @@ export function VehicleQrManagerClient({
             {filtered.map((v) => (
               <label
                 key={v.id}
-                className={`flex min-h-24 cursor-pointer items-center gap-3 rounded-xl border p-4 ${selected.has(v.id) ? "border-[#1684D8] bg-[#EAF3FC]" : "border-slate-200 hover:bg-slate-50"}`}
+                className={`flex min-h-24 cursor-pointer items-center gap-3 rounded-xl border p-4 ${selected.has(v.id) ? "border-[#126FB8] bg-[#EAF3FC]" : "border-slate-200 hover:bg-slate-50"}`}
               >
                 <input
                   type="checkbox"
                   checked={selected.has(v.id)}
                   onChange={() => toggle(v.id)}
-                  className="h-5 w-5 shrink-0 accent-[#1684D8]"
+                  className="h-5 w-5 shrink-0 accent-[#126FB8]"
                   aria-label={`Selecionar ${v.internalCode}`}
                 />
                 <div className="min-w-0 space-y-1">
@@ -285,7 +285,7 @@ export function VehicleQrManagerClient({
               type="button"
               onClick={generate}
               disabled={busy || !selected.size}
-              className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-[#1684D8] px-5 text-sm font-bold text-white disabled:opacity-50"
+              className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-[#126FB8] px-5 text-sm font-bold text-white disabled:opacity-50"
             >
               {busy ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
