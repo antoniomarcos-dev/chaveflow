@@ -277,6 +277,9 @@ export async function createOrSaveGuidedDeal(params: {
     "deal:create",
     "Sua função não possui permissão para abrir negociações.",
   );
+  if (idempotencyKey && (idempotencyKey.length < 8 || idempotencyKey.length > 128)) {
+    throw new Error("Chave de idempotência inválida.");
+  }
 
   const parsed = GuidedDealInputSchema.parse(input);
   if (
@@ -288,18 +291,25 @@ export async function createOrSaveGuidedDeal(params: {
     );
 
   return await withTransaction((db) => {
+    const retentionCutoff = Date.now() - 30 * 24 * 60 * 60 * 1000;
+    db.idempotencyKeys = db.idempotencyKeys.filter(
+      (entry) => Date.parse(entry.createdAt) >= retentionCutoff,
+    );
     if (idempotencyKey) {
-      if (db.idempotencyKeys.includes(idempotencyKey)) {
-        const latest = db.deals.find(
-          (d) =>
-            d.organizationId === ctx.organization.id &&
-            d.vehicleId === parsed.vehicleId,
-        );
-        if (latest) {
-          return { deal: latest, isDraft: latest.status === "DRAFT" };
+      const previous = db.idempotencyKeys.find(
+        (entry) =>
+          entry.key === idempotencyKey &&
+          entry.organizationId === ctx.organization.id,
+      );
+      if (previous) {
+        const previousDeal = db.deals.find((d) => d.id === previous.dealId);
+        if (previousDeal) {
+          return {
+            deal: previousDeal,
+            isDraft: previousDeal.status === "DRAFT",
+          };
         }
       }
-      db.idempotencyKeys.push(idempotencyKey);
     }
 
     const vehicle = db.vehicles.find((v) => v.id === parsed.vehicleId);
@@ -512,6 +522,14 @@ export async function createOrSaveGuidedDeal(params: {
         updatedAt: nowIso,
       };
       db.deals.unshift(deal);
+    }
+    if (idempotencyKey) {
+      db.idempotencyKeys.push({
+        key: idempotencyKey,
+        organizationId: ctx.organization.id,
+        dealId: deal.id,
+        createdAt: nowIso,
+      });
     }
 
     // Registrar veículo usado na troca separadamente (sem confundir com o veículo vendido)

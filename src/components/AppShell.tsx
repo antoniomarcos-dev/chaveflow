@@ -17,6 +17,7 @@ import {
   Settings,
   X,
 } from "lucide-react";
+import { ActionFeedback } from "./ActionFeedback";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import React, { useEffect, useRef, useState } from "react";
@@ -265,7 +266,7 @@ export function AppShell({
                 className="flex items-center gap-2.5 min-w-0"
                 title="AUTOFLOW — Sua operação conectada do início ao fim."
               >
-                <div className="h-9 w-9 rounded-lg bg-[#1684D8] flex items-center justify-center text-white font-black text-sm tracking-tighter shadow-xs shrink-0">
+                <div className="h-9 w-9 rounded-lg bg-[#126FB8] flex items-center justify-center text-white font-black text-sm tracking-tighter shadow-xs shrink-0">
                   //
                 </div>
                 {!sidebarCollapsed && (
@@ -307,7 +308,7 @@ export function AppShell({
             {!sidebarCollapsed ? (
               <div className="mt-3.5 rounded-xl bg-[#082B54]/90 border border-white/12 px-3 py-2.5 text-xs">
                 <div className="flex items-center gap-2">
-                  <Building2 className="h-3.5 w-3.5 text-[#1684D8] shrink-0" />
+                  <Building2 className="h-3.5 w-3.5 text-[#126FB8] shrink-0" />
                   <span className="font-bold text-white tracking-wide truncate">
                     {organizationName}
                   </span>
@@ -347,7 +348,7 @@ export function AppShell({
                     sidebarCollapsed ? "justify-center" : ""
                   } ${
                     isActive
-                      ? "bg-[#1684D8] text-white font-semibold shadow-xs"
+                      ? "bg-[#126FB8] text-white font-semibold shadow-xs"
                       : "text-[#EAF3FC]/90 hover:bg-white/10 hover:text-white"
                   }`}
                 >
@@ -372,7 +373,7 @@ export function AppShell({
               }`}
             >
               <div className="flex items-center gap-2.5 min-w-0">
-                <div className="h-8 w-8 rounded-full bg-[#1684D8] text-white font-bold text-xs flex items-center justify-center shrink-0 shadow-2xs">
+                <div className="h-8 w-8 rounded-full bg-[#126FB8] text-white font-bold text-xs flex items-center justify-center shrink-0 shadow-2xs">
                   {userInitials}
                 </div>
                 {!sidebarCollapsed && (
@@ -431,10 +432,11 @@ export function AppShell({
             <div className="flex items-center gap-2.5 sm:gap-3">
               <Link
                 href="/app/escanear"
-                className="inline-flex items-center gap-2 rounded-xl bg-[#EAF3FC] hover:bg-[#d8eafb] border border-[#1684D8]/30 px-3.5 py-2 text-xs font-bold text-[#0B3B70] transition"
+                aria-label="Escanear veículo"
+                className="inline-flex items-center gap-2 rounded-xl bg-[#EAF3FC] hover:bg-[#d8eafb] border border-[#126FB8]/30 px-3.5 py-2 text-xs font-bold text-[#0B3B70] transition"
               >
-                <QrCode className="h-4 w-4 text-[#1684D8]" />
-                <span>Escanear veículo</span>
+                <QrCode className="h-4 w-4 text-[#126FB8]" />
+                <span className="hidden sm:inline">Escanear veículo</span>
               </Link>
 
               {/* Notificações Internas */}
@@ -502,7 +504,7 @@ export function AppShell({
                               <Link
                                 href={`/app/negociacoes/${n.dealId}`}
                                 onClick={() => setNotifOpen(false)}
-                                className="inline-block mt-2 text-[#1684D8] font-bold hover:underline"
+                                className="inline-block mt-2 text-[#126FB8] font-bold hover:underline"
                               >
                                 Abrir Passaporte Digital →
                               </Link>
@@ -523,7 +525,7 @@ export function AppShell({
                 className="flex items-center gap-2 pl-1"
                 title={`${user.fullName} (${roles.map((r) => ROLE_LABELS[r]).join(", ")})`}
               >
-                <div className="h-9 w-9 rounded-full bg-[#1684D8] text-white font-bold text-xs flex items-center justify-center shadow-xs">
+                <div className="h-9 w-9 rounded-full bg-[#126FB8] text-white font-bold text-xs flex items-center justify-center shadow-xs">
                   {userInitials}
                 </div>
               </div>
@@ -572,7 +574,7 @@ export function AppShell({
               >
                 <div className="p-4 border-b border-white/12 flex items-center justify-between">
                   <div className="flex items-center gap-2.5">
-                    <span className="h-8 w-8 rounded-lg bg-[#1684D8] flex items-center justify-center text-white font-black text-xs">
+                    <span className="h-8 w-8 rounded-lg bg-[#126FB8] flex items-center justify-center text-white font-black text-xs">
                       //
                     </span>
                     <div>
@@ -612,7 +614,7 @@ export function AppShell({
                         onClick={() => setMobileMenuOpen(false)}
                         className={`flex items-center gap-3 rounded-xl px-3.5 py-2.5 text-sm font-medium transition ${
                           isActive
-                            ? "bg-[#1684D8] text-white font-semibold"
+                            ? "bg-[#126FB8] text-white font-semibold"
                             : "text-[#EAF3FC]/90 hover:bg-white/10"
                         }`}
                       >
@@ -634,7 +636,7 @@ export function AppShell({
                 </nav>
                 <div className="p-4 border-t border-white/12 bg-[#082B54]">
                   <div className="mb-3 flex items-center gap-2.5">
-                    <div className="h-8 w-8 rounded-full bg-[#1684D8] text-white font-bold text-xs flex items-center justify-center">
+                    <div className="h-8 w-8 rounded-full bg-[#126FB8] text-white font-bold text-xs flex items-center justify-center">
                       {userInitials}
                     </div>
                     <div className="min-w-0">
@@ -667,12 +669,14 @@ export function AppShell({
             className="flex-1 p-4 sm:p-6 lg:p-8 max-w-[1600px] w-full mx-auto"
           >
             {actionError && (
-              <p
-                role="alert"
-                className="no-print mb-4 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-900"
-              >
-                {actionError}
-              </p>
+              <div className="no-print mb-4">
+                <ActionFeedback
+                  type="error"
+                  onDismiss={() => setActionError(null)}
+                >
+                  {actionError}
+                </ActionFeedback>
+              </div>
             )}
             {children}
           </main>

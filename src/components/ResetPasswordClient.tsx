@@ -49,7 +49,7 @@ export function ResetPasswordClient({
               <KeyRound className="h-5 w-5 text-[#7CC4FA]" />
             </span>
             <span>
-              <span className="text-[#1684D8] mr-1">//</span>AUTOFLOW
+              <span className="text-[#126FB8] mr-1">//</span>AUTOFLOW
             </span>
           </Link>
           <span className="rounded-md bg-[#EAF3FC] px-2.5 py-1 text-[11px] font-semibold text-[#0B3B70]">
@@ -68,8 +68,8 @@ export function ResetPasswordClient({
         </div>
 
         {tokenStatus === "VALID" && !done && (
-          <div className="flex items-start gap-2.5 rounded-xl border border-[#1684D8]/30 bg-[#EAF3FC] p-3 text-xs text-[#0B3B70]">
-            <Clock className="h-4 w-4 shrink-0 mt-0.5 text-[#1684D8]" />
+          <div className="flex items-start gap-2.5 rounded-xl border border-[#126FB8]/30 bg-[#EAF3FC] p-3 text-xs text-[#0B3B70]">
+            <Clock className="h-4 w-4 shrink-0 mt-0.5 text-[#126FB8]" />
             <div>
               <p className="font-semibold">Link ativo e válido para uso único</p>
               <p className="mt-0.5 text-slate-700">
@@ -108,7 +108,7 @@ export function ResetPasswordClient({
             <div className="pt-2 flex flex-wrap gap-2">
               <Link
                 href="/recuperar-senha"
-                className="inline-flex items-center justify-center rounded-lg bg-[#0B3B70] px-3 py-2 text-xs font-bold text-white hover:bg-[#1684D8] transition"
+                className="inline-flex items-center justify-center rounded-lg bg-[#0B3B70] px-3 py-2 text-xs font-bold text-white hover:bg-[#0B3B70] transition"
               >
                 Solicitar novo link
               </Link>
@@ -247,7 +247,7 @@ export function ResetPasswordClient({
             <button
               type="submit"
               disabled={loading || !token}
-              className="bg-[#1684D8] hover:bg-[#126FB8] text-white text-sm font-bold rounded-xl py-3 px-4 w-full disabled:opacity-40 transition"
+              className="bg-[#126FB8] hover:bg-[#0B3B70] text-white text-sm font-bold rounded-xl py-3 px-4 w-full disabled:opacity-40 transition"
             >
               {loading ? "Salvando senha…" : "Salvar senha e ativar acesso"}
             </button>
@@ -257,7 +257,7 @@ export function ResetPasswordClient({
         <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-xs">
           <Link
             href="/login"
-            className="inline-flex items-center gap-1.5 font-semibold text-[#0B3B70] hover:text-[#1684D8]"
+            className="inline-flex items-center gap-1.5 font-semibold text-[#0B3B70] hover:text-[#126FB8]"
           >
             <ArrowLeft className="h-3.5 w-3.5" />
             Voltar para o login
@@ -265,7 +265,7 @@ export function ResetPasswordClient({
           {done && (
             <Link
               href="/login"
-              className="inline-flex items-center justify-center rounded-lg bg-[#0B3B70] px-3.5 py-2 font-bold text-white hover:bg-[#1684D8]"
+              className="inline-flex items-center justify-center rounded-lg bg-[#0B3B70] px-3.5 py-2 font-bold text-white hover:bg-[#0B3B70]"
             >
               Entrar agora
             </Link>

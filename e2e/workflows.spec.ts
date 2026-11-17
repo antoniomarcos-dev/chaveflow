@@ -4,7 +4,9 @@ import sharp from "sharp";
 async function login(page: Page, email = "gestor@pinauto.demo") {
   await page.goto("/login");
   await page.locator('input[type="email"]').fill(email);
-  await page.locator('input[type="password"]').fill("E2e-chaveflow-password!");
+  await page
+    .locator('input[type="password"]')
+    .fill(email.includes("@cliente.demo") ? "Cliente1234!" : "Autoflow123!");
   await page.getByRole("button", { name: /Entrar/ }).click();
   await expect(page).toHaveURL(
     email.includes("cliente.demo") ? /\/cliente$/ : /\/app$/,
@@ -241,7 +243,7 @@ test("QR preserva destino após login e vendedor não acessa geração gerencial
   await page.goto("/q/qr-pin-byd-001-songplus");
   await expect(page).toHaveURL(/\/login\?redirect=/);
   await page.locator('input[type="email"]').fill("vendedor@pinauto.demo");
-  await page.locator('input[type="password"]').fill("E2e-chaveflow-password!");
+  await page.locator('input[type="password"]').fill("Autoflow123!");
   await page.getByRole("button", { name: /Entrar/ }).click();
   await expect(
     page.getByRole("region", { name: "Resultado do escaneamento" }),

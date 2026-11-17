@@ -281,7 +281,7 @@ export function VehicleFormClient({
             </span>
           </div>
           <progress
-            className="h-2 w-full accent-[#1684D8]"
+            className="h-2 w-full accent-[#126FB8]"
             value={completed}
             max={requiredFields.length}
             aria-label="Campos obrigatórios preenchidos"
@@ -432,6 +432,8 @@ export function VehicleFormClient({
                   <img
                     src={photoSrc}
                     alt="Prévia da foto do veículo"
+                    loading="lazy"
+                    decoding="async"
                     className="h-full w-full object-cover"
                   />
                 ) : (
@@ -483,6 +485,14 @@ export function VehicleFormClient({
                   <button
                     type="button"
                     onClick={() => {
+                      if (
+                        savedPhoto &&
+                        !window.confirm(
+                          "Remover a foto atual deste veículo? A alteração será aplicada ao salvar.",
+                        )
+                      ) {
+                        return;
+                      }
                       setPhoto(null);
                       setRemovePhoto(true);
                       setPhotoError(null);
@@ -632,7 +642,7 @@ export function VehicleFormClient({
             <button
               type="submit"
               disabled={saving || !branches.length}
-              className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-[#1684D8] px-5 text-sm font-bold text-white hover:bg-[#126FB8] disabled:opacity-60"
+              className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-[#126FB8] px-5 text-sm font-bold text-white hover:bg-[#0B3B70] disabled:opacity-60"
             >
               {saving ? (
                 <Loader2 className="h-4 w-4 animate-spin" />

@@ -11,8 +11,11 @@ if (
   );
 }
 let state = createInitialSeedState();
-for (const profile of state.profiles)
-  profile.passwordHash = hashPassword("E2e-chaveflow-password!");
+for (const profile of state.profiles) {
+  profile.passwordHash = hashPassword(
+    profile.isCustomerOnly ? "Cliente1234!" : "Autoflow123!",
+  );
+}
 for (const vehicle of state.vehicles) vehicle.photos = [];
 let revision = 1;
 const files = new Map<string, string>();
@@ -39,6 +42,8 @@ globalThis.fetch = async (input, options) => {
       revision++;
       for (const file of body.p_files || [])
         files.set(file.storage_key, file.content_base64);
+      for (const storageKey of body.p_deleted_storage_keys || [])
+        files.delete(storageKey);
       return Response.json(true);
     }
     case "chaveflow_read_file":

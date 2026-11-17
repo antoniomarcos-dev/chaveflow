@@ -11,7 +11,7 @@ O sistema inicia sem veículos, compradores, negociações ou documentos de exem
 3. Crie um projeto no Supabase. Copie a URL do projeto para `SUPABASE_URL` e uma chave secreta (`sb_secret_...`) para `SUPABASE_SECRET_KEY`. Esses valores são usados somente no servidor. Não utilize `NEXT_PUBLIC_` para a chave secreta. Não é necessária uma conexão PostgreSQL nas portas 5432 ou 6543.
 4. Gere um segredo aleatório: `node -e "console.log(require('node:crypto').randomBytes(48).toString('hex'))"`. Salve-o em `CHAVEFLOW_SESSION_SECRET`.
 5. Preencha os campos `CHAVEFLOW_ORGANIZATION_*`, `CHAVEFLOW_BRANCH_*` e `CHAVEFLOW_ADMIN_*` com os dados reais. A senha do administrador deve ter de 12 a 128 caracteres.
-6. No SQL Editor do Supabase, execute `supabase/migrations/20261109225557_chaveflow_https.sql` uma vez. A migração cria as tabelas privadas e as funções de acesso. No projeto ChaveFlow já configurado nesta sessão, essa etapa já foi concluída.
+6. No SQL Editor do Supabase, execute `supabase/migrations/20261109225557_chaveflow_https.sql`. A migração cria as tabelas privadas e as funções de acesso; reaplique-a quando houver uma atualização de schema.
 7. Execute `npm run db:setup`. O comando se conecta por HTTPS e cria a organização, unidade, administrador e fluxo padrão. Reexecutá-lo não substitui dados existentes.
 8. Guarde a senha em um gerenciador e remova `CHAVEFLOW_ADMIN_PASSWORD` de `.env.local` depois do setup. Os campos de inicialização não são necessários durante a execução da aplicação.
 9. Execute `npm run dev` e entre em `/login` com a conta criada.
@@ -31,10 +31,12 @@ Links de recuperação por e-mail expiram em uma hora e só podem ser usados uma
 ## Acessos de vendedores e clientes
 
 - A página inicial `/` reúne administração, equipe de vendas e área do cliente. Todos entram com e-mail e senha em `/login`; o perfil real da conta determina o painel e as permissões.
+- No runtime isolado dos testes de navegador, os perfis internos demonstrativos usam a senha simples `Autoflow123!`: `admin@pinauto.demo`, `gestor@pinauto.demo` e `vendedor@pinauto.demo`. O perfil de cliente da demo usa `helena.martins@cliente.demo` com a senha `Cliente1234!` e acessa somente o portal do comprador, incluindo a negociação demonstrativa vinculada. Essas senhas existem somente nos dados de teste e nunca devem ser usadas em produção.
 - Em **Administração e auditoria**, o administrador cadastra vendedores ou outros colaboradores e seleciona as funções. O sistema gera um link individual para a pessoa definir sua senha. É possível reemitir o link, desativar ou reativar o acesso. A própria conta administrativa não pode ser desativada por essa tela.
 - Em **Clientes e acessos**, o vendedor vê os compradores das suas negociações e gera o acesso do cliente. A mesma ação está disponível no passaporte da negociação. Um vendedor não pode criar administradores ou preparar acessos de negociações de outro vendedor.
 - O cliente define sua senha pelo link e entra pela página inicial. O portal mostra somente compras vinculadas ao seu perfil e os documentos compartilhados com ele.
 - Links de ativação são de uso único, duram 24 horas e devem ser enviados diretamente ao titular. O botão **Copiar link** permite distribuí-los sem depender de SMTP ou Resend. Gerar um novo link invalida o anterior. Nenhuma senha padrão é compartilhada.
+- Convites do portal do comprador são convertidos imediatamente em cookie HttpOnly; o token não é mantido em URLs de páginas, uploads ou fotos.
 
 Notificações de tarefas e negociações ficam na central interna. Não há envio de WhatsApp nem serviço de OCR. O assistente contextual consulta os dados autorizados e os procedimentos publicados, sem depender de API de IA.
 

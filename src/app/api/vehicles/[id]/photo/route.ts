@@ -9,10 +9,7 @@ export async function GET(
 ) {
   try {
     const ctx = await getServerSessionContext();
-    const accessToken =
-      new URL(request.url).searchParams.get("accessToken") || undefined;
-    if (!ctx && !accessToken) return new NextResponse(null, { status: 401 });
-    const photo = await getVehiclePhoto(ctx, (await params).id, accessToken);
+    const photo = await getVehiclePhoto(ctx, (await params).id);
     if (!photo) return new NextResponse(null, { status: 404 });
     return new NextResponse(new Uint8Array(photo.content), {
       headers: {

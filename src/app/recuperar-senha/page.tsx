@@ -65,7 +65,7 @@ export default function RecuperarSenhaPage() {
             </div>
             <Link
               href="/login"
-              className="w-full inline-flex items-center justify-center gap-2 rounded-lg bg-[#0B3B70] hover:bg-[#1684D8] px-4 py-2.5 text-xs font-bold text-white transition"
+              className="w-full inline-flex items-center justify-center gap-2 rounded-lg bg-[#0B3B70] hover:bg-[#124B8A] px-4 py-2.5 text-xs font-bold text-white transition"
             >
               <ArrowLeft className="h-4 w-4" />
               <span>Voltar para o Login</span>
@@ -78,7 +78,7 @@ export default function RecuperarSenhaPage() {
               correspondente, enviaremos um link temporário de uso único (válido
               por 1 hora) para redefinir sua senha.
             </p>
-            <div className="rounded-xl bg-[#EAF3FC] border border-[#1684D8]/25 p-3 text-xs text-[#0B3B70]">
+            <div className="rounded-xl bg-[#EAF3FC] border border-[#126FB8]/25 p-3 text-xs text-[#0B3B70]">
               <strong>Primeiro acesso?</strong> Solicite ao administrador da
               concessionária (ou ao seu vendedor, se for comprador) o link
               individual de ativação da conta (válido por 24 horas).
@@ -115,7 +115,7 @@ export default function RecuperarSenhaPage() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full inline-flex items-center justify-center gap-2 rounded-lg bg-[#1684D8] hover:bg-[#126FB8] px-4 py-2.5 text-sm font-bold text-white transition"
+              className="w-full inline-flex items-center justify-center gap-2 rounded-lg bg-[#126FB8] hover:bg-[#0B3B70] px-4 py-2.5 text-sm font-bold text-white transition"
             >
               <Mail className="h-4 w-4" />
               <span>

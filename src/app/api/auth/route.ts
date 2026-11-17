@@ -17,16 +17,27 @@ import {
   enforceRateLimit,
 } from "@/lib/request-security";
 import { getServerSessionContext } from "@/lib/server-session";
+import { parseLiteral, readJsonBody, RequestPayloadError } from "@/lib/api-input";
+import { CUSTOMER_ACCESS_COOKIE } from "@/lib/customer-access";
+import { SupabaseInfrastructureError } from "@/infrastructure/supabase";
+import { RoleCodeSchema } from "@/domain/types";
 import { NextRequest, NextResponse } from "next/server";
 export async function POST(req: NextRequest) {
   try {
     assertSameOriginRequest(req);
-    const body = await req.json();
-    if (["LOGIN", "RECOVER_PASSWORD", "RESET_PASSWORD"].includes(body.action)) {
+    const body = await readJsonBody<Record<string, unknown>>(req);
+    const action = typeof body.action === "string" ? body.action : "";
+    if (["LOGIN", "RECOVER_PASSWORD", "RESET_PASSWORD"].includes(action)) {
       const ip =
         req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
       await enforceRateLimit(`auth:${ip}`, 30);
-      if (body.action === "RECOVER_PASSWORD")
+      if (action === "LOGIN") {
+        await enforceRateLimit(
+          `login:${String(body.email || "").trim().toLowerCase()}`,
+          10,
+        );
+      }
+      if (action === "RECOVER_PASSWORD")
         await enforceRateLimit(
           `recover:${String(body.email || "")
             .trim()
@@ -34,7 +45,7 @@ export async function POST(req: NextRequest) {
           5,
         );
     }
-    if (body.action === "LOGIN") {
+    if (action === "LOGIN") {
       const { context, sessionToken } = await authenticateWithCredentials({
         email: String(body.email || ""),
         password: String(body.password || ""),
@@ -52,12 +63,13 @@ export async function POST(req: NextRequest) {
       });
       return res;
     }
-    if (body.action === "LOGOUT") {
+    if (action === "LOGOUT") {
       const res = NextResponse.json({ ok: true });
       res.cookies.delete(SESSION_COOKIE_NAME);
+      res.cookies.delete(CUSTOMER_ACCESS_COOKIE);
       return res;
     }
-    if (body.action === "RECOVER_PASSWORD") {
+    if (action === "RECOVER_PASSWORD") {
       const email = String(body.email || "").trim();
       if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))
         return NextResponse.json(
@@ -71,7 +83,7 @@ export async function POST(req: NextRequest) {
           "Se o e-mail estiver cadastrado, você receberá um link para definir sua senha.",
       });
     }
-    if (body.action === "RESET_PASSWORD") {
+    if (action === "RESET_PASSWORD") {
       await resetPassword(
         String(body.token || ""),
         String(body.password || ""),
@@ -79,8 +91,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: true });
     }
     if (
-      body.action === "CREATE_CUSTOMER_ACCESS" ||
-      body.action === "MANAGE_COLLABORATOR"
+      action === "CREATE_CUSTOMER_ACCESS" ||
+      action === "MANAGE_COLLABORATOR"
     ) {
       const ctx = await getServerSessionContext();
       if (!ctx)
@@ -88,23 +100,26 @@ export async function POST(req: NextRequest) {
           { error: "Entre na sua conta para continuar." },
           { status: 401 },
         );
-      if (body.action === "CREATE_CUSTOMER_ACCESS") {
+      if (action === "CREATE_CUSTOMER_ACCESS") {
         const result = await createCustomerAccountAccess({
           ctx,
           dealId: String(body.dealId || ""),
         });
         return NextResponse.json({ ok: true, ...result });
       }
-      if (!["REISSUE", "DISABLE", "ENABLE"].includes(body.accessAction))
-        return NextResponse.json({ error: "Ação inválida." }, { status: 400 });
+      const accessAction = parseLiteral(
+        body.accessAction,
+        ["REISSUE", "DISABLE", "ENABLE"] as const,
+        "Ação inválida.",
+      );
       const result = await manageCollaboratorAccess({
         ctx,
         profileId: String(body.profileId || ""),
-        action: body.accessAction,
+        action: accessAction,
       });
       return NextResponse.json({ ok: true, ...result });
     }
-    if (body.action === "INVITE_COLLABORATOR") {
+    if (action === "INVITE_COLLABORATOR") {
       const ctx = await getServerSessionContext();
       const result = await inviteCollaborator({
         ctx,
@@ -113,7 +128,9 @@ export async function POST(req: NextRequest) {
         fullName: String(body.fullName || ""),
         phone: String(body.phone || ""),
         branchId: String(body.branchId || ""),
-        roles: Array.isArray(body.roles) ? body.roles : [],
+        roles: Array.isArray(body.roles)
+          ? body.roles.map((role) => RoleCodeSchema.parse(role))
+          : [],
       });
       return NextResponse.json({ ok: true, ...result });
     }
@@ -122,6 +139,13 @@ export async function POST(req: NextRequest) {
     if (err instanceof AuthorizationError)
       return NextResponse.json(
         { error: err.message },
+        { status: err.statusCode },
+      );
+    if (err instanceof RequestPayloadError)
+      return NextResponse.json({ error: err.message }, { status: err.statusCode });
+    if (err instanceof SupabaseInfrastructureError)
+      return NextResponse.json(
+        { error: "Serviço temporariamente indisponível." },
         { status: err.statusCode },
       );
     return NextResponse.json(

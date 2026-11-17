@@ -210,7 +210,7 @@ describe("Cadastro de veículos, fotos e etiquetas", () => {
       ctx: null,
       accessToken: token,
     });
-    expect(view.vehicle.photos[0]).toContain(`accessToken=${token}`);
+    expect(view.vehicle.photos[0]).not.toContain("accessToken=");
     expect(await getVehiclePhoto(null, original.id, token)).not.toBeNull();
     await expect(
       getVehiclePhoto(null, original.id, original.qrToken),

@@ -42,7 +42,7 @@ export default async function CustomersPage({
         </div>
         <Link
           href="/app/negociacoes/nova"
-          className="inline-flex items-center gap-2 rounded-xl bg-[#1684D8] hover:bg-[#126FB8] px-4 py-2.5 text-xs sm:text-sm font-bold text-white shadow-xs transition shrink-0"
+          className="inline-flex items-center gap-2 rounded-xl bg-[#126FB8] hover:bg-[#0B3B70] px-4 py-2.5 text-xs sm:text-sm font-bold text-white shadow-xs transition shrink-0"
         >
           <Plus className="h-4 w-4" />
           <span>Nova Negociação</span>
@@ -63,14 +63,14 @@ export default async function CustomersPage({
             className="w-full rounded-xl border border-slate-300 bg-[#F4F7FA]/60 focus:bg-white py-2 pl-10 pr-3.5 text-xs sm:text-sm text-[#172B3A]"
           />
         </label>
-        <button className="rounded-xl bg-[#0B3B70] hover:bg-[#1684D8] px-4 py-2 text-xs sm:text-sm font-bold text-white transition">
+        <button className="rounded-xl bg-[#0B3B70] hover:bg-[#124B8A] px-4 py-2 text-xs sm:text-sm font-bold text-white transition">
           Buscar
         </button>
       </form>
 
       {customers.length === 0 ? (
         <section className="empty-state">
-          <Users className="mx-auto h-10 w-10 text-[#1684D8]" />
+          <Users className="mx-auto h-10 w-10 text-[#126FB8]" />
           <h2>
             {q ? "Nenhum cliente encontrado" : "Seus clientes começam aqui"}
           </h2>
@@ -81,7 +81,7 @@ export default async function CustomersPage({
           </p>
           <Link
             href="/app/negociacoes/nova"
-            className="inline-flex items-center gap-2 font-bold text-[#1684D8] hover:underline"
+            className="inline-flex items-center gap-2 font-bold text-[#126FB8] hover:underline"
           >
             Abrir negociação <ArrowRight className="h-4 w-4" />
           </Link>
@@ -116,7 +116,7 @@ export default async function CustomersPage({
                 >
                   {/* Bloco 1: Dados essenciais do comprador */}
                   <div className="lg:col-span-5 flex items-start gap-3.5">
-                    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#EAF3FC] border border-[#1684D8]/30 font-extrabold text-xs text-[#0B3B70]">
+                    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#EAF3FC] border border-[#126FB8]/30 font-extrabold text-xs text-[#0B3B70]">
                       {initials}
                     </div>
                     <div className="min-w-0 space-y-1">
@@ -150,7 +150,7 @@ export default async function CustomersPage({
                         <Link
                           key={d.id}
                           href={`/app/negociacoes/${d.id}`}
-                          className="inline-flex items-center gap-1 rounded-lg bg-[#EAF3FC] hover:bg-[#1684D8] text-[#0B3B70] hover:text-white border border-[#1684D8]/30 px-2.5 py-1.5 text-xs font-mono font-bold transition"
+                          className="inline-flex items-center gap-1 rounded-lg bg-[#EAF3FC] hover:bg-[#0B3B70] text-[#0B3B70] hover:text-white border border-[#126FB8]/30 px-2.5 py-1.5 text-xs font-mono font-bold transition"
                         >
                           <span>{d.dealNumber}</span>
                           <span>↗</span>
@@ -163,7 +163,7 @@ export default async function CustomersPage({
                   <div className="lg:col-span-4 rounded-xl bg-[#F4F7FA] border border-slate-200/80 p-3.5 space-y-2.5">
                     <div className="flex items-center justify-between gap-2">
                       <span className="inline-flex items-center gap-1.5 text-xs font-bold text-[#0B3B70]">
-                        <KeyRound className="h-3.5 w-3.5 text-[#1684D8]" />
+                        <KeyRound className="h-3.5 w-3.5 text-[#126FB8]" />
                         <span>Credencial do Portal do Cliente</span>
                       </span>
                       <span

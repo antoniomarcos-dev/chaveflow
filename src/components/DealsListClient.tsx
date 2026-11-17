@@ -237,7 +237,7 @@ export function DealsListClient({
         {canCreate && (
           <Link
             href="/app/negociacoes/nova"
-            className="inline-flex items-center gap-2 rounded-xl bg-[#1684D8] hover:bg-[#0B3B70] px-4 py-2.5 text-xs sm:text-sm font-bold text-white shadow-xs transition shrink-0"
+            className="inline-flex items-center gap-2 rounded-xl bg-[#126FB8] hover:bg-[#0B3B70] px-4 py-2.5 text-xs sm:text-sm font-bold text-white shadow-xs transition shrink-0"
           >
             <Plus className="h-4 w-4" />
             <span>Nova negociação</span>
@@ -329,7 +329,7 @@ export function DealsListClient({
       {/* Lista Compacta */}
       {filtered.length === 0 ? (
         <div className="empty-state">
-          <FileSpreadsheet className="mx-auto h-9 w-9 text-[#1684D8]" />
+          <FileSpreadsheet className="mx-auto h-9 w-9 text-[#126FB8]" />
           <h2>Nenhuma negociação encontrada</h2>
           <p>
             Ajuste a pesquisa ou escolha outro filtro de situação acima.
@@ -427,7 +427,7 @@ export function DealsListClient({
                             {nextActionHeadline}
                           </div>
                           {nextActionHasDirectAction && (
-                            <span className="text-[11px] font-bold text-[#1684D8]">
+                            <span className="text-[11px] font-bold text-[#126FB8]">
                               Ação disponível para você
                             </span>
                           )}
@@ -439,7 +439,7 @@ export function DealsListClient({
                             className={`inline-flex items-center gap-1.5 rounded-xl px-3.5 py-2 text-xs font-bold text-white transition ${
                               deal.status === "DRAFT"
                                 ? "bg-amber-600 hover:bg-amber-700"
-                                : "bg-[#0B3B70] hover:bg-[#1684D8]"
+                                : "bg-[#0B3B70] hover:bg-[#124B8A]"
                             }`}
                           >
                             <span>
@@ -502,7 +502,7 @@ export function DealsListClient({
                     <div className="flex justify-end pt-1">
                       <Link
                         href={passportHref}
-                        className="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 rounded-xl bg-[#1684D8] px-4 py-2.5 text-xs font-bold text-white"
+                        className="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 rounded-xl bg-[#126FB8] px-4 py-2.5 text-xs font-bold text-white"
                       >
                         <span>
                           {deal.status === "DRAFT"

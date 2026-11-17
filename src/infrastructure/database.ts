@@ -16,6 +16,7 @@ const transactionContext = new AsyncLocalStorage<{
   state: DatabaseState;
   revision: string;
   files: PendingPrivateFile[];
+  deletedFileKeys: string[];
 }>();
 function isTestMemoryMode() {
   return (
@@ -44,11 +45,15 @@ export async function withTransaction<T>(
   if (!isTestMemoryMode()) {
     const snapshot = await readSupabaseState();
     const files: PendingPrivateFile[] = [];
-    return transactionContext.run({ ...snapshot, files }, async () => {
-      const result = await operation(snapshot.state);
-      await commitSupabaseState(snapshot, files);
-      return result;
-    });
+    const deletedFileKeys: string[] = [];
+    return transactionContext.run(
+      { ...snapshot, files, deletedFileKeys },
+      async () => {
+        const result = await operation(snapshot.state);
+        await commitSupabaseState(snapshot, files, deletedFileKeys);
+        return result;
+      },
+    );
   }
   const previous = transactionLock;
   let release!: () => void;
@@ -148,6 +153,16 @@ export async function savePrivateFileBlob(params: {
     });
   }
   return { storageKey, checksumSha256 };
+}
+
+export function deletePrivateFileBlob(storageKey: string): void {
+  if (isTestMemoryMode()) {
+    memoryBlobStore.delete(storageKey);
+    return;
+  }
+  const context = transactionContext.getStore();
+  if (!context) throw new Error("A remoção de arquivo exige uma transação.");
+  context.deletedFileKeys.push(storageKey);
 }
 export async function readPrivateFileBlob(storageKey: string): Promise<Buffer> {
   if (isTestMemoryMode()) {

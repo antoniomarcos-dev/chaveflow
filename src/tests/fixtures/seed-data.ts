@@ -49,7 +49,12 @@ export interface DatabaseState {
   customerAccessGrants: CustomerAccessGrant[];
   notifications: NotificationItem[];
   auditEvents: AuditEvent[];
-  idempotencyKeys: string[];
+  idempotencyKeys: Array<{
+    key: string;
+    organizationId: string;
+    dealId: string;
+    createdAt: string;
+  }>;
 }
 
 export const DEMO_ORG_ID = "org-pinauto-demo";

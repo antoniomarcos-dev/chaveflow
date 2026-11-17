@@ -24,13 +24,13 @@ export function CustomerPortalHome({
                 <KeyRound className="h-5 w-5 text-[#7CC4FA]" />
               </span>
               <span className="text-lg font-extrabold tracking-tight text-[#0B3B70]">
-                <span className="text-[#1684D8] mr-1">//</span>AUTOFLOW
+                <span className="text-[#126FB8] mr-1">//</span>AUTOFLOW
                 <span className="block text-[10px] font-semibold uppercase tracking-[.15em] text-slate-400">
                   Portal do Cliente
                 </span>
               </span>
             </Link>
-            <span className="hidden sm:inline-flex items-center rounded-lg bg-[#EAF3FC] border border-[#1684D8]/30 px-2.5 py-1 text-[11px] font-bold text-[#0B3B70]">
+            <span className="hidden sm:inline-flex items-center rounded-lg bg-[#EAF3FC] border border-[#126FB8]/30 px-2.5 py-1 text-[11px] font-bold text-[#0B3B70]">
               Unidade: Pinauto BYD · Ceres/GO
             </span>
           </div>
@@ -55,7 +55,7 @@ export function CustomerPortalHome({
           {!name && (
             <Link
               href="/login?area=cliente"
-              className="mt-6 inline-flex items-center gap-2 rounded-xl bg-[#1684D8] hover:bg-[#126FB8] px-5 py-3 text-sm font-bold text-white transition"
+              className="mt-6 inline-flex items-center gap-2 rounded-xl bg-[#126FB8] hover:bg-[#0B3B70] px-5 py-3 text-sm font-bold text-white transition"
             >
               Acessar minha conta
               <ArrowRight className="h-4 w-4" />
@@ -72,13 +72,13 @@ export function CustomerPortalHome({
                 <Link
                   key={deal.dealId}
                   href={`/cliente/negociacoes/${deal.dealId}`}
-                  className="group flex items-center gap-4 rounded-2xl border border-slate-200/90 bg-white p-5 transition hover:border-[#1684D8] hover:shadow-md hover:shadow-slate-900/5"
+                  className="group flex items-center gap-4 rounded-2xl border border-slate-200/90 bg-white p-5 transition hover:border-[#126FB8] hover:shadow-md hover:shadow-slate-900/5"
                 >
-                  <span className="hidden rounded-2xl bg-[#EAF3FC] p-4 text-[#1684D8] sm:block">
+                  <span className="hidden rounded-2xl bg-[#EAF3FC] p-4 text-[#126FB8] sm:block">
                     <Car className="h-7 w-7" strokeWidth={1.5} />
                   </span>
                   <div className="min-w-0 flex-1">
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-[#1684D8]">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-[#126FB8]">
                       {deal.dealNumber}
                     </span>
                     <h3 className="mt-1 font-bold text-[#172B3A]">
@@ -88,13 +88,13 @@ export function CustomerPortalHome({
                       {deal.statusLabel}
                     </p>
                   </div>
-                  <ArrowRight className="h-5 w-5 shrink-0 text-[#1684D8]" />
+                  <ArrowRight className="h-5 w-5 shrink-0 text-[#126FB8]" />
                 </Link>
               ))}
             </div>
           ) : (
             <div className="empty-state">
-              <Car className="mx-auto h-10 w-10 text-[#1684D8]" />
+              <Car className="mx-auto h-10 w-10 text-[#126FB8]" />
               <h2>
                 {name
                   ? "Ainda não há compras vinculadas"
@@ -109,7 +109,7 @@ export function CustomerPortalHome({
           )}
         </section>
         <div className="flex items-start gap-3 rounded-2xl border border-slate-200 bg-white p-5">
-          <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-[#1684D8]" />
+          <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-[#126FB8]" />
           <p className="text-xs leading-relaxed text-slate-500">
             <strong className="font-semibold text-[#172B3A]">
               Seu espaço é individual e simplificado.

@@ -2,10 +2,11 @@
 
 @layer base {
   :root {
+    /* 60% neutral surfaces, 30% structural navy, 10% action blue. */
     --af-navy: #0B3B70;
     --af-navy-dark: #082B54;
-    --af-blue: #1684D8;
-    --af-blue-hover: #126FB8;
+    --af-blue: #126FB8;
+    --af-blue-hover: #0B3B70;
     --af-blue-light: #EAF3FC;
     --af-surface: #FFFFFF;
     --af-bg: #F4F7FA;
@@ -13,9 +14,7 @@
     --navy-950: #082B54;
     --navy-900: #0B3B70;
     --navy-800: #124B8A;
-    --navy-700: #1684D8;
-    --teal-600: #1684D8;
-    --teal-700: #0B3B70;
+    --navy-700: #126FB8;
   }
 
   body {
@@ -35,7 +34,7 @@
   }
 
   *:focus-visible {
-    outline: 2px solid #1684D8;
+    outline: 2px solid #126FB8;
     outline-offset: 2px;
   }
 
@@ -63,8 +62,8 @@
   input:focus,
   select:focus,
   textarea:focus {
-    border-color: #1684D8;
-    box-shadow: 0 0 0 3px rgba(22, 132, 216, 0.14);
+    border-color: #126FB8;
+    box-shadow: 0 0 0 3px rgba(18, 111, 184, 0.16);
   }
   ::selection {
     background: #EAF3FC;
@@ -74,7 +73,7 @@
 
 @layer components {
   .eyebrow {
-    @apply text-[11px] font-bold uppercase tracking-[0.16em] text-[#1684D8];
+    @apply text-[11px] font-bold uppercase tracking-[0.16em] text-[#0B3B70];
   }
   .form-control {
     @apply min-h-11 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-base text-slate-900 disabled:bg-slate-100 disabled:text-slate-500 sm:text-sm;

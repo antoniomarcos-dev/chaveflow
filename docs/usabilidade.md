@@ -25,6 +25,20 @@ Foram adotados os 18 princípios abaixo, com base no catálogo [Laws of UX](http
 
 Acessibilidade complementar: foco visível, rótulos associados aos campos novos, erros anunciados, atalho para o conteúdo, foco contido no menu móvel, fechamento com Escape, notificações adaptadas à largura da tela e respeito à preferência por movimento reduzido.
 
+## Sistema de cores e hierarquia visual
+
+O ChaveFlow preserva a identidade azul-marinho/azul, aplicando a regra 60/30/10 como uma diretriz de peso visual:
+
+| Peso visual | Função | Tokens principais |
+| --- | --- | --- |
+| 60% | Fundo da aplicação, áreas vazias e superfícies de leitura | `#F4F7FA`, `#FFFFFF` |
+| 30% | Navegação, cabeçalhos, títulos, etapas selecionadas e estrutura | `#0B3B70`, `#082B54` |
+| 10% | Ações primárias, links, indicadores de progresso e foco | `#126FB8`, `#EAF3FC` |
+
+O navy comunica confiança, segurança e estabilidade; o azul comunica ação e orientação. Verde, âmbar e vermelho são reservados a estados semânticos de sucesso, atenção e erro, não participando da proporção decorativa principal.
+
+Para acessibilidade, ações com texto branco usam `#126FB8` ou uma cor mais escura, enquanto `#1684D8` não deve ser usado como fundo de texto branco normal. O foco permanece visível e os estados não dependem apenas de cor: mensagens, ícones ou rótulos também identificam sucesso, atenção e erro.
+
 ## Fluxos entregues
 
 - **Foto**: em Veículos → Cadastrar veículo ou Editar cadastro, escolha ou arraste JPG, PNG ou WEBP até 4 MB. A prévia é local; o envio ocorre ao salvar. É possível trocar, remover ou desfazer a remoção antes de salvar. A foto é decodificada e convertida para WEBP no servidor, com orientação corrigida e metadados removidos. Arquivo e cadastro são confirmados na mesma transação existente, sem migração adicional.

@@ -329,7 +329,7 @@ export function OrganizationSettingsClient({
           <button
             type="button"
             onClick={() => setShowInviteForm((v) => !v)}
-            className="inline-flex items-center gap-2 rounded-xl bg-[#1684D8] hover:bg-[#126FB8] px-4 py-2.5 text-xs sm:text-sm font-bold text-white shadow-xs transition shrink-0"
+            className="inline-flex items-center gap-2 rounded-xl bg-[#126FB8] hover:bg-[#0B3B70] px-4 py-2.5 text-xs sm:text-sm font-bold text-white shadow-xs transition shrink-0"
           >
             <UserPlus className="h-4 w-4" />
             <span>+ Novo Usuário</span>
@@ -406,7 +406,7 @@ export function OrganizationSettingsClient({
           {showInviteForm && canManageUsers && (
             <form
               onSubmit={handleInvite}
-              className="bg-white rounded-2xl border-2 border-[#1684D8] p-5 sm:p-6 shadow-md space-y-4 text-xs"
+              className="bg-white rounded-2xl border-2 border-[#126FB8] p-5 sm:p-6 shadow-md space-y-4 text-xs"
             >
               <div className="flex items-center justify-between">
                 <h2 className="text-base font-bold text-[#172B3A]">
@@ -479,7 +479,7 @@ export function OrganizationSettingsClient({
                         key={role}
                         className={`cursor-pointer rounded-lg border px-3 py-1.5 font-semibold transition ${
                           selectedRoles.includes(role)
-                            ? "bg-[#1684D8] text-white border-[#1684D8]"
+                            ? "bg-[#126FB8] text-white border-[#126FB8]"
                             : "bg-slate-50 text-slate-700 border-slate-300"
                         }`}
                       >
@@ -506,7 +506,7 @@ export function OrganizationSettingsClient({
                 <button
                   type="submit"
                   disabled={loading || selectedRoles.length === 0}
-                  className="rounded-lg bg-[#1684D8] hover:bg-[#126FB8] px-5 py-2 font-bold text-white transition"
+                  className="rounded-lg bg-[#126FB8] hover:bg-[#0B3B70] px-5 py-2 font-bold text-white transition"
                 >
                   Cadastrar e Gerar Link de Acesso
                 </button>
@@ -545,7 +545,7 @@ export function OrganizationSettingsClient({
                     className="p-4 flex flex-wrap items-center justify-between gap-3 hover:bg-[#F4F7FA]/50 transition"
                   >
                     <div className="flex items-center gap-3">
-                      <div className="h-9 w-9 rounded-full bg-[#1684D8] text-white font-extrabold text-xs flex items-center justify-center shrink-0">
+                      <div className="h-9 w-9 rounded-full bg-[#126FB8] text-white font-extrabold text-xs flex items-center justify-center shrink-0">
                         {initials}
                       </div>
                       <div>
@@ -563,7 +563,7 @@ export function OrganizationSettingsClient({
                       {m.roles.map((r) => (
                         <span
                           key={r}
-                          className="rounded-md bg-[#EAF3FC] border border-[#1684D8]/30 px-2.5 py-1 font-bold text-[#0B3B70]"
+                          className="rounded-md bg-[#EAF3FC] border border-[#126FB8]/30 px-2.5 py-1 font-bold text-[#0B3B70]"
                         >
                           {ROLE_LABELS[r]}
                         </span>
@@ -616,7 +616,7 @@ export function OrganizationSettingsClient({
             {/* Matriz de Permissões */}
             <details className="rounded-xl border border-slate-200 p-4 space-y-3">
               <summary className="cursor-pointer text-xs font-bold uppercase tracking-wider text-[#0B3B70] flex items-center gap-1.5">
-                <Lock className="h-3.5 w-3.5 text-[#1684D8]" />
+                <Lock className="h-3.5 w-3.5 text-[#126FB8]" />
                 <span>
                   Perfis e matriz de permissões (o que cada perfil pode fazer)
                 </span>
@@ -647,7 +647,7 @@ export function OrganizationSettingsClient({
       {activeTab === "GENERAL" && (
         <div className="bg-white rounded-2xl border border-slate-200 p-5 sm:p-6 shadow-xs space-y-4">
           <div className="flex items-center gap-2">
-            <Building2 className="h-5 w-5 text-[#1684D8]" />
+            <Building2 className="h-5 w-5 text-[#126FB8]" />
             <h2 className="text-base font-bold text-[#172B3A]">
               Identificação da Organização e Unidades
             </h2>
@@ -721,7 +721,7 @@ export function OrganizationSettingsClient({
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
             <div>
               <h2 className="text-base font-bold text-[#172B3A] flex items-center gap-2">
-                <History className="h-5 w-5 text-[#1684D8]" />
+                <History className="h-5 w-5 text-[#126FB8]" />
                 <span>Trilha de Auditoria da Organização</span>
               </h2>
               <p className="text-xs text-slate-500">
@@ -827,7 +827,7 @@ export function OrganizationSettingsClient({
                   >
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <div className="flex flex-wrap items-center gap-2">
-                        <span className="font-bold text-[#0B3B70] bg-[#EAF3FC] border border-[#1684D8]/30 px-2 py-0.5 rounded text-[11px]">
+                        <span className="font-bold text-[#0B3B70] bg-[#EAF3FC] border border-[#126FB8]/30 px-2 py-0.5 rounded text-[11px]">
                           {actionLabel}
                         </span>
                         <span className="font-bold text-[#172B3A]">
@@ -848,7 +848,7 @@ export function OrganizationSettingsClient({
                         {dealNumber && ev.dealId && (
                           <Link
                             href={`/app/negociacoes/${ev.dealId}`}
-                            className="inline-flex items-center gap-1 font-bold text-[#1684D8] hover:underline"
+                            className="inline-flex items-center gap-1 font-bold text-[#126FB8] hover:underline"
                           >
                             <span>Abrir Passaporte ({dealNumber})</span>
                             <ExternalLink className="h-3 w-3" />

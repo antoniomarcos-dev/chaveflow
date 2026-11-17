@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 360" role="img" aria-labelledby="title desc">
+  <title id="title">BYD Song Plus</title>
+  <desc id="desc">Ilustração de um SUV azul-marinho em fundo claro.</desc>
+  <rect width="640" height="360" rx="28" fill="#EAF3FC"/>
+  <path d="M92 235h42l27-64c9-22 30-36 54-36h180c25 0 48 13 61 34l40 66h42c13 0 24 11 24 24v16H92v-16c0-13 11-24 24-24Z" fill="#0B3B70"/>
+  <path d="M205 153h176c14 0 27 7 35 19l17 27H173l15-30c3-10 10-16 17-16Z" fill="#7CC4FA"/>
+  <path d="M102 240h436" stroke="#126FB8" stroke-width="8"/>
+  <circle cx="185" cy="275" r="30" fill="#172B3A"/><circle cx="185" cy="275" r="13" fill="#EAF3FC"/>
+  <circle cx="455" cy="275" r="30" fill="#172B3A"/><circle cx="455" cy="275" r="13" fill="#EAF3FC"/>
+  <text x="320" y="326" text-anchor="middle" font-family="Arial,sans-serif" font-size="24" font-weight="700" fill="#0B3B70">SONG PLUS</text>
+</svg>

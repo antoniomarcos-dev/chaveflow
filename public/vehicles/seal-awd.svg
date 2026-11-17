@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 360" role="img" aria-labelledby="title desc">
+  <title id="title">BYD Seal AWD</title><desc id="desc">Ilustração de um sedã esportivo azul.</desc>
+  <rect width="640" height="360" rx="28" fill="#EAF3FC"/>
+  <path d="M78 239h49l33-47c13-19 34-29 57-29h167c24 0 45 10 60 29l35 47h57c12 0 21 9 21 21v17H78v-17c0-12 9-21 21-21Z" fill="#126FB8"/>
+  <path d="M208 171h181c12 0 24 6 32 16l18 23H180l17-26c3-8 6-13 11-13Z" fill="#7CC4FA"/>
+  <circle cx="179" cy="276" r="30" fill="#172B3A"/><circle cx="179" cy="276" r="13" fill="#EAF3FC"/>
+  <circle cx="465" cy="276" r="30" fill="#172B3A"/><circle cx="465" cy="276" r="13" fill="#EAF3FC"/>
+  <text x="320" y="326" text-anchor="middle" font-family="Arial,sans-serif" font-size="24" font-weight="700" fill="#0B3B70">SEAL AWD</text>
+</svg>

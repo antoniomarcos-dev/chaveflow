@@ -441,7 +441,7 @@ export function WorkQueuesClient({
         </div>
 
         <div className="flex flex-wrap items-center gap-2.5">
-          <div className="rounded-xl bg-[#EAF3FC] border border-[#1684D8]/30 px-3.5 py-2 text-xs">
+          <div className="rounded-xl bg-[#EAF3FC] border border-[#126FB8]/30 px-3.5 py-2 text-xs">
             <span className="text-[#0B3B70] font-semibold block">
               Disponíveis agora
             </span>
@@ -525,7 +525,7 @@ export function WorkQueuesClient({
                 }}
                 className={`rounded-xl px-3 py-1.5 text-xs font-bold transition ${
                   situation === st.id
-                    ? "bg-[#1684D8] text-white"
+                    ? "bg-[#126FB8] text-white"
                     : "bg-[#F4F7FA] text-slate-700 hover:bg-[#EAF3FC] hover:text-[#0B3B70]"
                 }`}
               >
@@ -636,7 +636,7 @@ export function WorkQueuesClient({
                 setSearch("");
                 router.replace(pathname, { scroll: false });
               }}
-              className="text-xs font-bold text-[#1684D8] hover:underline"
+              className="text-xs font-bold text-[#126FB8] hover:underline"
             >
               Mostrar todas as disponíveis agora
             </button>
@@ -659,7 +659,7 @@ export function WorkQueuesClient({
                   setScope("TEAM");
                   syncUrlParams({ scope: "TEAM" });
                 }}
-                className="mt-2 inline-flex items-center gap-1.5 rounded-xl bg-[#EAF3FC] px-3.5 py-2 text-xs font-bold text-[#0B3B70] hover:bg-[#1684D8] hover:text-white transition"
+                className="mt-2 inline-flex items-center gap-1.5 rounded-xl bg-[#EAF3FC] px-3.5 py-2 text-xs font-bold text-[#0B3B70] hover:bg-[#0B3B70] hover:text-white transition"
               >
                 Ver fila de toda a equipe
               </button>
@@ -724,11 +724,11 @@ export function WorkQueuesClient({
                       <td className="py-3.5 px-3 max-w-xs">
                         <div className="font-bold text-[#172B3A] flex items-center gap-1.5">
                           {item.activityType === "DOCUMENT" ? (
-                            <FileCheck2 className="h-3.5 w-3.5 text-[#1684D8] shrink-0" />
+                            <FileCheck2 className="h-3.5 w-3.5 text-[#126FB8] shrink-0" />
                           ) : item.activityType === "MILESTONE" ? (
-                            <KeyRound className="h-3.5 w-3.5 text-[#1684D8] shrink-0" />
+                            <KeyRound className="h-3.5 w-3.5 text-[#126FB8] shrink-0" />
                           ) : (
-                            <ClipboardCheck className="h-3.5 w-3.5 text-[#1684D8] shrink-0" />
+                            <ClipboardCheck className="h-3.5 w-3.5 text-[#126FB8] shrink-0" />
                           )}
                           <span>{item.actionTitle}</span>
                         </div>
@@ -788,7 +788,7 @@ export function WorkQueuesClient({
                       <td className="py-3.5 pl-3 pr-5 text-right">
                         <Link
                           href={targetHref}
-                          className="inline-flex items-center gap-1.5 rounded-xl bg-[#0B3B70] hover:bg-[#1684D8] px-3.5 py-2 text-xs font-bold text-white transition whitespace-nowrap"
+                          className="inline-flex items-center gap-1.5 rounded-xl bg-[#0B3B70] hover:bg-[#124B8A] px-3.5 py-2 text-xs font-bold text-white transition whitespace-nowrap"
                         >
                           <span>{item.actionButtonLabel}</span>
                           <ArrowRight className="h-3.5 w-3.5" />

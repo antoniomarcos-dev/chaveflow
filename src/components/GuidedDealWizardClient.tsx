@@ -385,7 +385,7 @@ export function GuidedDealWizardClient({
                   step === item.num
                     ? "bg-[#0B3B70] text-white border-[#0B3B70] shadow-2xs"
                     : step > item.num
-                      ? "bg-[#EAF3FC] text-[#0B3B70] border-[#1684D8]/30"
+                      ? "bg-[#EAF3FC] text-[#0B3B70] border-[#126FB8]/30"
                       : "bg-slate-50 text-slate-600 border-slate-200"
                 }`}
               >
@@ -413,7 +413,7 @@ export function GuidedDealWizardClient({
           <div className="space-y-4 pt-1">
             <div>
               <h2 className="text-base font-bold text-[#172B3A] flex items-center gap-2">
-                <Car className="h-5 w-5 text-[#1684D8]" />
+                <Car className="h-5 w-5 text-[#126FB8]" />
                 <span>1. Selecionar e confirmar o veículo</span>
               </h2>
               <p className="text-xs text-slate-600 mt-0.5">
@@ -446,7 +446,7 @@ export function GuidedDealWizardClient({
                         }}
                         className={`text-left rounded-xl border-2 p-4 transition ${
                           isSelected
-                            ? "border-[#1684D8] bg-[#EAF3FC]/50"
+                            ? "border-[#126FB8] bg-[#EAF3FC]/50"
                             : "border-slate-200 hover:border-slate-300 bg-white"
                         }`}
                       >
@@ -473,7 +473,7 @@ export function GuidedDealWizardClient({
                 </div>
 
                 {selectedVehicle && (
-                  <div className="rounded-xl border border-[#1684D8]/35 bg-[#EAF3FC]/70 p-4">
+                  <div className="rounded-xl border border-[#126FB8]/35 bg-[#EAF3FC]/70 p-4">
                     <label className="flex items-start gap-3 cursor-pointer">
                       <input
                         type="checkbox"
@@ -502,7 +502,7 @@ export function GuidedDealWizardClient({
                 type="button"
                 disabled={!vehicleId || !vehicleConfirmed}
                 onClick={() => setStep(2)}
-                className="inline-flex items-center gap-2 rounded-xl bg-[#1684D8] hover:bg-[#0B3B70] px-5 py-2.5 text-xs font-bold text-white disabled:opacity-50 transition"
+                className="inline-flex items-center gap-2 rounded-xl bg-[#126FB8] hover:bg-[#0B3B70] px-5 py-2.5 text-xs font-bold text-white disabled:opacity-50 transition"
               >
                 <span>Continuar para comprador</span>
                 <ArrowRight className="h-4 w-4" />
@@ -516,7 +516,7 @@ export function GuidedDealWizardClient({
           <div className="space-y-4 pt-1">
             <div>
               <h2 className="text-base font-bold text-[#172B3A] flex items-center gap-2">
-                <User className="h-5 w-5 text-[#1684D8]" />
+                <User className="h-5 w-5 text-[#126FB8]" />
                 <span>2. Identificar o comprador</span>
               </h2>
               <p className="text-xs text-slate-600 mt-0.5">
@@ -716,7 +716,7 @@ export function GuidedDealWizardClient({
               <button
                 type="button"
                 onClick={() => setStep(3)}
-                className="inline-flex items-center gap-2 rounded-xl bg-[#1684D8] hover:bg-[#0B3B70] px-5 py-2.5 text-xs font-bold text-white transition"
+                className="inline-flex items-center gap-2 rounded-xl bg-[#126FB8] hover:bg-[#0B3B70] px-5 py-2.5 text-xs font-bold text-white transition"
               >
                 <span>Continuar para condições comerciais</span>
                 <ArrowRight className="h-4 w-4" />
@@ -730,7 +730,7 @@ export function GuidedDealWizardClient({
           <div className="space-y-4 pt-1">
             <div>
               <h2 className="text-base font-bold text-[#172B3A] flex items-center gap-2">
-                <SlidersHorizontal className="h-5 w-5 text-[#1684D8]" />
+                <SlidersHorizontal className="h-5 w-5 text-[#126FB8]" />
                 <span>3. Condições comerciais</span>
               </h2>
               <p className="text-xs text-slate-600 mt-0.5">
@@ -798,7 +798,7 @@ export function GuidedDealWizardClient({
                     type="checkbox"
                     checked={hasFinancing}
                     onChange={(e) => setHasFinancing(e.target.checked)}
-                    className="h-4 w-4 rounded border-slate-300 text-[#1684D8]"
+                    className="h-4 w-4 rounded border-slate-300 text-[#126FB8]"
                   />
                   <span className="text-xs font-bold text-[#172B3A]">
                     Possui financiamento complementar vinculado
@@ -809,7 +809,7 @@ export function GuidedDealWizardClient({
 
             {/* Instituição financeira exibida somente quando há financiamento */}
             {effectiveHasFinancing && (
-              <div className="rounded-xl border border-[#1684D8]/30 bg-[#EAF3FC]/50 p-4">
+              <div className="rounded-xl border border-[#126FB8]/30 bg-[#EAF3FC]/50 p-4">
                 <label
                   htmlFor="wizard-financing-bank"
                   className="block text-xs font-bold text-[#172B3A]"
@@ -834,7 +834,7 @@ export function GuidedDealWizardClient({
                   type="checkbox"
                   checked={hasTradeIn}
                   onChange={(e) => setHasTradeIn(e.target.checked)}
-                  className="h-4 w-4 rounded border-slate-300 text-[#1684D8]"
+                  className="h-4 w-4 rounded border-slate-300 text-[#126FB8]"
                 />
                 <span className="text-sm font-bold text-[#172B3A]">
                   Receber veículo usado na troca
@@ -950,7 +950,7 @@ export function GuidedDealWizardClient({
                   type="checkbox"
                   checked={hasPowerOfAttorney}
                   onChange={(e) => setHasPowerOfAttorney(e.target.checked)}
-                  className="h-4 w-4 rounded border-slate-300 text-[#1684D8]"
+                  className="h-4 w-4 rounded border-slate-300 text-[#126FB8]"
                 />
                 <span className="text-sm font-bold text-[#172B3A]">
                   Compra ou retirada representada por procuração
@@ -1079,7 +1079,7 @@ export function GuidedDealWizardClient({
               <button
                 type="button"
                 onClick={() => setStep(4)}
-                className="inline-flex items-center gap-2 rounded-xl bg-[#1684D8] hover:bg-[#0B3B70] px-5 py-2.5 text-xs font-bold text-white transition"
+                className="inline-flex items-center gap-2 rounded-xl bg-[#126FB8] hover:bg-[#0B3B70] px-5 py-2.5 text-xs font-bold text-white transition"
               >
                 <span>Revisar negociação</span>
                 <ArrowRight className="h-4 w-4" />
@@ -1093,7 +1093,7 @@ export function GuidedDealWizardClient({
           <div className="space-y-5 pt-1">
             <div>
               <h2 className="text-base font-bold text-[#172B3A] flex items-center gap-2">
-                <FileSpreadsheet className="h-5 w-5 text-[#1684D8]" />
+                <FileSpreadsheet className="h-5 w-5 text-[#126FB8]" />
                 <span>4. Revisão antes de ativar o Passaporte Digital</span>
               </h2>
               <p className="text-xs text-slate-600 mt-0.5">
@@ -1187,7 +1187,7 @@ export function GuidedDealWizardClient({
             {/* Documentos aplicáveis */}
             <div className="rounded-xl border border-slate-200 p-4 space-y-2.5">
               <h3 className="text-xs font-bold uppercase tracking-wider text-[#0B3B70] flex items-center gap-1.5">
-                <FileText className="h-4 w-4 text-[#1684D8]" />
+                <FileText className="h-4 w-4 text-[#126FB8]" />
                 Documentos aplicáveis a esta negociação ({applicableDocs.length})
               </h3>
               <ul className="divide-y divide-slate-100 text-xs">
@@ -1266,7 +1266,7 @@ export function GuidedDealWizardClient({
                 type="button"
                 disabled={submitting}
                 onClick={() => submitDeal(false)}
-                className="inline-flex items-center gap-2 rounded-xl bg-[#1684D8] hover:bg-[#0B3B70] px-6 py-3 text-xs sm:text-sm font-bold text-white shadow-sm transition disabled:opacity-50"
+                className="inline-flex items-center gap-2 rounded-xl bg-[#126FB8] hover:bg-[#0B3B70] px-6 py-3 text-xs sm:text-sm font-bold text-white shadow-sm transition disabled:opacity-50"
               >
                 <CheckCircle2 className="h-4 w-4" />
                 <span>

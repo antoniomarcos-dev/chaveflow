@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 360" role="img" aria-labelledby="title desc">
+  <title id="title">BYD King GS</title><desc id="desc">Ilustração de um sedã azul-marinho.</desc>
+  <rect width="640" height="360" rx="28" fill="#EAF3FC"/>
+  <path d="M76 239h55l37-48c14-18 33-27 56-27h158c24 0 45 9 61 28l39 47h61c11 0 20 9 20 20v17H76v-17c0-11 9-20 20-20Z" fill="#0B3B70"/>
+  <path d="M204 172h171c12 0 25 6 34 17l19 22H176l18-25c3-8 6-14 10-14Z" fill="#7CC4FA"/>
+  <circle cx="177" cy="276" r="30" fill="#172B3A"/><circle cx="177" cy="276" r="13" fill="#EAF3FC"/>
+  <circle cx="470" cy="276" r="30" fill="#172B3A"/><circle cx="470" cy="276" r="13" fill="#EAF3FC"/>
+  <text x="320" y="326" text-anchor="middle" font-family="Arial,sans-serif" font-size="24" font-weight="700" fill="#0B3B70">KING GS</text>
+</svg>

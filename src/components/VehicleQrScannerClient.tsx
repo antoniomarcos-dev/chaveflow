@@ -302,7 +302,7 @@ export function VehicleQrScannerClient({
       {/* Cabeçalho (4.4 Escaneamento / Identificação do veículo) */}
       <div className="bg-white rounded-2xl border border-slate-200/90 p-6 shadow-xs flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <span className="inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-[#1684D8]">
+          <span className="inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-[#126FB8]">
             <QrCode className="h-4 w-4" />
             <span>Identificação Rápida no Pátio ou Showroom</span>
           </span>
@@ -331,7 +331,7 @@ export function VehicleQrScannerClient({
         <div
           role="region"
           aria-label="Resultado do escaneamento"
-          className="rounded-2xl border-2 border-[#1684D8] bg-white p-6 shadow-md space-y-4"
+          className="rounded-2xl border-2 border-[#126FB8] bg-white p-6 shadow-md space-y-4"
         >
           {scanResult.outcome === "UNAUTHENTICATED" && (
             <div className="space-y-3">
@@ -342,7 +342,7 @@ export function VehicleQrScannerClient({
               <p className="text-xs text-slate-600">{scanResult.message}</p>
               <Link
                 href={scanResult.loginRedirectUrl}
-                className="inline-flex items-center gap-2 rounded-lg bg-[#0B3B70] hover:bg-[#1684D8] px-4 py-2.5 text-xs font-bold text-white transition"
+                className="inline-flex items-center gap-2 rounded-lg bg-[#0B3B70] hover:bg-[#124B8A] px-4 py-2.5 text-xs font-bold text-white transition"
               >
                 <span>Fazer Login para Continuar</span>
                 <ArrowRight className="h-4 w-4" />
@@ -383,7 +383,7 @@ export function VehicleQrScannerClient({
       {/* Área de Câmera + Busca Manual (Tela 9 da prancha) */}
       <div className="grid md:grid-cols-12 gap-6">
         {/* Leitor de Câmera Traseira */}
-        <div className="md:col-span-7 bg-[#0B3B70] text-white rounded-2xl p-6 border border-[#1684D8]/30 shadow-xs flex flex-col justify-between space-y-4">
+        <div className="md:col-span-7 bg-[#0B3B70] text-white rounded-2xl p-6 border border-[#126FB8]/30 shadow-xs flex flex-col justify-between space-y-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2.5">
               <div className="h-9 w-9 rounded-xl bg-white/10 flex items-center justify-center text-[#7CC4FA]">
@@ -421,7 +421,7 @@ export function VehicleQrScannerClient({
                 <button
                   type="button"
                   onClick={startCameraAfterUserAction}
-                  className="inline-flex items-center gap-2 rounded-xl bg-[#1684D8] hover:bg-[#126FB8] px-5 py-3 text-xs sm:text-sm font-bold text-white shadow-md transition"
+                  className="inline-flex items-center gap-2 rounded-xl bg-[#126FB8] hover:bg-[#0B3B70] px-5 py-3 text-xs sm:text-sm font-bold text-white shadow-md transition"
                 >
                   <Camera className="h-4 w-4" />
                   <span>Ativar Câmera Traseira</span>
@@ -449,7 +449,7 @@ export function VehicleQrScannerClient({
 
           {cameraState === "ACTIVE" && (
             <div className="space-y-3">
-              <div className="relative rounded-xl overflow-hidden bg-black aspect-video border-2 border-[#1684D8]">
+              <div className="relative rounded-xl overflow-hidden bg-black aspect-video border-2 border-[#126FB8]">
                 <video
                   ref={videoRef}
                   playsInline
@@ -515,7 +515,7 @@ export function VehicleQrScannerClient({
         <div className="md:col-span-5 bg-white rounded-2xl border border-slate-200/90 p-6 shadow-xs flex flex-col justify-between space-y-5">
           <div className="space-y-3">
             <div className="flex items-center gap-2">
-              <div className="h-8 w-8 rounded-lg bg-[#EAF3FC] flex items-center justify-center text-[#1684D8]">
+              <div className="h-8 w-8 rounded-lg bg-[#EAF3FC] flex items-center justify-center text-[#126FB8]">
                 <Search className="h-4 w-4" />
               </div>
               <h2 className="text-base font-bold text-[#172B3A]">
@@ -555,7 +555,7 @@ export function VehicleQrScannerClient({
               <button
                 type="submit"
                 disabled={loadingResolve || !manualInput.trim()}
-                className="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-[#1684D8] hover:bg-[#126FB8] px-4 py-2.5 text-xs font-bold text-white transition disabled:opacity-50"
+                className="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-[#126FB8] hover:bg-[#0B3B70] px-4 py-2.5 text-xs font-bold text-white transition disabled:opacity-50"
               >
                 <Search className="h-4 w-4" />
                 <span>
@@ -575,7 +575,7 @@ export function VehicleQrScannerClient({
               Você também pode consultar toda a disponibilidade e etiquetas em{" "}
               <Link
                 href="/app/veiculos"
-                className="font-bold text-[#1684D8] hover:underline"
+                className="font-bold text-[#126FB8] hover:underline"
               >
                 Veículos e Estoque
               </Link>
@@ -617,6 +617,11 @@ function IdentifiedVehicleCard({
           <img
             src={v.photos[0] || "/vehicle-placeholder.svg"}
             alt={`${v.brand} ${v.model}`}
+            loading="eager"
+            decoding="async"
+            onError={(event) => {
+              event.currentTarget.src = "/vehicle-placeholder.svg";
+            }}
             className="w-full rounded-xl border border-slate-200 object-cover"
           />
         </div>
@@ -628,7 +633,7 @@ function IdentifiedVehicleCard({
             <span className="font-mono text-xs bg-slate-100 text-slate-800 px-2.5 py-1 rounded border border-slate-300">
               Chassi: {v.vin}
             </span>
-            <span className="text-xs font-semibold bg-[#EAF3FC] text-[#0B3B70] px-2.5 py-1 rounded border border-[#1684D8]/30">
+            <span className="text-xs font-semibold bg-[#EAF3FC] text-[#0B3B70] px-2.5 py-1 rounded border border-[#126FB8]/30">
               {v.condition === "NEW" ? "0km / Novo" : "Seminovo / Usado"}
             </span>
           </div>
@@ -655,10 +660,10 @@ function IdentifiedVehicleCard({
           </div>
 
           {result.outcome === "IDENTIFIED_WITH_ACTIVE_DEAL" ? (
-            <div className="mt-3 rounded-xl bg-[#EAF3FC] border border-[#1684D8]/40 p-3 text-xs text-[#0B3B70] flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <div className="mt-3 rounded-xl bg-[#EAF3FC] border border-[#126FB8]/40 p-3 text-xs text-[#0B3B70] flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
               <div>
                 <div className="font-bold flex items-center gap-1.5">
-                  <FileSpreadsheet className="h-4 w-4 text-[#1684D8]" />
+                  <FileSpreadsheet className="h-4 w-4 text-[#126FB8]" />
                   <span>
                     Negociação Ativa Vinculada: {result.activeDealNumber}
                   </span>
@@ -669,7 +674,7 @@ function IdentifiedVehicleCard({
               </div>
               <Link
                 href={result.nextStepUrl}
-                className="inline-flex items-center justify-center gap-2 rounded-lg bg-[#1684D8] hover:bg-[#126FB8] px-4 py-2.5 text-xs font-bold text-white shadow-sm shrink-0 transition"
+                className="inline-flex items-center justify-center gap-2 rounded-lg bg-[#126FB8] hover:bg-[#0B3B70] px-4 py-2.5 text-xs font-bold text-white shadow-sm shrink-0 transition"
               >
                 <span>{result.nextStepLabel}</span>
                 <ArrowRight className="h-4 w-4" />
@@ -697,7 +702,7 @@ function IdentifiedVehicleCard({
                 {result.canStartDeal && (
                   <Link
                     href={result.nextStepUrl}
-                    className="inline-flex items-center gap-1.5 rounded-lg bg-[#1684D8] hover:bg-[#126FB8] px-4 py-2 text-xs font-bold text-white transition"
+                    className="inline-flex items-center gap-1.5 rounded-lg bg-[#126FB8] hover:bg-[#0B3B70] px-4 py-2 text-xs font-bold text-white transition"
                   >
                     <PlusCircle className="h-4 w-4" />
                     <span>Iniciar Negociação</span>

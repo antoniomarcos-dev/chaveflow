@@ -4,6 +4,7 @@ import { AuthorizationError } from "@/domain/permissions";
 import { getServerSessionContext } from "@/lib/server-session";
 import { ShieldAlert } from "lucide-react";
 import Link from "next/link";
+import { redirect } from "next/navigation";
 
 export default async function CustomerDealDetailPage({
   params,
@@ -15,14 +16,16 @@ export default async function CustomerDealDetailPage({
   const { id } = await params;
   const sp = await searchParams;
   const ctx = await getServerSessionContext();
+  if (sp.token) {
+    redirect(`/cliente/convite/${encodeURIComponent(sp.token)}?dealId=${encodeURIComponent(id)}`);
+  }
 
   try {
     const view = await getCustomerSafeDealView({
       ctx,
       dealId: id,
-      accessToken: sp.token,
     });
-    return <CustomerPortalViewClient view={view} accessToken={sp.token} />;
+    return <CustomerPortalViewClient view={view} />;
   } catch (err) {
     const isAuthErr = err instanceof AuthorizationError;
     const message =

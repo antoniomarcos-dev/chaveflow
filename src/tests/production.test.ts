@@ -144,7 +144,12 @@ describe("Inicialização e segurança de produção", () => {
   it("preserva o estado anterior quando uma transação falha", async () => {
     await expect(
       withTransaction((db) => {
-        db.idempotencyKeys.push("must-not-persist");
+        db.idempotencyKeys.push({
+          key: "must-not-persist",
+          organizationId: "org",
+          dealId: "deal",
+          createdAt: new Date().toISOString(),
+        });
         throw new Error("rollback");
       }),
     ).rejects.toThrow("rollback");

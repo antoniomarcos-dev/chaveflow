@@ -8,6 +8,9 @@ import {
 import { AuthorizationError } from "@/domain/permissions";
 import { assertSameOriginRequest } from "@/lib/request-security";
 import { getServerSessionContext } from "@/lib/server-session";
+import { readJsonBody, strictBoolean, RequestPayloadError } from "@/lib/api-input";
+import { ResponsibleAreaSchema } from "@/domain/types";
+import { SupabaseInfrastructureError } from "@/infrastructure/supabase";
 import { NextRequest, NextResponse } from "next/server";
 
 export async function POST(req: NextRequest) {
@@ -21,7 +24,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const body = await req.json();
+    const body = await readJsonBody<Record<string, unknown>>(req);
     const action = body.action as string;
 
     if (action === "MARK_NOTIFICATION_READ") {
@@ -30,7 +33,7 @@ export async function POST(req: NextRequest) {
         notificationId: body.notificationId
           ? String(body.notificationId)
           : undefined,
-        markAll: Boolean(body.markAll),
+        markAll: strictBoolean(body.markAll),
       });
       return NextResponse.json({ ok: true });
     }
@@ -41,10 +44,12 @@ export async function POST(req: NextRequest) {
         procedureId: body.procedureId ? String(body.procedureId) : undefined,
         code: String(body.code || ""),
         title: String(body.title || ""),
-        responsibleArea: body.responsibleArea || "DOCUMENTATION",
+        responsibleArea: ResponsibleAreaSchema.parse(
+          body.responsibleArea || "DOCUMENTATION",
+        ),
         content: String(body.content || ""),
         sections: Array.isArray(body.sections) ? body.sections : [],
-        publishImmediately: Boolean(body.publishImmediately),
+        publishImmediately: strictBoolean(body.publishImmediately),
       });
       return NextResponse.json({ ok: true, ...res });
     }
@@ -87,6 +92,13 @@ export async function POST(req: NextRequest) {
     }
     const msg =
       err instanceof Error ? err.message : "Erro ao processar administração.";
+    if (err instanceof RequestPayloadError)
+      return NextResponse.json({ error: err.message }, { status: err.statusCode });
+    if (err instanceof SupabaseInfrastructureError)
+      return NextResponse.json(
+        { error: "Serviço temporariamente indisponível." },
+        { status: err.statusCode },
+      );
     return NextResponse.json({ error: msg }, { status: 400 });
   }
 }
